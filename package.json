@@ -1,0 +1,55 @@
+{
+  "name": "llm-tuner",
+  "version": "0.1.0",
+  "description": "Detecta tu hardware y encuentra la configuración más rápida para ejecutar LLMs locales con LM Studio u Ollama.",
+  "type": "module",
+  "main": "src/core/index.js",
+  "bin": {
+    "llm-tuner": "src/cli/index.js"
+  },
+  "scripts": {
+    "start": "node src/cli/index.js",
+    "web": "node src/web/server.js",
+    "desktop": "node electron/launch.js",
+    "dist": "electron-builder",
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.0.0",
+    "systeminformation": "^5.23.0"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0"
+  },
+  "build": {
+    "appId": "dev.llm-tuner.app",
+    "productName": "LLM Tuner",
+    "files": [
+      "src/**",
+      "electron/**",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    }
+  },
+  "license": "MIT",
+  "allowScripts": {
+    "electron@38.8.6": true
+  }
+}

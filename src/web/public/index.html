@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LLM Tuner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <strong>LLM Tuner</strong>
+        <small>carga tu modelo con la configuración más rápida</small>
+      </div>
+    </div>
+    <ol class="steps" id="steps">
+      <li data-step="engine" class="active">Motor</li>
+      <li data-step="model">Modelo y contexto</li>
+      <li data-step="load">Carga</li>
+    </ol>
+    <div class="hw-mini" id="hw-mini">Detectando hardware…</div>
+    <p class="rail-note">La configuración se decide con tu hardware, los metadatos del modelo y mediciones reales. El resultado se guarda como preset: solo se vuelve a medir si cambias el contexto.</p>
+  </aside>
+
+  <main>
+    <section id="sec-engine" class="panel">
+      <header><h2>¿Qué motor quieres usar?</h2></header>
+      <div id="engines" class="engines"></div>
+      <p class="muted small" id="engine-reason"></p>
+      <div id="install" hidden>
+        <label for="install-plan">Método de instalación</label>
+        <div class="row wrap">
+          <select id="install-plan"></select>
+          <button id="install-btn" class="btn primary" type="button">Instalar</button>
+        </div>
+        <pre id="install-log" class="log" hidden></pre>
+      </div>
+    </section>
+
+    <section id="sec-model" class="panel" hidden>
+      <header><h2>Modelo y contexto</h2><span class="pill" id="preset-pill" hidden></span></header>
+      <div class="row wrap">
+        <div class="field grow">
+          <label for="model">Modelo</label>
+          <select id="model"></select>
+        </div>
+        <div class="field">
+          <label for="ctx">Contexto (tokens)</label>
+          <input id="ctx" type="number" min="512" step="1024" value="16384">
+        </div>
+        <button id="load-btn" class="btn primary" type="button" disabled>Cargar</button>
+      </div>
+      <div id="ctx-chips" class="chips"></div>
+      <div id="model-meta" class="meta muted small"></div>
+      <div id="gpus" class="gpus"></div>
+      <label class="check"><input type="checkbox" id="force"> Volver a medir aunque exista un preset</label>
+    </section>
+
+    <section id="sec-load" class="panel" hidden>
+      <header><h2 id="load-title">Cargando</h2><span class="pill" id="load-status">en curso</span></header>
+      <div id="bench" hidden>
+        <p class="muted small">No hay preset para este contexto: se prueban varias configuraciones con tu hardware. Tarda unos minutos y solo ocurre una vez.</p>
+        <div class="table-wrap">
+          <table id="results">
+            <thead><tr><th>Configuración</th><th>Capas GPU</th><th class="num">Estimado</th><th class="num">Corto</th><th class="num">Con contexto</th><th class="num">CPU</th><th>VRAM pico</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <pre id="load-log" class="log"></pre>
+      <div id="load-result" class="result"></div>
+    </section>
+  </main>
+</div>
+<script src="app.js" type="module"></script>
+</body>
+</html>
