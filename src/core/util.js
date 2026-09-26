@@ -67,6 +67,15 @@ export function fmtBytes(b) {
 
 export const homeDir = () => os.homedir();
 
+/** Per-user config folder (presets, settings). LLM_TUNER_CONFIG_DIR overrides it (used by tests). */
+export function configDir() {
+  if (process.env.LLM_TUNER_CONFIG_DIR) return process.env.LLM_TUNER_CONFIG_DIR;
+  const base = PLATFORM === 'win32' ? (process.env.APPDATA || path.join(homeDir(), 'AppData', 'Roaming'))
+    : PLATFORM === 'darwin' ? path.join(homeDir(), 'Library', 'Application Support')
+    : (process.env.XDG_CONFIG_HOME || path.join(homeDir(), '.config'));
+  return path.join(base, 'llm-tuner');
+}
+
 /** Fetch JSON with timeout; returns null on network failure. */
 export async function fetchJson(url, { method = 'GET', body, timeout = 5000, headers = {} } = {}) {
   const ctl = new AbortController();

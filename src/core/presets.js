@@ -1,16 +1,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { PLATFORM, homeDir, readJson, GiB } from './util.js';
+import { configDir, readJson, GiB } from './util.js';
 
 // A preset stores the benchmark winner for (engine, model, context, hardware),
 // so the tuning scripts only run again when one of those changes.
 
 export function presetsDir() {
-  const base = PLATFORM === 'win32' ? (process.env.APPDATA || path.join(homeDir(), 'AppData', 'Roaming'))
-    : PLATFORM === 'darwin' ? path.join(homeDir(), 'Library', 'Application Support')
-    : (process.env.XDG_CONFIG_HOME || path.join(homeDir(), '.config'));
-  return path.join(base, 'llm-tuner', 'presets');
+  return path.join(configDir(), 'presets');
 }
 
 /** Identifies the hardware a preset was measured on (GPU models + VRAM + CPU). */
