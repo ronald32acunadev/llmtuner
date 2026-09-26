@@ -12,7 +12,7 @@
     "web": "node src/web/server.js",
     "desktop": "node electron/launch.js",
     "dist": "electron-builder",
-    "test": "node --test test/"
+    "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=20"
