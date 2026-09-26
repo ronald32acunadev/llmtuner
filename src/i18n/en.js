@@ -124,4 +124,7 @@ Presets are saved in {presetsDir}`,
   'cli.installMethod': 'Install method:',
   'cli.installNow': 'Install now?',
   'cli.installManual': 'Install the downloaded app and press Enter',
+
+  'errors.unknownInstallPlan': 'Unknown install plan',
+  'errors.loadInProgress': 'A load is already in progress',
 };

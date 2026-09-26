@@ -124,4 +124,7 @@ Los presets se guardan en {presetsDir}`,
   'cli.installMethod': 'Método de instalación:',
   'cli.installNow': '¿Instalar ahora?',
   'cli.installManual': 'Instala la app descargada y pulsa Enter',
+
+  'errors.unknownInstallPlan': 'Plan de instalación desconocido',
+  'errors.loadInProgress': 'Ya hay una carga en curso',
 };
