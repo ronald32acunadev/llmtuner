@@ -1,23 +1,23 @@
 # LLM Tuner
 
-App Node.js (Windows/macOS/Linux) que carga un LLM local en LM Studio u Ollama con la configuración más rápida para un contexto dado. Detecta el hardware, lee el GGUF, estima la memoria, mide las mejores opciones y guarda la ganadora como preset para no volver a medir. Tiene tres interfaces sobre un mismo núcleo: CLI, web y Electron.
+Node.js app (Windows/macOS/Linux) that loads a local LLM in LM Studio or Ollama with the fastest configuration for a given context. It detects the hardware, reads the GGUF, estimates the memory, measures the best options and saves the winner as a preset to avoid measuring again. It has three interfaces over the same core: CLI, web and Electron.
 
-**Lee `docs/PROYECTO.md` antes de cambiar nada.** Contiene la idea, el flujo de usuario acordado, la arquitectura, las fórmulas calibradas, los detalles internos de LM Studio y Ollama, las mediciones reales y los pendientes.
+**Read `docs/PROYECTO.md` before changing anything.** It contains the idea, the agreed user flow, the architecture, the calibrated formulas, the LM Studio and Ollama internal details, the real measurements and the pending items.
 
-## Reglas del proyecto
+## Project rules
 
-- Ningún LLM decide la configuración: todo es determinista (hardware + metadatos + fórmulas + mediciones reales).
-- Flujo de usuario: motor → modelo → contexto → **Cargar**. Si hay preset, aplicar y cargar; si no, medir, guardar el preset, aplicar y cargar. Solo se vuelve a medir si cambian el contexto, el hardware o el archivo del modelo.
-- La interfaz y los mensajes van en español; el código y los identificadores, en inglés.
-- Nunca escribir `hardware-config.json` de LM Studio con la app abierta. La config por modelo sí se puede escribir con la app abierta.
-- Guardar siempre una copia de seguridad antes de modificar archivos de configuración de los motores.
-- `src/core` no depende de ninguna interfaz; la CLI, la web y Electron solo consumen `Tuner` y sus eventos.
+- No LLM decides the configuration: everything is deterministic (hardware + metadata + formulas + real measurements).
+- User flow: engine → model → context → **Load**. If there's a preset, apply and load; if not, measure, save the preset, apply and load. It only measures again if the context, the hardware or the model file changes.
+- Code, identifiers and base strings are in English. Every user-facing string goes through `src/i18n` and must exist in both `en` and `es`. `src/core` emits codes, never translated text.
+- Never write LM Studio's `hardware-config.json` with the app open. The per-model config can be written with the app open.
+- Always save a backup before modifying the engines' config files.
+- `src/core` doesn't depend on any interface; the CLI, the web and Electron only consume `Tuner` and its events.
 
-## Comandos
+## Commands
 
 ```bash
 npm start        # CLI
 npm run web      # http://127.0.0.1:7860
 npm run desktop  # Electron
-npm test         # pruebas unitarias (incluyen mediciones reales como regresión)
+npm test         # unit tests (include real measurements as regression)
 ```
