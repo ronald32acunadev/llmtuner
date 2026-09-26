@@ -149,3 +149,5 @@ td .err { color: var(--bad); white-space: normal; }
 .result code { font: .8rem var(--mono); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
 .notice pre { margin: 8px 0 0; font: .8rem var(--mono); white-space: pre-wrap; }
 @media (max-width: 760px) { .hw-mini { display: none; } }
+.lang-switch { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.lang-switch select { width: auto; }
