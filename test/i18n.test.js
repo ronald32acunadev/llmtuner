@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { LOCALES, DEFAULT_LOCALE, normalizeLocale, format, CATALOGS, t, messagesFor, errorText } from '../src/i18n/index.js';
 import { TunerError, benchError } from '../src/core/errors.js';
 import { installPlans } from '../src/core/installer.js';
+import { Tuner } from '../src/core/tuner.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NAMESPACES = ['engine', 'status', 'errors', 'install', 'bench', 'changes', 'candidate', 'common', 'cli', 'web'];
@@ -77,6 +78,10 @@ test('every catalog key uses an allowed namespace', () => {
   for (const key of Object.keys(CATALOGS.en)) assert.ok(NAMESPACES.includes(key.split('.')[0]), key);
 });
 
+test('every catalog key matches the allowed key syntax', () => {
+  for (const key of Object.keys(CATALOGS.en)) assert.match(key, /^[a-z]+(\.[A-Za-z0-9_]+)+$/, key);
+});
+
 test('every key referenced in src/ exists in the English catalog', async () => {
   const missing = [];
   for (const file of await sourceFiles(path.join(ROOT, 'src'))) {
@@ -98,6 +103,10 @@ test('TunerError carries code, params and an English message', () => {
 
 test('benchError returns a failed result with code and English text', () => {
   assert.deepEqual(benchError('bench.oom'), { ok: false, errorCode: 'bench.oom', errorParams: {}, error: 'Not enough VRAM (OOM)' });
+});
+
+test('Tuner.create rejects an unknown engine with a translatable TunerError', async () => {
+  await assert.rejects(Tuner.create('nope'), (e) => e.name === 'TunerError' && e.code === 'errors.unknownEngine');
 });
 
 test('install plans carry a translatable labelCode', async () => {

@@ -14,7 +14,7 @@ No LLM decides the configuration. The app reads your hardware and the model's me
    - If there's a preset for that model, context and hardware, it's applied and the model is loaded (about 20 s).
    - If there isn't one, 3 configurations are tried (2–3 min), the best one is saved as a preset, applied and loaded.
 
-It only measures again when you change the context, the hardware changes (GPU, VRAM, CPU or PCIe link) or the model file changes. You can also force it with "Re-measure" or with `--force`.
+It only measures again when you change the context, the hardware changes (GPU, VRAM, CPU or PCIe link) or the model file changes. You can also force it with "Measure again even if a preset exists" or with `--force`.
 
 ## Usage
 

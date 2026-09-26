@@ -14,7 +14,7 @@ Ningún LLM decide la configuración. La app lee tu hardware y los metadatos del
    - Si hay un preset para ese modelo, contexto y hardware, se aplica y se carga el modelo (unos 20 s).
    - Si no lo hay, se prueban 3 configuraciones (2–3 min), se guarda la mejor como preset, se aplica y se carga.
 
-Solo se vuelve a medir cuando cambias el contexto, cambia el hardware (GPU, VRAM, CPU o enlace PCIe) o cambia el archivo del modelo. También puedes forzarlo con «Volver a medir» o con `--force`.
+Solo se vuelve a medir cuando cambias el contexto, cambia el hardware (GPU, VRAM, CPU o enlace PCIe) o cambia el archivo del modelo. También puedes forzarlo con «Volver a medir aunque exista un preset» o con `--force`.
 
 ## Uso
 

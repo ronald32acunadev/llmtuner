@@ -49,7 +49,7 @@ node src/cli/index.js --presets
 # other options: --force (re-measure), --dry-run, --candidates N, --json, --web, --lang <en|es>
 ```
 
-Requirements: Node ≥ 20. Dependencies: `systeminformation` and `@inquirer/prompts`; `electron` as a devDependency.
+Requirements: Node ≥ 22. Dependencies: `systeminformation` and `@inquirer/prompts`; `electron` as a devDependency.
 
 ---
 

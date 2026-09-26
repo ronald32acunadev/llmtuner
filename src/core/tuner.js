@@ -4,7 +4,7 @@ import { planCandidates, maxFullOffloadContext, KV_TYPES } from './estimator.js'
 import { findPreset, savePreset, presetPath } from './presets.js';
 import { lmstudio } from './engines/lmstudio.js';
 import { ollama } from './engines/ollama.js';
-import { TunerError } from './errors.js';
+import { TunerError, benchError } from './errors.js';
 
 export const ENGINES = { lmstudio, ollama };
 
@@ -54,6 +54,7 @@ export class Tuner extends EventEmitter {
   }
 
   static async create(engineId) {
+    if (!ENGINES[engineId]) throw new TunerError('errors.unknownEngine', { engine: engineId });
     const hw = await detectHardware();
     const detection = await ENGINES[engineId].detect();
     return new Tuner(engineId, detection, hw);
@@ -104,7 +105,7 @@ export class Tuner extends EventEmitter {
           onProgress: (p) => this.log('bench-progress', { index: i, ...p }),
         });
       } catch (err) {
-        bench = { ok: false, error: String(err.message || err) };
+        bench = err?.name === 'TunerError' ? benchError(err.code, err.params) : { ok: false, error: String(err.message || err) };
       }
       results.push({ candidate: c, bench });
       this.log('candidate-done', { index: i, candidate: slim(c), bench });

@@ -63,9 +63,16 @@ async function boot() {
   applyStatic();
   $('#lang').value = s.lang;
   $('#lang').onchange = async () => {
+    const prev = s.lang;
     setBusy(true);
-    await api('/api/settings', { lang: $('#lang').value });
-    location.reload();
+    try {
+      await api('/api/settings', { lang: $('#lang').value });
+      location.reload();
+    } catch (err) {
+      $('#lang').value = prev;
+      setBusy(false);
+      alert(t('common.error', { message: err.message }));
+    }
   };
   await init();
 }
@@ -75,6 +82,7 @@ async function init() {
   const s = await api('/api/state');
   state.hw = s.hw;
   state.engines = s.engines;
+  setBusy(s.busy);
   $('#hw-mini').innerHTML = `<div>${esc(s.hw.cpu.brand)}</div><div>${gb(s.hw.ram.totalBytes)} RAM</div>` +
     (s.hw.gpus.length ? s.hw.gpus.map((g) => `<div>GPU${g.index} ${esc(g.name.replace(/^NVIDIA GeForce /, ''))} · ${gb(g.totalBytes)}${g.pcieGen ? ` · PCIe ${g.pcieGen}.0 x${g.pcieWidth}` : ''}</div>`).join('') : `<div>${esc(t('web.noGpu'))}</div>`);
   $('#engine-reason').textContent = t(s.reasonCode, s.reasonParams);
