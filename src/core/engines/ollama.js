@@ -4,6 +4,7 @@ import path from 'node:path';
 import { run, which, exists, fetchJson, freePort, spawnLogged, killProcess, sleep, PLATFORM, homeDir, timestamp } from '../util.js';
 import { modelMetaFromFile } from '../gguf.js';
 import { runApiBenchmark } from '../benchmark.js';
+import { TunerError, benchError } from '../errors.js';
 
 const DEFAULT_HOST = '127.0.0.1:11434';
 
@@ -97,7 +98,7 @@ export const ollama = {
 
   async modelMeta(ctx, key) {
     const r = await fetchJson(`${ctx.detection.apiUrl}/api/show`, { method: 'POST', body: { model: key, verbose: true }, timeout: 30000 });
-    if (!r?.ok) throw new Error(`Ollama no reconoce el modelo ${key}`);
+    if (!r?.ok) throw new TunerError('errors.ollamaUnknownModel', { key });
     const from = r.json.modelfile?.match(/^FROM\s+(.+)$/m)?.[1]?.trim();
     if (from && (await exists(from))) {
       try { return { file: from, ...(await modelMetaFromFile(from)) }; } catch { /* unreadable blob */ }
@@ -146,7 +147,7 @@ export const ollama = {
       // Can't read the models: measure on the main server (its KV type/FA stay as configured).
       const res = await runApiBenchmark({ kind: 'ollama', baseUrl: ctx.detection.apiUrl, model: model.key, ollamaOptions: this.requestOptions(candidate), ...opts });
       await this.unloadAll(ctx.detection.apiUrl);
-      return { ...res, note: 'Medido en el servidor principal: el tipo de KV y Flash Attention son los que ya tenga configurados.' };
+      return { ...res, noteCode: 'bench.mainServerNote' };
     }
     const port = await freePort();
     const url = `http://127.0.0.1:${port}`;
@@ -158,13 +159,13 @@ export const ollama = {
         if ((await fetchJson(`${url}/api/version`, { timeout: 1000 }))?.ok) { up = true; break; }
         await sleep(500);
       }
-      if (!up) return { ok: false, error: `No pude iniciar un servidor Ollama de pruebas: ${proc.lines.slice(-2).join(' | ')}` };
+      if (!up) return benchError('bench.ollamaTestServerFailed', { detail: proc.lines.slice(-2).join(' | ') });
       const res = await runApiBenchmark({ kind: 'ollama', baseUrl: url, model: model.key, ollamaOptions: this.requestOptions(candidate), ...opts });
       // How much really landed on GPU (Ollama may silently fall back to CPU).
       const ps = await fetchJson(`${url}/api/ps`);
       const loaded = ps?.json?.models?.[0];
       if (loaded) res.offload = { sizeBytes: loaded.size, vramBytes: loaded.size_vram, full: loaded.size_vram >= loaded.size * 0.99 };
-      if (/out of memory|cudaMalloc failed/i.test(proc.lines.join('\n'))) { res.ok = false; res.oom = true; res.error = 'Sin VRAM suficiente (OOM)'; }
+      if (/out of memory|cudaMalloc failed/i.test(proc.lines.join('\n'))) Object.assign(res, benchError('bench.oom'), { oom: true });
       return res;
     } finally {
       await killProcess(proc.child);
@@ -195,25 +196,25 @@ export const ollama = {
     const dir = path.join(os.tmpdir(), `llm-tuner-${timestamp()}`);
     await fs.mkdir(dir, { recursive: true });
     if (skipIfApplied && (await this.isApplied(ctx, model, c))) {
-      result.changes.push(`El modelo ${name} ya existe; no se modifica`);
+      result.changes.push({ code: 'changes.ollamaExists', params: { name } });
       return result;
     }
     const mf = path.join(dir, 'Modelfile');
     await fs.writeFile(mf, result.modelfile);
     const r = await run(ctx.detection.bin, ['create', name, '-f', mf], { timeout: 300_000 });
-    if (r.code !== 0) throw new Error(`ollama create falló: ${(r.stderr || r.stdout).slice(-300)}`);
-    result.changes.push(`Modelo creado: ${name}`);
+    if (r.code !== 0) throw new Error(`ollama create failed: ${(r.stderr || r.stdout).slice(-300)}`);
+    result.changes.push({ code: 'changes.ollamaCreated', params: { name } });
 
     if (PLATFORM === 'win32') {
       for (const [k, v] of Object.entries(env)) await run('setx', [k, v]);
-      result.changes.push('Variables de entorno de usuario actualizadas (setx)');
+      result.changes.push({ code: 'changes.ollamaSetx' });
       await run('taskkill', ['/F', '/IM', 'ollama app.exe']);
       await run('taskkill', ['/F', '/IM', 'ollama.exe']);
       const app = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Ollama', 'ollama app.exe');
       if (await exists(app)) { const { spawn } = await import('node:child_process'); spawn(app, [], { detached: true, stdio: 'ignore' }).unref(); }
     } else if (PLATFORM === 'darwin') {
       for (const [k, v] of Object.entries(env)) await run('launchctl', ['setenv', k, v]);
-      result.changes.push('Variables aplicadas con launchctl (hasta el próximo reinicio; añade también a tu perfil si quieres que persistan)');
+      result.changes.push({ code: 'changes.ollamaLaunchctl' });
       await run('osascript', ['-e', 'quit app "Ollama"']);
       await sleep(2000);
       await run('open', ['-a', 'Ollama']);
@@ -231,7 +232,7 @@ export const ollama = {
         const ok = (await run('sudo', ['-n', 'true'])).code === 0;
         if (ok) {
           for (const cmd of cmds) { const [, ...rest] = cmd.split(' '); await run('sudo', ['-n', ...rest]); }
-          result.changes.push('Override de systemd instalado y Ollama reiniciado');
+          result.changes.push({ code: 'changes.ollamaSystemd' });
         } else result.pendingCommands.push(...cmds);
       } else result.pendingCommands.push(...cmds);
     } else {
@@ -252,7 +253,7 @@ export const ollama = {
     const name = this.tunedName(model.key, candidate);
     onProgress?.({ phase: 'load' });
     const warm = await fetchJson(`${ctx.detection.apiUrl}/api/generate`, { method: 'POST', body: { model: name, keep_alive: '30m' }, timeout: 600_000 });
-    if (!warm?.ok) return { ok: false, error: warm?.json?.error || 'No se pudo cargar el modelo' };
+    if (!warm?.ok) return warm?.json?.error ? { ok: false, error: warm.json.error } : benchError('bench.loadFailed');
     const res = await runApiBenchmark({ kind: 'ollama', baseUrl: ctx.detection.apiUrl, model: name, depthTokens, genTokens, onProgress, ollamaOptions: {} });
     return { ...res, model: name };
   },

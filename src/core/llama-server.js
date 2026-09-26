@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { spawnLogged, killProcess, freePort, fetchJson, sleep, PLATFORM } from './util.js';
 import { makeCodePrompt, withSampling } from './benchmark.js';
+import { benchError } from './errors.js';
 
 const LIB_ENV = { linux: 'LD_LIBRARY_PATH', darwin: 'DYLD_LIBRARY_PATH', win32: 'PATH' };
 
@@ -63,7 +64,9 @@ export async function runLlamaServerBenchmark({ server, libDirs, cwd, modelFile,
     if (!healthy) {
       const log = proc.lines.join('\n');
       const oom = /out of memory|cudaMalloc failed|failed to allocate|ErrorOutOfDeviceMemory/i.test(log);
-      return { ok: false, oom, error: oom ? 'Sin VRAM suficiente (OOM al cargar)' : lastError(proc.lines), args, logTail: proc.lines.slice(-15) };
+      return oom
+        ? { ...benchError('bench.oomOnLoad'), oom, args, logTail: proc.lines.slice(-15) }
+        : { ok: false, oom, error: lastError(proc.lines), args, logTail: proc.lines.slice(-15) };
     }
     const loadSeconds = +((Date.now() - t0) / 1000).toFixed(1);
 
@@ -100,5 +103,5 @@ export async function runLlamaServerBenchmark({ server, libDirs, cwd, modelFile,
 
 function lastError(lines) {
   const errs = lines.filter((l) => /\b(E|error|failed)\b/i.test(l));
-  return (errs.slice(-2).join(' | ') || lines.slice(-2).join(' | ') || 'llama-server terminó sin responder').slice(0, 400);
+  return (errs.slice(-2).join(' | ') || lines.slice(-2).join(' | ') || 'llama-server exited without responding').slice(0, 400);
 }

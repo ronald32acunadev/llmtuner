@@ -4,6 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LOCALES, DEFAULT_LOCALE, normalizeLocale, format, CATALOGS, t, messagesFor, errorText } from '../src/i18n/index.js';
+import { TunerError, benchError } from '../src/core/errors.js';
+import { installPlans } from '../src/core/installer.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NAMESPACES = ['engine', 'status', 'errors', 'install', 'bench', 'changes', 'candidate', 'common', 'cli', 'web'];
@@ -82,4 +84,27 @@ test('every key referenced in src/ exists in the English catalog', async () => {
     for (const m of text.matchAll(KEY_RE)) if (!(m[1] in CATALOGS.en)) missing.push(`${path.relative(ROOT, file)}: ${m[1]}`);
   }
   assert.deepEqual(missing, []);
+});
+
+test('TunerError carries code, params and an English message', () => {
+  const e = new TunerError('errors.unknownEngine', { engine: 'x' });
+  assert.ok(e instanceof Error);
+  assert.equal(e.name, 'TunerError');
+  assert.equal(e.code, 'errors.unknownEngine');
+  assert.deepEqual(e.params, { engine: 'x' });
+  assert.equal(e.message, 'Unknown engine: x');
+  assert.equal(errorText('es', e), 'Motor desconocido: x');
+});
+
+test('benchError returns a failed result with code and English text', () => {
+  assert.deepEqual(benchError('bench.oom'), { ok: false, errorCode: 'bench.oom', errorParams: {}, error: 'Not enough VRAM (OOM)' });
+});
+
+test('install plans carry a translatable labelCode', async () => {
+  for (const engine of ['ollama', 'lmstudio']) {
+    for (const p of await installPlans(engine)) {
+      assert.equal(p.label, undefined, p.id);
+      assert.ok(p.labelCode in CATALOGS.en, p.labelCode);
+    }
+  }
 });

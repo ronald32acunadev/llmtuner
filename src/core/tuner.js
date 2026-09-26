@@ -4,6 +4,7 @@ import { planCandidates, maxFullOffloadContext, KV_TYPES } from './estimator.js'
 import { findPreset, savePreset, presetPath } from './presets.js';
 import { lmstudio } from './engines/lmstudio.js';
 import { ollama } from './engines/ollama.js';
+import { TunerError } from './errors.js';
 
 export const ENGINES = { lmstudio, ollama };
 
@@ -17,23 +18,23 @@ export async function detectEngines(hw) {
   }
   const installed = out.filter((e) => e.detection.installed);
   let recommended = null;
-  let reason = '';
+  let reasonCode;
+  let reasonParams = {};
   if (installed.length === 1) {
     recommended = installed[0].id;
-    reason = `${installed[0].name} es el único instalado.`;
+    reasonCode = 'engine.reason.onlyInstalled';
+    reasonParams = { name: installed[0].name };
   } else if (installed.length === 2) {
     // LM Studio lets us fix KV type and GPU order per model and benchmarks the exact
     // binary it will run; Ollama makes those server-wide. Prefer LM Studio for multi-GPU.
     const multiGpu = (hw?.gpus?.length || 0) > 1;
     recommended = multiGpu ? 'lmstudio' : 'ollama';
-    reason = multiGpu
-      ? 'Tienes varias GPUs: LM Studio permite fijar el orden de GPUs y el tipo de KV por modelo.'
-      : 'Con una sola GPU ambos rinden igual; Ollama es más ligero y funciona como servicio.';
+    reasonCode = multiGpu ? 'engine.reason.multiGpu' : 'engine.reason.singleGpu';
   } else {
     recommended = (hw?.gpus?.length || 0) > 1 ? 'lmstudio' : 'ollama';
-    reason = 'No hay ningún motor instalado; se puede instalar automáticamente.';
+    reasonCode = 'engine.reason.noneInstalled';
   }
-  return { engines: out, recommended, reason };
+  return { engines: out, recommended, reasonCode, reasonParams };
 }
 
 /** Pick the winner: fastest deep-context decode, weighted by KV quality. */
@@ -47,7 +48,7 @@ export class Tuner extends EventEmitter {
   constructor(engineId, detection, hw) {
     super();
     this.engine = ENGINES[engineId];
-    if (!this.engine) throw new Error(`Motor desconocido: ${engineId}`);
+    if (!this.engine) throw new TunerError('errors.unknownEngine', { engine: engineId });
     this.ctx = { detection, hw };
     this.hw = hw;
   }
@@ -73,7 +74,7 @@ export class Tuner extends EventEmitter {
    */
   async plan(key, ctx, { unload = false } = {}) {
     if (unload) {
-      this.log('status', { message: 'Liberando VRAM (descargando modelos cargados)…' });
+      this.log('status', { code: 'status.freeingVram' });
       await this.engine.prepare(this.ctx);
       this.hw = this.ctx.hw = await detectHardware();
     }
@@ -86,7 +87,7 @@ export class Tuner extends EventEmitter {
 
   /** Estimate, benchmark the top candidates for real, and return a report. */
   async run(key, ctx, { maxCandidates = 3, depthFraction = 0.5, genTokens = 200 } = {}) {
-    this.log('status', { message: `Motor: ${this.engine.name}` });
+    this.log('status', { code: 'status.engine', params: { name: this.engine.name } });
     const { model, candidates, maxContext } = await this.plan(key, ctx, { unload: true });
     const model2 = { key, meta: model.meta };
     const toTest = candidates.slice(0, maxCandidates);
@@ -116,7 +117,7 @@ export class Tuner extends EventEmitter {
   }
 
   /**
-   * Main flow behind the "Cargar" button:
+   * Main flow behind the "Load" button:
    * preset for (model, ctx, hardware)? -> apply + load.
    * Otherwise benchmark -> save preset -> apply + load.
    */
@@ -133,10 +134,10 @@ export class Tuner extends EventEmitter {
       this.log('preset-hit', { preset: found.preset, file: presetPath(this.engine.id, key, ctx) });
     } else {
       source = 'benchmark';
-      const why = { none: 'No hay preset para este contexto', hardware: 'El hardware cambió desde el último preset', model: 'El archivo del modelo cambió', forced: 'Nueva medición solicitada' }[found.reason];
-      this.log('status', { message: `${why}: buscando la mejor configuración…` });
+      const code = { none: 'status.searchNone', hardware: 'status.searchHardware', model: 'status.searchModel', forced: 'status.searchForced' }[found.reason];
+      this.log('status', { code });
       report = await this.run(key, ctx, { maxCandidates, depthFraction });
-      if (!report.best) throw new Error('Ninguna configuración funcionó con este contexto. Prueba con uno menor.');
+      if (!report.best) throw new TunerError('errors.noConfigWorked');
       candidate = report.best.candidate;
       if (!dryRun) {
         const saved = await savePreset({ engine: this.engine.id, modelKey: key, ctx, hw: this.hw, modelBytes, best: report.best, results: this.lastReport.results });
@@ -149,12 +150,12 @@ export class Tuner extends EventEmitter {
     if (dryRun) return { source, candidate: slim(candidate), report, preview };
     if (!(await confirmApply(preview))) return { source, candidate: slim(candidate), report, preview, applied: false };
 
-    this.log('status', { message: 'Aplicando configuración…' });
+    this.log('status', { code: 'status.applying' });
     const applied = await this.engine.apply(this.ctx, modelObj, candidate, { useSudo: true, skipIfApplied: source === 'preset' });
     this.log('applied', { result: applied });
     if (applied.pendingCommands?.length) return { source, candidate: slim(candidate), report, applied, loaded: null };
 
-    this.log('status', { message: 'Cargando el modelo…' });
+    this.log('status', { code: 'status.loading' });
     this.ctx.detection = await this.engine.detect();
     const loaded = await this.engine.load(this.ctx, modelObj, { candidate, depthTokens: 0, genTokens: measure ? 200 : 1, onProgress: (p) => this.log('bench-progress', p) });
     this.log('loaded', { bench: loaded });

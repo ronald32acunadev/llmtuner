@@ -4,9 +4,9 @@ import { MiB } from './util.js';
 export const KV_TYPES = {
   // readCost: relative cost of reading the cache during decode. Q4_0 dequantization
   // in flash attention is much slower in practice (measured ~12x on RTX 50xx).
-  f16: { bytes: 2, quality: 1.0, readCost: 1, label: 'F16 (máxima calidad)' },
-  q8_0: { bytes: 34 / 32, quality: 0.99, readCost: 1, label: 'Q8_0 (casi sin pérdida)' },
-  q4_0: { bytes: 18 / 32, quality: 0.93, readCost: 12, label: 'Q4_0 (ahorra memoria, pierde precisión)' },
+  f16: { bytes: 2, quality: 1.0, readCost: 1, label: 'F16 (maximum quality)' },
+  q8_0: { bytes: 34 / 32, quality: 0.99, readCost: 1, label: 'Q8_0 (almost lossless)' },
+  q4_0: { bytes: 18 / 32, quality: 0.93, readCost: 12, label: 'Q4_0 (saves memory, loses precision)' },
 };
 
 // Calibrated on RTX 5070 x2 / Qwen2.5-Coder-32B: CUDA context + scratch per GPU.

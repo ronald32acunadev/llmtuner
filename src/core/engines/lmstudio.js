@@ -5,6 +5,7 @@ import { run, which, exists, readJson, writeJsonWithBackup, fetchJson, PLATFORM,
 import { modelMetaFromFile } from '../gguf.js';
 import { runLlamaServerBenchmark } from '../llama-server.js';
 import { runApiBenchmark } from '../benchmark.js';
+import { TunerError, benchError } from '../errors.js';
 
 // LM Studio internals used here were verified against LM Studio 0.4.x.
 // The per-model config and hardware-config formats are not public API.
@@ -79,7 +80,7 @@ export const lmstudio = {
 
   async modelMeta(ctx, key) {
     const file = await this.resolveModelFile(ctx, key);
-    if (!file) throw new Error(`No encuentro el archivo GGUF de ${key}`);
+    if (!file) throw new TunerError('errors.ggufNotFound', { key });
     return { file, ...(await modelMetaFromFile(file)) };
   },
 
@@ -246,19 +247,21 @@ export const lmstudio = {
     const changes = [];
     if (!hardwareOk) {
       if (det.appRunning) {
-        if (!closeApp) throw new Error('LM Studio está abierto; ciérralo antes de aplicar la configuración.');
+        if (!closeApp) throw new TunerError('errors.lmstudioOpen');
         await this.closeApp();
       }
       const b = await this.writeHardwareConfig(ctx, c);
       if (b.backup) backups.push(b.backup);
-      changes.push('Config de hardware actualizada (orden de GPUs y límite de VRAM)');
+      changes.push({ code: 'changes.lmsHardware' });
     }
     const a = await this.writeModelConfig(ctx, model.key, c);
     if (a.backup) backups.push(a.backup);
-    if (!a.unchanged) changes.push(`Config del modelo: ${c.ctx} tokens, KV ${c.kvType}, ${c.fullOffload ? 'todas las capas en GPU' : `${c.gpuLayers}/${c.totalLayers} capas en GPU`}, ${c.threads} hilos`);
+    if (!a.unchanged) changes.push(c.fullOffload
+      ? { code: 'changes.lmsModelFull', params: { ctx: c.ctx, kvType: c.kvType, threads: c.threads } }
+      : { code: 'changes.lmsModelPartial', params: { ctx: c.ctx, kvType: c.kvType, gpuLayers: c.gpuLayers, totalLayers: c.totalLayers, threads: c.threads } });
     if (!hardwareOk && relaunch && det.appRunning) {
       await this.launchApp(ctx);
-      changes.push('LM Studio reiniciado');
+      changes.push({ code: 'changes.lmsRestarted' });
     }
     return { ...plan, backups, changes };
   },
@@ -266,7 +269,7 @@ export const lmstudio = {
   /** Load the model the normal way (using the saved config) and optionally measure it. */
   async load(ctx, model, { depthTokens = 0, genTokens = 200, onProgress } = {}) {
     const bin = ctx.detection.bin;
-    if (!bin) return { ok: false, error: 'lms no disponible' };
+    if (!bin) return benchError('bench.lmsUnavailable');
     await run(bin, ['server', 'start']);
     await run(bin, ['unload', '--all']);
     onProgress?.({ phase: 'load' });
