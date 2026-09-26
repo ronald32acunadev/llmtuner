@@ -53,4 +53,75 @@ export default {
   'changes.ollamaSetx': 'User environment variables updated (setx)',
   'changes.ollamaLaunchctl': 'Variables set with launchctl (until the next reboot; also add them to your profile if you want them to persist)',
   'changes.ollamaSystemd': 'systemd override installed and Ollama restarted',
+
+  'errors.unknownLocale': 'Unknown language "{lang}". Valid values: {list}',
+  'errors.installNotFinished': 'The installation did not finish. Run llm-tuner again when it is done.',
+  'errors.modelDownloadFailed': 'Could not download the model',
+  'errors.noInstaller': 'There is no automatic installer for this system.',
+  'errors.installerExit': 'The installer exited with code {code}',
+
+  // Candidate description (CLI and web)
+  'candidate.allGpu': 'all on GPU',
+  'candidate.layersGpu': '{gpu}/{total} layers on GPU',
+  'candidate.expertsRam': ' · experts of {layers} layers in RAM',
+  'candidate.threads': ' · {n} threads',
+  'candidate.probe': ' · optimistic probe',
+
+  // Shared by CLI and web
+  'common.error': 'Error: {message}',
+  'common.na': 'n/a',
+  'common.longPrompt': 'long prompt (~{tokens} tokens)…',
+  'common.presetSaved': 'Preset saved: {file}',
+  'common.backups': 'Backups: {list}',
+
+  // CLI
+  'cli.help': `llm-tuner — load your local LLM with the fastest configuration for the context you need
+
+Usage: llm-tuner [options]
+  --engine <lmstudio|ollama>   Engine
+  --model <key>                Model (LM Studio key or Ollama name)
+  --ctx <tokens>               Context (e.g. 16384)
+  --force                      Measure again even if a preset exists
+  --candidates <n>             Configurations to test when measuring (3)
+  --yes                        Do not ask for confirmation
+  --dry-run                    Measure and show the changes without applying anything or saving a preset
+  --presets                    List saved presets
+  --json                       Final output as JSON
+  --web                        Open the web interface
+  --lang <en|es>               Interface language (saved for next time)
+
+Presets are saved in {presetsDir}`,
+  'cli.langNotSaved': 'Could not save the language preference: {error}',
+  'cli.noPresets': 'No saved presets.',
+  'cli.partial': 'partial',
+  'cli.display': ' · display',
+  'cli.noGpu': 'No compatible GPU: only the CPU will be used.',
+  'cli.whichEngine': 'Which engine do you want to use?',
+  'cli.installed': 'installed',
+  'cli.notInstalled': 'not installed · will be installed',
+  'cli.recommended': 'recommended',
+  'cli.noModels': '{engine} has no downloaded models.',
+  'cli.downloadOllama': 'Model to download (e.g. qwen2.5-coder:14b):',
+  'cli.downloadLms': 'Model to download (e.g. qwen/qwen2.5-coder-14b):',
+  'cli.model': 'Model:',
+  'cli.maxFullGpu': 'Maximum fully on GPU (estimated): {list} · trained up to {train}K',
+  'cli.tunedContexts': 'Contexts already tuned: {list}',
+  'cli.context': 'Context (tokens):',
+  'cli.contextRange': 'Between 512 and {limit}',
+  'cli.presetHit': 'Preset found ({date}): {config} · {tps} t/s measured. No need to measure again.',
+  'cli.benchShort': '{tps} short',
+  'cli.benchDeep': ' · {tps} with {tokens} tokens',
+  'cli.changes': 'Changes:',
+  'cli.lmsRestart': 'LM Studio will close and reopen to save the hardware config.',
+  'cli.ollamaNewModel': 'New model {name} with num_ctx/num_gpu/num_thread fixed',
+  'cli.ollamaServer': 'Ollama server: {env}',
+  'cli.confirmApply': 'Apply and load the model?',
+  'cli.dryRun': '--dry-run: nothing was applied and no preset was saved.',
+  'cli.pending': 'To finish, run (asks for the administrator password):',
+  'cli.loaded': 'Model loaded in {engine}: {tps}',
+  'cli.usesModel': ' (uses the model {model})',
+  'cli.loadFailed': 'Could not load: {error}',
+  'cli.installMethod': 'Install method:',
+  'cli.installNow': 'Install now?',
+  'cli.installManual': 'Install the downloaded app and press Enter',
 };
