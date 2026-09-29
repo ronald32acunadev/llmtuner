@@ -127,6 +127,7 @@ Presets are saved in {presetsDir}`,
 
   'errors.unknownInstallPlan': 'Unknown install plan',
   'errors.loadInProgress': 'A load is already in progress',
+  'errors.invalidChatRequest': 'Invalid chat request',
 
   // Web UI
   'web.tagline': 'load your model with the fastest configuration',
@@ -186,4 +187,10 @@ Presets are saved in {presetsDir}`,
   'web.usesModel': 'Uses the model',
   'web.pendingCommands': 'To finish, run in a terminal (asks for the administrator password):',
   'web.error': 'error',
+  'web.chatTitle': 'Test connection',
+  'web.chatSubtitle': 'Send a prompt to test model response',
+  'web.chatPlaceholder': 'Type a prompt to test…',
+  'web.chatSend': 'Send',
+  'web.chatThinking': 'Generating response…',
 };
+

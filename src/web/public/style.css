@@ -149,3 +149,19 @@ td .err { color: var(--bad); white-space: normal; }
 @media (max-width: 760px) { .hw-mini { display: none; } }
 .lang-switch { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .lang-switch select { width: auto; }
+
+/* Test chat box */
+.chat-box { margin-top: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
+.chat-header { padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--surface); display: flex; justify-content: space-between; align-items: center; }
+.chat-header strong { display: block; font-size: .92rem; }
+.chat-header small { font-size: .78rem; }
+.chat-messages { padding: 12px 14px; max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: .88rem; }
+.chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 8px; line-height: 1.45; word-break: break-word; white-space: pre-wrap; }
+.chat-msg.user { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 2px; }
+.chat-msg.assistant { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); color: var(--ink); border-bottom-left-radius: 2px; }
+.chat-msg.error { align-self: flex-start; background: color-mix(in srgb, var(--bad) 15%, transparent); border: 1px solid var(--bad); color: var(--bad); }
+.chat-msg.loading { align-self: flex-start; color: var(--muted); font-style: italic; background: transparent; padding: 4px 8px; }
+.chat-form { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--surface); }
+.chat-form input { flex: 1; min-width: 0; }
+.chat-form button { flex-shrink: 0; }
+

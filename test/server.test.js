@@ -1,5 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -49,3 +50,84 @@ test('only /i18n/core.js is served from src/i18n', async () => {
   assert.equal((await get('/i18n/en.js')).status, 404);
   assert.equal((await get('/i18n/../core/settings.js')).status, 404);
 });
+
+test('POST /api/chat rejects missing or invalid parameters', async () => {
+  for (const body of [{}, { engine: 'ollama' }, { engine: 'ollama', model: 'test' }, { engine: 'ollama', model: 'test', messages: [] }]) {
+    const r = await post('/api/chat', body);
+    assert.equal(r.status, 400);
+    const data = await r.json();
+    assert.equal(data.code, 'errors.invalidChatRequest');
+  }
+});
+
+test('POST /api/chat forwards messages to ollama and returns assistant reply', async () => {
+  let receivedBody = null;
+  const mockServer = http.createServer(async (req, res) => {
+    let buf = '';
+    for await (const chunk of req) buf += chunk;
+    if (buf) {
+      try { receivedBody = JSON.parse(buf); } catch {}
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    if (req.url === '/api/version') {
+      res.end(JSON.stringify({ version: '0.1.0' }));
+    } else {
+      res.end(JSON.stringify({ message: { role: 'assistant', content: 'Hello from mock Ollama!' } }));
+    }
+  });
+  await new Promise((r) => mockServer.listen(0, '127.0.0.1', r));
+  const mockPort = mockServer.address().port;
+  process.env.OLLAMA_HOST = `127.0.0.1:${mockPort}`;
+  try {
+    const r = await post('/api/chat', {
+      engine: 'ollama',
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'Hello!' }],
+    });
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.deepEqual(data, { message: { role: 'assistant', content: 'Hello from mock Ollama!' } });
+    assert.equal(receivedBody.model, 'test-model');
+    assert.deepEqual(receivedBody.messages, [{ role: 'user', content: 'Hello!' }]);
+  } finally {
+    mockServer.close();
+    delete process.env.OLLAMA_HOST;
+  }
+});
+
+test('POST /api/chat forwards messages to lmstudio and returns assistant reply', async () => {
+  let receivedBody = null;
+  const mockServer = http.createServer(async (req, res) => {
+    let buf = '';
+    for await (const chunk of req) buf += chunk;
+    if (buf) {
+      try { receivedBody = JSON.parse(buf); } catch {}
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    if (req.url === '/api/v0/models') {
+      res.end(JSON.stringify({ data: [] }));
+    } else {
+      res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'Hello from mock LM Studio!' } }] }));
+    }
+  });
+  await new Promise((r) => mockServer.listen(0, '127.0.0.1', r));
+  const mockPort = mockServer.address().port;
+  process.env.LM_STUDIO_HOST = `http://127.0.0.1:${mockPort}`;
+  try {
+    const r = await post('/api/chat', {
+      engine: 'lmstudio',
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'Hello LM Studio!' }],
+    });
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.deepEqual(data, { message: { role: 'assistant', content: 'Hello from mock LM Studio!' } });
+    assert.equal(receivedBody.model, 'test-model');
+    assert.deepEqual(receivedBody.messages, [{ role: 'user', content: 'Hello LM Studio!' }]);
+  } finally {
+    mockServer.close();
+    delete process.env.LM_STUDIO_HOST;
+  }
+});
+
+

@@ -69,6 +69,10 @@ export class Tuner extends EventEmitter {
     return { key, meta };
   }
 
+  chat(model, messages) {
+    return this.engine.chat(this.ctx, model, messages);
+  }
+
   /**
    * Estimate candidates for a context length. With `unload`, the engine's loaded
    * models are unloaded first so the free-VRAM snapshot is realistic.

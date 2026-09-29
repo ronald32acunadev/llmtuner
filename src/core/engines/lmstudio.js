@@ -26,6 +26,12 @@ async function lmsBin(home) {
 
 const APP_PROCESS = /^(lm studio|lm-studio|lmstudio)(\.exe)?$/i;
 
+function apiUrl() {
+  const h = process.env.LM_STUDIO_HOST;
+  if (!h) return 'http://127.0.0.1:1234';
+  return /^https?:\/\//.test(h) ? h.replace(/\/$/, '') : `http://${h}`.replace(/\/$/, '');
+}
+
 export const lmstudio = {
   id: 'lmstudio',
   name: 'LM Studio',
@@ -41,8 +47,9 @@ export const lmstudio = {
     if (hist) version = hist.lastUsedVersion || hist.version || JSON.stringify(hist).match(/\d+\.\d+\.\d+(?:[+-]\d+)?/)?.[0] || null;
     const procs = await si.processes().catch(() => ({ list: [] }));
     const appRunning = procs.list.some((p) => APP_PROCESS.test(p.name) && !/--type=/.test(p.params || ''));
-    const server = await fetchJson('http://127.0.0.1:1234/api/v0/models', { timeout: 1500 });
-    return { installed, home, bin, version, appRunning, serverRunning: !!server?.ok, apiUrl: 'http://127.0.0.1:1234' };
+    const url = apiUrl();
+    const server = await fetchJson(`${url}/api/v0/models`, { timeout: 1500 });
+    return { installed, home, bin, version, appRunning, serverRunning: !!server?.ok, apiUrl: url };
   },
 
   async listModels(ctx) {
@@ -275,9 +282,24 @@ export const lmstudio = {
     onProgress?.({ phase: 'load' });
     const r = await run(bin, ['load', model.key, '-y'], { timeout: 600_000 });
     if (r.code !== 0) return { ok: false, error: (r.stderr || r.stdout).slice(-400) };
-    return runApiBenchmark({ kind: 'lmstudio', baseUrl: 'http://127.0.0.1:1234', model: model.key, depthTokens, genTokens, onProgress });
+    const url = ctx.detection?.apiUrl || apiUrl();
+    return runApiBenchmark({ kind: 'lmstudio', baseUrl: url, model: model.key, depthTokens, genTokens, onProgress });
+  },
+
+  async chat(ctx, model, messages) {
+    const url = ctx.detection?.apiUrl || apiUrl();
+    const r = await fetchJson(`${url}/v1/chat/completions`, {
+      method: 'POST',
+      body: { model, messages, stream: false },
+      timeout: 120_000,
+    });
+    if (!r?.ok) throw new Error(r?.json?.error?.message || r?.json?.error || 'Failed to chat with LM Studio');
+    const msg = r.json.choices?.[0]?.message;
+    if (!msg) throw new Error('No response message from LM Studio');
+    return { message: msg };
   },
 };
+
 
 async function findFile(root, pred, depth) {
   if (depth < 0) return null;

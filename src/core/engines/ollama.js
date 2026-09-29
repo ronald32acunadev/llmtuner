@@ -257,4 +257,16 @@ export const ollama = {
     const res = await runApiBenchmark({ kind: 'ollama', baseUrl: ctx.detection.apiUrl, model: name, depthTokens, genTokens, onProgress, ollamaOptions: {} });
     return { ...res, model: name };
   },
+
+  async chat(ctx, model, messages) {
+    const url = ctx.detection?.apiUrl || baseUrl();
+    const r = await fetchJson(`${url}/api/chat`, {
+      method: 'POST',
+      body: { model, messages, stream: false },
+      timeout: 120_000,
+    });
+    if (!r?.ok) throw new Error(r?.json?.error || 'Failed to chat with Ollama');
+    return { message: r.json.message };
+  },
 };
+

@@ -127,6 +127,7 @@ Los presets se guardan en {presetsDir}`,
 
   'errors.unknownInstallPlan': 'Plan de instalación desconocido',
   'errors.loadInProgress': 'Ya hay una carga en curso',
+  'errors.invalidChatRequest': 'Solicitud de chat no válida',
 
   // Web UI
   'web.tagline': 'carga tu modelo con la configuración más rápida',
@@ -186,4 +187,10 @@ Los presets se guardan en {presetsDir}`,
   'web.usesModel': 'Usa el modelo',
   'web.pendingCommands': 'Para terminar, ejecuta en una terminal (pide contraseña de administrador):',
   'web.error': 'error',
+  'web.chatTitle': 'Probar conexión',
+  'web.chatSubtitle': 'Envía un mensaje para probar la respuesta del modelo',
+  'web.chatPlaceholder': 'Escribe un mensaje de prueba…',
+  'web.chatSend': 'Enviar',
+  'web.chatThinking': 'Generando respuesta…',
 };
+

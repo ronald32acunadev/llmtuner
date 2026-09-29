@@ -82,6 +82,19 @@
       </div>
       <pre id="load-log" class="log"></pre>
       <div id="load-result" class="result"></div>
+      <div id="chat-box" class="chat-box" hidden>
+        <div class="chat-header">
+          <div>
+            <strong data-i18n="web.chatTitle">Test connection</strong>
+            <small class="muted" data-i18n="web.chatSubtitle">Send a prompt to test model response</small>
+          </div>
+        </div>
+        <div id="chat-messages" class="chat-messages"></div>
+        <form id="chat-form" class="chat-form">
+          <input id="chat-input" type="text" autocomplete="off" data-i18n-placeholder="web.chatPlaceholder" placeholder="Type a prompt to test…">
+          <button id="chat-send" class="btn primary" type="submit" data-i18n="web.chatSend">Send</button>
+        </form>
+      </div>
     </section>
   </main>
 </div>

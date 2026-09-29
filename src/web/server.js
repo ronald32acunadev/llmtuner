@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { detectHardware, detectEngines, Tuner, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError } from '../core/index.js';
+import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError } from '../core/index.js';
 import { LOCALES, messagesFor } from '../i18n/index.js';
 import { openUrl } from '../core/installer.js';
 
@@ -104,7 +104,20 @@ const routes = {
       .finally(() => { busy = false; });
     return { jobId: job.id };
   },
+
+  'POST /api/chat': async (req) => {
+    const { engine, model, messages } = await body(req);
+    if (!engine || !model || !Array.isArray(messages) || messages.length === 0) {
+      throw new TunerError('errors.invalidChatRequest');
+    }
+    const e = ENGINES[engine];
+    if (!e) throw new TunerError('errors.unknownEngine', { engine });
+    const detection = await e.detect();
+    const tuner = new Tuner(engine, detection);
+    return tuner.chat(model, messages);
+  },
 };
+
 
 async function handler(req, res) {
   const url = new URL(req.url, 'http://localhost');

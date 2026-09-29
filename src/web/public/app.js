@@ -12,7 +12,7 @@ const t = (key, params) => format(messages[key] ?? key, params);
 const errText = (o, fallbackKey = 'bench.loadFailed') => (o?.code ? t(o.code, o.params) : o?.error || t(fallbackKey));
 const benchErr = (b) => (b.errorCode ? t(b.errorCode, b.errorParams) : b.error);
 
-const state = { hw: null, engines: [], engine: null, presets: [], meta: null };
+const state = { hw: null, engines: [], engine: null, presets: [], meta: null, loadedModel: null, chatMessages: [], chatBusy: false };
 
 async function api(path, body) {
   const res = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
@@ -51,7 +51,9 @@ function describe(c) {
 // ---------- Language ----------
 function applyStatic() {
   document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
 }
+
 
 // Changing the language reloads the page, so it is locked while a job runs.
 function setBusy(busy) { $('#lang').disabled = busy; }
@@ -229,6 +231,10 @@ $('#load-btn').onclick = async () => {
   status.className = 'pill';
   status.textContent = t('web.inProgress');
   $('#bench').hidden = true;
+  $('#chat-box').hidden = true;
+  $('#chat-messages').innerHTML = '';
+  state.loadedModel = null;
+  state.chatMessages = [];
   $('#load-result').innerHTML = '';
   const log = $('#load-log');
   log.textContent = '';
@@ -276,8 +282,12 @@ $('#load-btn').onclick = async () => {
     status.className = 'pill ok';
     status.textContent = r.source === 'preset' ? t('web.fromPreset') : t('web.measuredLoaded');
     let html = '';
-    if (r.loaded?.ok) html += `<div class="best"><div><span class="big">${r.loaded.short.genTps}</span> <span class="muted">tokens/s</span></div>
+    if (r.loaded?.ok) {
+      html += `<div class="best"><div><span class="big">${r.loaded.short.genTps}</span> <span class="muted">tokens/s</span></div>
       <div><b>${esc(describe(r.candidate))}</b> · ${esc(t('web.threadsCtx', { threads: r.candidate.threads, ctx: k(r.candidate.ctx) }))}${r.loaded.model ? `<br><span class="muted small">${esc(t('web.usesModel'))} <code>${esc(r.loaded.model)}</code></span>` : ''}</div></div>`;
+      state.loadedModel = r.loaded.model || model;
+      initChat();
+    }
     if (r.applied?.changes?.length) html += `<div class="muted small">${r.applied.changes.map((ch) => esc(t(ch.code, ch.params))).join('<br>')}</div>`;
     if (r.applied?.backups?.length) html += `<div class="muted small">${esc(t('common.backups', { list: r.applied.backups.join(', ') }))}</div>`;
     if (r.applied?.pendingCommands?.length) html += `<div class="notice warn">${esc(t('web.pendingCommands'))}<pre>${esc(r.applied.pendingCommands.join('\n'))}</pre></div>`;
@@ -288,6 +298,7 @@ $('#load-btn').onclick = async () => {
   } catch (err) {
     status.className = 'pill bad';
     status.textContent = t('web.error');
+    $('#chat-box').hidden = true;
     $('#load-result').innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
   } finally {
     $('#load-btn').disabled = false;
@@ -295,4 +306,64 @@ $('#load-btn').onclick = async () => {
   }
 };
 
+// ---------- Chat tester ----------
+function appendMessage(role, text) {
+  const container = $('#chat-messages');
+  const div = document.createElement('div');
+  div.className = `chat-msg ${role}`;
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+function initChat() {
+  $('#chat-box').hidden = false;
+  $('#chat-messages').innerHTML = '';
+  state.chatMessages = [];
+  const input = $('#chat-input');
+  input.value = '';
+  input.disabled = false;
+  $('#chat-send').disabled = false;
+  input.focus();
+}
+
+$('#chat-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const input = $('#chat-input');
+  const text = input.value.trim();
+  if (!text || !state.loadedModel || state.chatBusy) return;
+
+  state.chatBusy = true;
+  input.value = '';
+  input.disabled = true;
+  $('#chat-send').disabled = true;
+
+  appendMessage('user', text);
+  state.chatMessages.push({ role: 'user', content: text });
+
+  const loadingDiv = appendMessage('loading', t('web.chatThinking'));
+
+  try {
+    const res = await api('/api/chat', {
+      engine: state.engine.id,
+      model: state.loadedModel,
+      messages: state.chatMessages,
+    });
+    loadingDiv.remove();
+    const reply = res.message?.content || '';
+    appendMessage('assistant', reply);
+    state.chatMessages.push({ role: 'assistant', content: reply });
+  } catch (err) {
+    loadingDiv.remove();
+    appendMessage('error', err.message);
+  } finally {
+    state.chatBusy = false;
+    input.disabled = false;
+    $('#chat-send').disabled = false;
+    input.focus();
+  }
+};
+
 boot().catch((err) => { $('#hw-mini').textContent = `Error: ${err.message}`; });
+
