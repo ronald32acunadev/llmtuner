@@ -35,12 +35,14 @@
     "linux": {
       "target": [
         "AppImage"
-      ]
+      ],
+      "icon": "electron/icon.png"
     },
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "electron/icon.ico"
     },
     "mac": {
       "target": [

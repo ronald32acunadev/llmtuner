@@ -6,7 +6,7 @@ import { t as translate, LOCALES, errorText } from '../i18n/index.js';
 const args = parseArgs(process.argv.slice(2));
 const c = {
   b: (s) => `\x1b[1m${s}\x1b[0m`, dim: (s) => `\x1b[2m${s}\x1b[0m`, g: (s) => `\x1b[32m${s}\x1b[0m`,
-  y: (s) => `\x1b[33m${s}\x1b[0m`, r: (s) => `\x1b[31m${s}\x1b[0m`,
+  y: (s) => `\x1b[33m${s}\x1b[0m`, r: (s) => `\x1b[31m${s}\x1b[0m`, cyan: (s) => `\x1b[36m${s}\x1b[0m`,
 };
 
 let lang = (await readSettings()).lang;
@@ -41,7 +41,15 @@ if (args.web) {
 
 async function main() {
   const out = (...a) => { if (!args.json) console.log(...a); };
-  out(c.b('\n⚙  LLM Tuner'));
+  out([
+    '',
+    `  ${c.cyan('  ╭───')}${c.dim('╷ ╷ ╷')}${c.cyan('───╮')}`,
+    `  ${c.cyan('╭─┤  ')}${c.cyan('┌───┐')}${c.cyan('  ├─╮  ')}${c.b('LLM Tuner')}`,
+    `  ${c.cyan('│ ')}${c.dim('╶┤')}${c.b(' │ █ │ ')}${c.dim('├╴')}${c.cyan('▲ │  ')}${c.dim(t('web.tagline'))}`,
+    `  ${c.cyan('╰─┤  ')}${c.cyan('└───┘')}${c.cyan('  ├──╯')}`,
+    `  ${c.cyan('  ╰───')}${c.dim('╵ ╵ ╵')}${c.cyan('───╯')}`,
+    '',
+  ].join('\n'));
 
   const hw = await detectHardware();
   out(c.dim(`  ${hw.cpu.brand} · ${fmtBytes(hw.ram.totalBytes)} RAM`));
