@@ -1,0 +1,29 @@
+schema: spec-driven
+context: |
+  llmtuner: Node >=22 ESM app (no build step, no linter) that loads a local LLM in LM Studio/Ollama
+  with the fastest configuration, deterministic (hardware + GGUF + formulas + measurements), presets cached.
+  Layers: src/core (Tuner, engines, hardware/gguf/estimator, presets, i18n codes) <- src/cli, src/web (http+SSE), electron.
+  Rules: core never depends on interfaces; user-facing strings via src/i18n in en+es; core emits codes only;
+  backup engine configs before modifying; never write LM Studio hardware-config.json with app open.
+  See CLAUDE.md and docs/PROYECTO.md.
+strict_tdd: true
+projects:
+  - path: "."
+    stack: "JavaScript ESM, Node >=22, npm"
+    test_command: "npm test"
+testing:
+  runner: "node --test test/*.test.js"
+  framework: "node:test + node:assert"
+  layers: { unit: true, integration: false, e2e: false }
+  coverage: { available: false, command: "node --test --experimental-test-coverage test/*.test.js" }
+  quality: { linter: null, type_checker: null, formatter: null }
+  isolation: "LLM_TUNER_CONFIG_DIR for config; OLLAMA_HOST / LM_STUDIO_HOST to mock engines"
+  caveat: "A filtered test run (--test-name-pattern) was observed hanging >2min on Node v24.21.0; unresolved, possibly a test leaving a server open."
+rules:
+  proposal: ["State impact on src/core vs interfaces; keep core interface-independent"]
+  specs: ["User-facing strings need en and es entries in src/i18n"]
+  design: ["Deterministic only; no LLM-decided configuration"]
+  tasks: ["Tests first (strict TDD); keep tests with behavior"]
+  apply: ["Strict TDD: RED, GREEN, REFACTOR using npm test or node --test test/<file>.test.js"]
+  verify: ["Run npm test; beware hanging filtered runs"]
+  archive: ["Merge deltas into openspec/specs"]
