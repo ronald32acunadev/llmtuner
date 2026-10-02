@@ -112,6 +112,11 @@ function setupDrawer() {
       close();
     }
   });
+
+  if (location.hash === '#settings') open();
+  window.addEventListener('hashchange', () => {
+    if (location.hash === '#settings') open();
+  });
 }
 
 // Changing the language reloads the page, so it is locked while a job runs.
