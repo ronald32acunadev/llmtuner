@@ -55,6 +55,7 @@ export default {
   'changes.ollamaSystemd': 'Override de systemd instalado y Ollama reiniciado',
 
   'errors.unknownLocale': 'Idioma desconocido "{lang}". Valores válidos: {list}',
+  'errors.unknownTheme': 'Tema desconocido "{theme}". Valores válidos: {list}',
   'errors.installNotFinished': 'La instalación no terminó. Vuelve a ejecutar llm-tuner cuando acabe.',
   'errors.modelDownloadFailed': 'No se pudo descargar el modelo',
   'errors.noInstaller': 'No hay un instalador automático para este sistema.',

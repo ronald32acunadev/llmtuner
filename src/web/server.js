@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError } from '../core/index.js';
+import { THEMES } from '../core/settings.js';
 import { LOCALES, messagesFor } from '../i18n/index.js';
 import { openUrl } from '../core/installer.js';
 
@@ -43,12 +44,21 @@ function send(res, status, obj) {
 }
 
 const routes = {
-  'GET /api/settings': async () => ({ ...(await readSettings()), locales: LOCALES }),
+  'GET /api/settings': async () => ({ ...(await readSettings()), locales: LOCALES, themes: THEMES }),
 
   'POST /api/settings': async (req) => {
-    const { lang } = await body(req);
-    if (!LOCALES.includes(lang)) throw new TunerError('errors.unknownLocale', { lang: String(lang ?? ''), list: LOCALES.join(', ') });
-    return { ...(await writeSettings({ lang })), locales: LOCALES };
+    const payload = await body(req);
+    if (payload?.lang === undefined && payload?.theme === undefined) throw new TunerError('errors.unknownLocale', { lang: '', list: LOCALES.join(', ') });
+    const patch = {};
+    if (payload.lang !== undefined) {
+      if (!LOCALES.includes(payload.lang)) throw new TunerError('errors.unknownLocale', { lang: String(payload.lang ?? ''), list: LOCALES.join(', ') });
+      patch.lang = payload.lang;
+    }
+    if (payload.theme !== undefined) {
+      if (!THEMES.includes(payload.theme)) throw new TunerError('errors.unknownTheme', { theme: String(payload.theme ?? ''), list: THEMES.join(', ') });
+      patch.theme = payload.theme;
+    }
+    return { ...(await writeSettings(patch)), locales: LOCALES, themes: THEMES };
   },
 
   'GET /api/state': async () => {

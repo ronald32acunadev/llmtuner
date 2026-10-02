@@ -15,11 +15,11 @@ after(() => server.close());
 const get = (p) => fetch(url + p);
 const post = (p, body) => fetch(url + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? '' : JSON.stringify(body) });
 
-test('settings default to English and can be changed', async () => {
-  assert.deepEqual(await (await get('/api/settings')).json(), { lang: 'en', locales: ['en', 'es'] });
+test('settings default to English and system theme and can be changed', async () => {
+  assert.deepEqual(await (await get('/api/settings')).json(), { lang: 'en', theme: 'system', locales: ['en', 'es'], themes: ['system', 'light', 'dark'] });
   const r = await post('/api/settings', { lang: 'es' });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { lang: 'es', locales: ['en', 'es'] });
+  assert.deepEqual(await r.json(), { lang: 'es', theme: 'system', locales: ['en', 'es'], themes: ['system', 'light', 'dark'] });
   assert.equal((await (await get('/api/settings')).json()).lang, 'es');
   await post('/api/settings', { lang: 'en' });
 });
@@ -33,6 +33,23 @@ test('an unknown or missing language is rejected and nothing changes', async () 
     assert.match(data.error, /Unknown language/);
   }
   assert.equal((await (await get('/api/settings')).json()).lang, 'en');
+});
+
+test('theme can be changed via POST /api/settings', async () => {
+  const r = await post('/api/settings', { theme: 'dark' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { lang: 'en', theme: 'dark', locales: ['en', 'es'], themes: ['system', 'light', 'dark'] });
+  assert.equal((await (await get('/api/settings')).json()).theme, 'dark');
+  await post('/api/settings', { theme: 'system' });
+});
+
+test('an unknown theme is rejected with errors.unknownTheme and nothing changes', async () => {
+  const r = await post('/api/settings', { theme: 'invalid' });
+  assert.equal(r.status, 400);
+  const data = await r.json();
+  assert.equal(data.code, 'errors.unknownTheme');
+  assert.match(data.error, /Unknown theme/);
+  assert.equal((await (await get('/api/settings')).json()).theme, 'system');
 });
 
 test('catalog endpoint merges English under the locale', async () => {
