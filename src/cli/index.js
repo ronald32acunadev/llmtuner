@@ -23,14 +23,14 @@ if ('theme' in args) {
   try { await writeSettings({ theme }); } catch (e) { console.error(c.y(t('cli.themeNotSaved', { error: e.message }))); }
 }
 
-const isLight = theme === 'light';
+const isLight = () => theme === 'light';
 const c = {
   b: (s) => `\x1b[1m${s}\x1b[0m`,
-  dim: (s) => isLight ? `\x1b[90m${s}\x1b[0m` : `\x1b[2m${s}\x1b[0m`,
-  g: (s) => isLight ? `\x1b[32m${s}\x1b[0m` : `\x1b[92m${s}\x1b[0m`,
-  y: (s) => isLight ? `\x1b[33m${s}\x1b[0m` : `\x1b[93m${s}\x1b[0m`,
-  r: (s) => isLight ? `\x1b[31m${s}\x1b[0m` : `\x1b[91m${s}\x1b[0m`,
-  cyan: (s) => isLight ? `\x1b[36m${s}\x1b[0m` : `\x1b[96m${s}\x1b[0m`,
+  dim: (s) => isLight() ? `\x1b[90m${s}\x1b[0m` : `\x1b[2m${s}\x1b[0m`,
+  g: (s) => isLight() ? `\x1b[32m${s}\x1b[0m` : `\x1b[92m${s}\x1b[0m`,
+  y: (s) => isLight() ? `\x1b[33m${s}\x1b[0m` : `\x1b[93m${s}\x1b[0m`,
+  r: (s) => isLight() ? `\x1b[31m${s}\x1b[0m` : `\x1b[91m${s}\x1b[0m`,
+  cyan: (s) => isLight() ? `\x1b[36m${s}\x1b[0m` : `\x1b[96m${s}\x1b[0m`,
 };
 
 if (args.help) {
@@ -38,7 +38,16 @@ if (args.help) {
   process.exit(0);
 }
 
-if (args.web) {
+if (args.settings) {
+  try {
+    await settingsFlow();
+    process.exit(0);
+  } catch (e) {
+    if (e?.name === 'ExitPromptError') process.exit(130);
+    console.error(c.r(`\n${t('common.error', { message: errorText(lang, e) })}`));
+    process.exit(1);
+  }
+} else if (args.web) {
   await import('../web/server.js').then((m) => m.startServer({ open: true }));
 } else if (args.presets) {
   const list = await listPresets({ engine: args.engine, modelKey: args.model });
@@ -50,6 +59,53 @@ if (args.web) {
     console.error(c.r(`\n${t('common.error', { message: errorText(lang, e) })}`));
     process.exit(1);
   });
+}
+
+async function settingsFlow() {
+  while (true) {
+    const action = await select({
+      message: t('cli.settingsMenu'),
+      choices: [
+        { name: `${t('cli.settingsLanguage')}: ${lang === 'es' ? 'Español' : 'English'} (${lang})`, value: 'lang' },
+        { name: `${t('cli.settingsTheme')}: ${theme.charAt(0).toUpperCase() + theme.slice(1)}`, value: 'theme' },
+        { name: t('cli.settingsExit'), value: 'exit' },
+      ],
+    });
+
+    if (action === 'lang') {
+      lang = await select({
+        message: t('cli.settingsLanguage'),
+        default: lang,
+        choices: [
+          { name: 'English', value: 'en' },
+          { name: 'Español', value: 'es' },
+        ],
+      });
+      try {
+        await writeSettings({ lang });
+      } catch (e) {
+        console.error(c.y(t('cli.langNotSaved', { error: e.message })));
+      }
+    } else if (action === 'theme') {
+      theme = await select({
+        message: t('cli.settingsTheme'),
+        default: theme,
+        choices: [
+          { name: 'System', value: 'system' },
+          { name: 'Light', value: 'light' },
+          { name: 'Dark', value: 'dark' },
+        ],
+      });
+      try {
+        await writeSettings({ theme });
+      } catch (e) {
+        console.error(c.y(t('cli.themeNotSaved', { error: e.message })));
+      }
+    } else if (action === 'exit') {
+      console.log(c.g(t('cli.settingsSaved')));
+      break;
+    }
+  }
 }
 
 async function main() {
@@ -192,13 +248,15 @@ function vramStr(peaks = {}) {
 }
 
 function parseArgs(argv) {
-  const flags = new Set(['help', 'yes', 'dry-run', 'json', 'web', 'force', 'presets']);
+  const flags = new Set(['help', 'yes', 'dry-run', 'json', 'web', 'force', 'presets', 'settings']);
   const o = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-h') o.help = true;
+    if (a === '/settings' || a === '/setting' || a === 'settings') o.settings = true;
     if (!a.startsWith('--')) continue;
     const k = a.slice(2);
+    if (k === 'setting') { o.settings = true; continue; }
     o[k] = flags.has(k) ? true : argv[++i];
   }
   return o;
