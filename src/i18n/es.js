@@ -193,5 +193,9 @@ Los presets se guardan en {presetsDir}`,
   'web.chatPlaceholder': 'Escribe un mensaje de prueba…',
   'web.chatSend': 'Enviar',
   'web.chatThinking': 'Generando respuesta…',
+  'web.theme': 'Tema',
+  'web.themeSystem': 'Sistema',
+  'web.themeLight': 'Claro',
+  'web.themeDark': 'Oscuro',
 };
 

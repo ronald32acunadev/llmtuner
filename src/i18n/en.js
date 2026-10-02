@@ -193,5 +193,9 @@ Presets are saved in {presetsDir}`,
   'web.chatPlaceholder': 'Type a prompt to test…',
   'web.chatSend': 'Send',
   'web.chatThinking': 'Generating response…',
+  'web.theme': 'Theme',
+  'web.themeSystem': 'System',
+  'web.themeLight': 'Light',
+  'web.themeDark': 'Dark',
 };
 

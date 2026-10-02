@@ -55,11 +55,23 @@ function applyStatic() {
 }
 
 
+function applyTheme(theme) {
+  if (theme === 'system') {
+    delete document.documentElement.dataset.theme;
+  } else {
+    document.documentElement.dataset.theme = theme;
+  }
+}
+
 // Changing the language reloads the page, so it is locked while a job runs.
-function setBusy(busy) { $('#lang').disabled = busy; }
+function setBusy(busy) {
+  $('#lang').disabled = busy;
+  $('#theme').disabled = busy;
+}
 
 async function boot() {
   const s = await api('/api/settings');
+  applyTheme(s.theme);
   ({ messages } = await api(`/api/i18n/${s.lang}`));
   document.documentElement.lang = s.lang;
   applyStatic();
@@ -73,6 +85,20 @@ async function boot() {
     } catch (err) {
       $('#lang').value = prev;
       setBusy(false);
+      alert(t('common.error', { message: err.message }));
+    }
+  };
+  $('#theme').value = s.theme;
+  $('#theme').onchange = async () => {
+    const prev = s.theme;
+    const next = $('#theme').value;
+    applyTheme(next);
+    try {
+      await api('/api/settings', { theme: next });
+      s.theme = next;
+    } catch (err) {
+      $('#theme').value = prev;
+      applyTheme(prev);
       alert(t('common.error', { message: err.message }));
     }
   };
