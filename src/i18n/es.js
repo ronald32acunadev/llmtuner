@@ -90,9 +90,11 @@ Uso: llm-tuner [opciones]
   --json                       Salida final en JSON
   --web                        Abrir la interfaz web
   --lang <en|es>               Idioma de la interfaz (se guarda para la próxima vez)
+  --theme <system|light|dark>  Tema de la interfaz (se guarda para la próxima)
 
 Los presets se guardan en {presetsDir}`,
   'cli.langNotSaved': 'No se pudo guardar la preferencia de idioma: {error}',
+  'cli.themeNotSaved': 'No se pudo guardar la preferencia de tema: {error}',
   'cli.noPresets': 'No hay presets guardados.',
   'cli.partial': 'parcial',
   'cli.display': ' · pantalla',

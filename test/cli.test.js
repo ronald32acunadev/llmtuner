@@ -18,6 +18,7 @@ test('help is in English by default', () => {
   assert.equal(r.status, 0);
   assert.match(r.stdout, /Usage: llm-tuner/);
   assert.match(r.stdout, /--lang <en\|es>/);
+  assert.match(r.stdout, /--theme <system\|light\|dark>/);
 });
 
 test('--lang es switches to Spanish and is remembered', async () => {
@@ -35,6 +36,24 @@ test('an unknown or missing --lang fails in English and saves nothing', async ()
     assert.equal(r.status, 1, args.join(' '));
     assert.match(r.stderr, /Unknown language/);
     assert.match(r.stderr, /en, es/);
+    await assert.rejects(fs.access(settings));
+  }
+});
+
+test('--theme dark switches theme and is remembered', async () => {
+  const r = cli('--theme', 'dark', '--help');
+  assert.equal(r.status, 0);
+  assert.equal(JSON.parse(await fs.readFile(settings, 'utf8')).theme, 'dark');
+  cli('--theme', 'light', '--help');
+  assert.equal(JSON.parse(await fs.readFile(settings, 'utf8')).theme, 'light');
+});
+
+test('an unknown or missing --theme fails and saves nothing', async () => {
+  for (const args of [['--theme', 'neon', '--help'], ['--help', '--theme']]) {
+    const r = cli(...args);
+    assert.equal(r.status, 1, args.join(' '));
+    assert.match(r.stderr, /Unknown theme/);
+    assert.match(r.stderr, /system, light, dark/);
     await assert.rejects(fs.access(settings));
   }
 });

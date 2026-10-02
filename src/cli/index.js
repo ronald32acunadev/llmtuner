@@ -1,15 +1,10 @@
 #!/usr/bin/env node
 import { select, input, confirm, search } from '@inquirer/prompts';
-import { detectHardware, detectEngines, Tuner, installPlans, runInstall, listPresets, presetsDir, fmtBytes, readSettings, writeSettings, TunerError } from '../core/index.js';
+import { detectHardware, detectEngines, Tuner, installPlans, runInstall, listPresets, presetsDir, fmtBytes, readSettings, writeSettings, THEMES, TunerError } from '../core/index.js';
 import { t as translate, LOCALES, errorText } from '../i18n/index.js';
 
 const args = parseArgs(process.argv.slice(2));
-const c = {
-  b: (s) => `\x1b[1m${s}\x1b[0m`, dim: (s) => `\x1b[2m${s}\x1b[0m`, g: (s) => `\x1b[32m${s}\x1b[0m`,
-  y: (s) => `\x1b[33m${s}\x1b[0m`, r: (s) => `\x1b[31m${s}\x1b[0m`, cyan: (s) => `\x1b[36m${s}\x1b[0m`,
-};
-
-let lang = (await readSettings()).lang;
+let { lang, theme } = await readSettings();
 const t = (key, params) => translate(lang, key, params);
 if ('lang' in args) {
   if (!LOCALES.includes(args.lang)) {
@@ -19,6 +14,24 @@ if ('lang' in args) {
   lang = args.lang;
   try { await writeSettings({ lang }); } catch (e) { console.error(c.y(t('cli.langNotSaved', { error: e.message }))); }
 }
+if ('theme' in args) {
+  if (!THEMES.includes(args.theme)) {
+    console.error(translate(lang, 'errors.unknownTheme', { theme: args.theme ?? '', list: THEMES.join(', ') }));
+    process.exit(1);
+  }
+  theme = args.theme;
+  try { await writeSettings({ theme }); } catch (e) { console.error(c.y(t('cli.themeNotSaved', { error: e.message }))); }
+}
+
+const isLight = theme === 'light';
+const c = {
+  b: (s) => `\x1b[1m${s}\x1b[0m`,
+  dim: (s) => isLight ? `\x1b[90m${s}\x1b[0m` : `\x1b[2m${s}\x1b[0m`,
+  g: (s) => isLight ? `\x1b[32m${s}\x1b[0m` : `\x1b[92m${s}\x1b[0m`,
+  y: (s) => isLight ? `\x1b[33m${s}\x1b[0m` : `\x1b[93m${s}\x1b[0m`,
+  r: (s) => isLight ? `\x1b[31m${s}\x1b[0m` : `\x1b[91m${s}\x1b[0m`,
+  cyan: (s) => isLight ? `\x1b[36m${s}\x1b[0m` : `\x1b[96m${s}\x1b[0m`,
+};
 
 if (args.help) {
   console.log(t('cli.help', { presetsDir: presetsDir() }));

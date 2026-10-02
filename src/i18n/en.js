@@ -90,9 +90,11 @@ Usage: llm-tuner [options]
   --json                       Final output as JSON
   --web                        Open the web interface
   --lang <en|es>               Interface language (saved for next time)
+  --theme <system|light|dark>  Interface theme (saved for next time)
 
 Presets are saved in {presetsDir}`,
   'cli.langNotSaved': 'Could not save the language preference: {error}',
+  'cli.themeNotSaved': 'Could not save the theme preference: {error}',
   'cli.noPresets': 'No saved presets.',
   'cli.partial': 'partial',
   'cli.display': ' · display',
