@@ -12,6 +12,7 @@ Node.js app (Windows/macOS/Linux) that loads a local LLM in LM Studio or Ollama 
 
 - No LLM decides the configuration: everything is deterministic (hardware + metadata + formulas + real measurements).
 - User flow: engine → model → context → **Load**. If there's a preset, apply and load; if not, measure, save the preset, apply and load. It only measures again if the context, the hardware or the model file changes.
+- All code, comments, documentation (`docs/`, `odd/`, READMEs) and commit messages are written in English. Translations are the only exception: the `es` i18n catalog, tests that assert its strings, and translated user docs such as `README.es.md`.
 - Code, identifiers and base strings are in English. Every user-facing string goes through `src/i18n` and must exist in both `en` and `es`. `src/core` emits codes (`code`, `reasonCode`, `labelCode`, `errorCode`, `noteCode`, `TunerError(code, params)`), never translated text.
 - Never write LM Studio's `hardware-config.json` with the app open. The per-model config can be written with the app open.
 - Always save a backup (`*.bak-llm-tuner-*`) before modifying the engines' config files.
