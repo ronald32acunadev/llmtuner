@@ -63,6 +63,57 @@ function applyTheme(theme) {
   }
 }
 
+function setupDrawer() {
+  const openBtn = $('#settings-open');
+  const closeBtn = $('#settings-close');
+  const drawer = $('#settings-drawer');
+  const backdrop = $('#settings-backdrop');
+  if (!openBtn || !closeBtn || !drawer || !backdrop) return;
+
+  let closing = false;
+
+  function open() {
+    backdrop.hidden = false;
+    drawer.hidden = false;
+    void drawer.offsetWidth;
+    backdrop.classList.add('open');
+    drawer.classList.add('open');
+    openBtn.setAttribute('aria-expanded', 'true');
+    closeBtn.focus();
+  }
+
+  function close() {
+    if (drawer.hidden || closing) return;
+    closing = true;
+    backdrop.classList.remove('open');
+    drawer.classList.remove('open');
+    openBtn.setAttribute('aria-expanded', 'false');
+
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      backdrop.hidden = true;
+      drawer.hidden = true;
+      closing = false;
+      openBtn.focus();
+    };
+
+    drawer.addEventListener('transitionend', finish, { once: true });
+    setTimeout(finish, 300);
+  }
+
+  openBtn.onclick = open;
+  closeBtn.onclick = close;
+  backdrop.onclick = close;
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !drawer.hidden && !closing) {
+      close();
+    }
+  });
+}
+
 // Changing the language reloads the page, so it is locked while a job runs.
 function setBusy(busy) {
   $('#lang').disabled = busy;
@@ -75,6 +126,7 @@ async function boot() {
   ({ messages } = await api(`/api/i18n/${s.lang}`));
   document.documentElement.lang = s.lang;
   applyStatic();
+  setupDrawer();
   $('#lang').value = s.lang;
   $('#lang').onchange = async () => {
     const prev = s.lang;

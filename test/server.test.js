@@ -150,17 +150,23 @@ test('POST /api/chat forwards messages to lmstudio and returns assistant reply',
 test('web UI serves index.html with theme switch and style.css with theme tokens', async () => {
   const html = await (await get('/')).text();
   assert.match(html, /id="theme"/);
-  assert.match(html, /class="theme-switch"/);
+  assert.match(html, /class="[^"]*\btheme-switch\b[^"]*"/);
   assert.match(html, /data-i18n="web\.theme"/);
+  assert.match(html, /id="settings-open"/);
+  assert.match(html, /id="settings-drawer"/);
+  assert.match(html, /id="settings-backdrop"/);
 
   const css = await (await get('/style.css')).text();
   assert.match(css, /--accent:\s*#00e5ff/);
   assert.match(css, /--accent:\s*#0284c7/);
   assert.match(css, /\.theme-switch/);
+  assert.match(css, /\.settings-trigger/);
+  assert.match(css, /\.drawer/);
 
   const js = await (await get('/app.js')).text();
   assert.match(js, /applyTheme/);
   assert.match(js, /#theme/);
+  assert.match(js, /setupDrawer/);
 });
 
 

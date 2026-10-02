@@ -19,21 +19,10 @@
         <small data-i18n="web.tagline">load your model with the fastest configuration</small>
       </div>
     </div>
-    <label class="lang-switch">
-      <span data-i18n="web.language">Language</span>
-      <select id="lang">
-        <option value="en">English</option>
-        <option value="es">Español</option>
-      </select>
-    </label>
-    <label class="theme-switch">
-      <span data-i18n="web.theme">Theme</span>
-      <select id="theme">
-        <option value="system" data-i18n="web.themeSystem">System</option>
-        <option value="light" data-i18n="web.themeLight">Light</option>
-        <option value="dark" data-i18n="web.themeDark">Dark</option>
-      </select>
-    </label>
+    <button id="settings-open" class="settings-trigger" type="button" aria-haspopup="dialog" aria-expanded="false">
+      <span class="settings-trigger-icon">⚙</span>
+      <span data-i18n="web.settings">Settings</span>
+    </button>
     <ol class="steps" id="steps">
       <li data-step="engine" class="active" data-i18n="web.stepEngine">Engine</li>
       <li data-step="model" data-i18n="web.modelAndContext">Model and context</li>
@@ -106,6 +95,30 @@
     </section>
   </main>
 </div>
+<div id="settings-backdrop" class="drawer-backdrop" hidden></div>
+<aside id="settings-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+  <div class="drawer-header">
+    <h3 id="settings-title" data-i18n="web.settings">Settings</h3>
+    <button id="settings-close" class="drawer-close" type="button" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="drawer-field lang-switch">
+      <label for="lang" data-i18n="web.language">Language</label>
+      <select id="lang">
+        <option value="en">English</option>
+        <option value="es">Español</option>
+      </select>
+    </div>
+    <div class="drawer-field theme-switch">
+      <label for="theme" data-i18n="web.theme">Theme</label>
+      <select id="theme">
+        <option value="system" data-i18n="web.themeSystem">System</option>
+        <option value="light" data-i18n="web.themeLight">Light</option>
+        <option value="dark" data-i18n="web.themeDark">Dark</option>
+      </select>
+    </div>
+  </div>
+</aside>
 <script src="app.js" type="module"></script>
 </body>
 </html>
