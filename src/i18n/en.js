@@ -91,8 +91,15 @@ Usage: llm-tuner [options]
   --web                        Open the web interface
   --lang <en|es>               Interface language (saved for next time)
   --theme <system|light|dark>  Interface theme (saved for next time)
+  /settings                    Interactive settings menu
 
 Presets are saved in {presetsDir}`,
+  'cli.settingsTitle': 'Settings',
+  'cli.settingsMenu': 'Select an option to configure:',
+  'cli.settingsLanguage': 'Language',
+  'cli.settingsTheme': 'Theme',
+  'cli.settingsExit': 'Save and return',
+  'cli.settingsSaved': 'Settings saved.',
   'cli.langNotSaved': 'Could not save the language preference: {error}',
   'cli.themeNotSaved': 'Could not save the theme preference: {error}',
   'cli.noPresets': 'No saved presets.',
@@ -199,5 +206,7 @@ Presets are saved in {presetsDir}`,
   'web.themeSystem': 'System',
   'web.themeLight': 'Light',
   'web.themeDark': 'Dark',
+  'web.settings': 'Settings',
+  'web.close': 'Close',
 };
 

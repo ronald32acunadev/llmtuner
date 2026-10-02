@@ -91,8 +91,15 @@ Uso: llm-tuner [opciones]
   --web                        Abrir la interfaz web
   --lang <en|es>               Idioma de la interfaz (se guarda para la próxima vez)
   --theme <system|light|dark>  Tema de la interfaz (se guarda para la próxima)
+  /settings                    Menú interactivo de configuración
 
 Los presets se guardan en {presetsDir}`,
+  'cli.settingsTitle': 'Configuración',
+  'cli.settingsMenu': 'Selecciona una opción para configurar:',
+  'cli.settingsLanguage': 'Idioma',
+  'cli.settingsTheme': 'Tema',
+  'cli.settingsExit': 'Guardar y volver',
+  'cli.settingsSaved': 'Configuración guardada.',
   'cli.langNotSaved': 'No se pudo guardar la preferencia de idioma: {error}',
   'cli.themeNotSaved': 'No se pudo guardar la preferencia de tema: {error}',
   'cli.noPresets': 'No hay presets guardados.',
@@ -199,5 +206,7 @@ Los presets se guardan en {presetsDir}`,
   'web.themeSystem': 'Sistema',
   'web.themeLight': 'Claro',
   'web.themeDark': 'Oscuro',
+  'web.settings': 'Configuración',
+  'web.close': 'Cerrar',
 };
 
