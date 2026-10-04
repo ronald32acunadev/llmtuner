@@ -2,6 +2,7 @@ export { detectHardware, rankGpus } from './hardware.js';
 export { readGguf, summarizeGguf, modelMetaFromFile } from './gguf.js';
 export { planCandidates, placeLayers, maxFullOffloadContext, kvTotalBytes, KV_TYPES } from './estimator.js';
 export { Tuner, ENGINES, detectEngines, pickBest, slim } from './tuner.js';
+export { PROFILES, DEFAULT_PROFILE, normalizeProfile, QUALITY_KV_TYPES, kvTypesFor, meetsQuality, fitsFullyOnGpu, pickVariant, recommendProfile, HINT_TARGETS, variantHints } from './profiles.js';
 export { installPlans, runInstall, openUrl } from './installer.js';
 export { fmtBytes, configDir } from './util.js';
 export { findPreset, savePreset, listPresets, presetsDir, hardwareFingerprint } from './presets.js';

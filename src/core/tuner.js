@@ -1,11 +1,13 @@
 import { EventEmitter } from 'node:events';
 import { detectHardware } from './hardware.js';
-import { planCandidates, maxFullOffloadContext, KV_TYPES } from './estimator.js';
+import { planCandidates, maxFullOffloadContext } from './estimator.js';
 import { findPreset, savePreset, presetPath } from './presets.js';
+import { pickBest } from './profiles.js';
 import { lmstudio } from './engines/lmstudio.js';
 import { ollama } from './engines/ollama.js';
 import { TunerError, benchError } from './errors.js';
 
+export { pickBest };
 export const ENGINES = { lmstudio, ollama };
 
 /** Detect both engines and recommend one. */
@@ -35,13 +37,6 @@ export async function detectEngines(hw) {
     reasonCode = 'engine.reason.noneInstalled';
   }
   return { engines: out, recommended, reasonCode, reasonParams };
-}
-
-/** Pick the winner: fastest deep-context decode, weighted by KV quality. */
-export function pickBest(results) {
-  const ok = results.filter((r) => r.bench?.ok);
-  const score = (r) => (r.bench.deep?.genTps ?? r.bench.short.genTps) * KV_TYPES[r.candidate.kvType].quality;
-  return ok.sort((a, b) => score(b) - score(a))[0] || null;
 }
 
 export class Tuner extends EventEmitter {
