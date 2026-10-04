@@ -66,7 +66,7 @@ export async function runApiBenchmark({ kind, baseUrl, model, depthTokens = 4000
         body: { model, prompt, raw: true, stream: false, options: { ...ollamaOptions, num_predict: genTokens, temperature: 0.2 } },
       });
       const d = res?.json;
-      if (!res?.ok || !d?.eval_count) return { ok: false, error: d?.error || res?.text?.slice(0, 300) || 'sin respuesta' };
+      if (!res?.ok || !d?.eval_count) return { ok: false, error: d?.error || res?.text?.slice(0, 300) || 'no response' };
       return {
         ok: true,
         promptTokens: d.prompt_eval_count,
@@ -80,7 +80,7 @@ export async function runApiBenchmark({ kind, baseUrl, model, depthTokens = 4000
       body: { model, messages: [{ role: 'user', content: prompt }], max_tokens: genTokens, temperature: 0.2, stream: false },
     });
     const d = res?.json;
-    if (!res?.ok || !d?.stats) return { ok: false, error: d?.error?.message || d?.error || res?.text?.slice(0, 300) || 'sin respuesta' };
+    if (!res?.ok || !d?.stats) return { ok: false, error: d?.error?.message || d?.error || res?.text?.slice(0, 300) || 'no response' };
     return {
       ok: true,
       promptTokens: d.usage?.prompt_tokens,

@@ -5,6 +5,7 @@ import { run, which, exists, readJson, writeJsonWithBackup, fetchJson, PLATFORM,
 import { modelMetaFromFile } from '../gguf.js';
 import { runLlamaServerBenchmark } from '../llama-server.js';
 import { runApiBenchmark } from '../benchmark.js';
+import { TunerError, benchError } from '../errors.js';
 
 // LM Studio internals used here were verified against LM Studio 0.4.x.
 // The per-model config and hardware-config formats are not public API.
@@ -25,6 +26,12 @@ async function lmsBin(home) {
 
 const APP_PROCESS = /^(lm studio|lm-studio|lmstudio)(\.exe)?$/i;
 
+function apiUrl() {
+  const h = process.env.LM_STUDIO_HOST;
+  if (!h) return 'http://127.0.0.1:1234';
+  return /^https?:\/\//.test(h) ? h.replace(/\/$/, '') : `http://${h}`.replace(/\/$/, '');
+}
+
 export const lmstudio = {
   id: 'lmstudio',
   name: 'LM Studio',
@@ -40,8 +47,9 @@ export const lmstudio = {
     if (hist) version = hist.lastUsedVersion || hist.version || JSON.stringify(hist).match(/\d+\.\d+\.\d+(?:[+-]\d+)?/)?.[0] || null;
     const procs = await si.processes().catch(() => ({ list: [] }));
     const appRunning = procs.list.some((p) => APP_PROCESS.test(p.name) && !/--type=/.test(p.params || ''));
-    const server = await fetchJson('http://127.0.0.1:1234/api/v0/models', { timeout: 1500 });
-    return { installed, home, bin, version, appRunning, serverRunning: !!server?.ok, apiUrl: 'http://127.0.0.1:1234' };
+    const url = apiUrl();
+    const server = await fetchJson(`${url}/api/v0/models`, { timeout: 1500 });
+    return { installed, home, bin, version, appRunning, serverRunning: !!server?.ok, apiUrl: url };
   },
 
   async listModels(ctx) {
@@ -79,7 +87,7 @@ export const lmstudio = {
 
   async modelMeta(ctx, key) {
     const file = await this.resolveModelFile(ctx, key);
-    if (!file) throw new Error(`No encuentro el archivo GGUF de ${key}`);
+    if (!file) throw new TunerError('errors.ggufNotFound', { key });
     return { file, ...(await modelMetaFromFile(file)) };
   },
 
@@ -246,19 +254,21 @@ export const lmstudio = {
     const changes = [];
     if (!hardwareOk) {
       if (det.appRunning) {
-        if (!closeApp) throw new Error('LM Studio está abierto; ciérralo antes de aplicar la configuración.');
+        if (!closeApp) throw new TunerError('errors.lmstudioOpen');
         await this.closeApp();
       }
       const b = await this.writeHardwareConfig(ctx, c);
       if (b.backup) backups.push(b.backup);
-      changes.push('Config de hardware actualizada (orden de GPUs y límite de VRAM)');
+      changes.push({ code: 'changes.lmsHardware' });
     }
     const a = await this.writeModelConfig(ctx, model.key, c);
     if (a.backup) backups.push(a.backup);
-    if (!a.unchanged) changes.push(`Config del modelo: ${c.ctx} tokens, KV ${c.kvType}, ${c.fullOffload ? 'todas las capas en GPU' : `${c.gpuLayers}/${c.totalLayers} capas en GPU`}, ${c.threads} hilos`);
+    if (!a.unchanged) changes.push(c.fullOffload
+      ? { code: 'changes.lmsModelFull', params: { ctx: c.ctx, kvType: c.kvType, threads: c.threads } }
+      : { code: 'changes.lmsModelPartial', params: { ctx: c.ctx, kvType: c.kvType, gpuLayers: c.gpuLayers, totalLayers: c.totalLayers, threads: c.threads } });
     if (!hardwareOk && relaunch && det.appRunning) {
       await this.launchApp(ctx);
-      changes.push('LM Studio reiniciado');
+      changes.push({ code: 'changes.lmsRestarted' });
     }
     return { ...plan, backups, changes };
   },
@@ -266,15 +276,30 @@ export const lmstudio = {
   /** Load the model the normal way (using the saved config) and optionally measure it. */
   async load(ctx, model, { depthTokens = 0, genTokens = 200, onProgress } = {}) {
     const bin = ctx.detection.bin;
-    if (!bin) return { ok: false, error: 'lms no disponible' };
+    if (!bin) return benchError('bench.lmsUnavailable');
     await run(bin, ['server', 'start']);
     await run(bin, ['unload', '--all']);
     onProgress?.({ phase: 'load' });
     const r = await run(bin, ['load', model.key, '-y'], { timeout: 600_000 });
     if (r.code !== 0) return { ok: false, error: (r.stderr || r.stdout).slice(-400) };
-    return runApiBenchmark({ kind: 'lmstudio', baseUrl: 'http://127.0.0.1:1234', model: model.key, depthTokens, genTokens, onProgress });
+    const url = ctx.detection?.apiUrl || apiUrl();
+    return runApiBenchmark({ kind: 'lmstudio', baseUrl: url, model: model.key, depthTokens, genTokens, onProgress });
+  },
+
+  async chat(ctx, model, messages) {
+    const url = ctx.detection?.apiUrl || apiUrl();
+    const r = await fetchJson(`${url}/v1/chat/completions`, {
+      method: 'POST',
+      body: { model, messages, stream: false },
+      timeout: 120_000,
+    });
+    if (!r?.ok) throw new Error(r?.json?.error?.message || r?.json?.error || 'Failed to chat with LM Studio');
+    const msg = r.json.choices?.[0]?.message;
+    if (!msg) throw new Error('No response message from LM Studio');
+    return { message: msg };
   },
 };
+
 
 async function findFile(root, pred, depth) {
   if (depth < 0) return null;

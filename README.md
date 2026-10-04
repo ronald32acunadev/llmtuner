@@ -1,77 +1,82 @@
 # LLM Tuner
 
-Carga un LLM local con la configuración más rápida para el contexto que necesitas, en LM Studio u Ollama, en Windows, macOS y Linux.
+**English** · [Español](README.es.md)
 
-Ningún LLM decide la configuración. La app lee tu hardware y los metadatos del modelo, estima qué cabe en la VRAM, mide de verdad las mejores opciones y guarda la ganadora como **preset**. La próxima vez que cargues ese modelo con ese contexto se usa el preset directamente, sin volver a medir.
+Load a local LLM with the fastest configuration for the context you need, on LM Studio or Ollama, on Windows, macOS and Linux.
 
-## Flujo
+No LLM decides the configuration. The app reads your hardware and the model's metadata, estimates what fits in VRAM, actually measures the best options and saves the winner as a **preset**. The next time you load that model with that context, the preset is used directly, without measuring again.
 
-1. **Motor**: eliges LM Studio u Ollama. Si no está instalado, la app lo instala con el método oficial (winget, Homebrew o el script de instalación).
-2. **Modelo y contexto**: eliges uno de tus modelos y escribes el contexto que quieres.
-3. **Cargar**:
-   - Si hay un preset para ese modelo, contexto y hardware, se aplica y se carga el modelo (unos 20 s).
-   - Si no lo hay, se prueban 3 configuraciones (2–3 min), se guarda la mejor como preset, se aplica y se carga.
+## Flow
 
-Solo se vuelve a medir cuando cambias el contexto, cambia el hardware (GPU, VRAM, CPU o enlace PCIe) o cambia el archivo del modelo. También puedes forzarlo con «Volver a medir» o con `--force`.
+1. **Engine**: you choose LM Studio or Ollama. If it isn't installed, the app installs it with the official method (winget, Homebrew or the install script).
+2. **Model and context**: you choose one of your models and enter the context you want.
+3. **Load**:
+   - If there's a preset for that model, context and hardware, it's applied and the model is loaded (about 20 s).
+   - If there isn't one, 3 configurations are tried (2–3 min), the best one is saved as a preset, applied and loaded.
 
-## Uso
+It only measures again when you change the context, the hardware changes (GPU, VRAM, CPU or PCIe link) or the model file changes. You can also force it with "Measure again even if a preset exists" or with `--force`.
+
+## Usage
 
 ```bash
 npm install
-npm start               # asistente en la terminal
-npm run web             # interfaz web en http://127.0.0.1:7860
-npm run desktop         # app de escritorio (Electron)
+npm start               # terminal wizard
+npm run web             # web interface at http://127.0.0.1:7860
+npm run desktop         # desktop app (Electron)
 ```
 
-Modo no interactivo:
+Non-interactive mode:
 
 ```bash
 node src/cli/index.js --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --yes
-node src/cli/index.js --presets          # lista los presets guardados
+node src/cli/index.js --presets          # lists the saved presets
 node src/cli/index.js --help
+node src/cli/index.js --lang <en|es>     # UI language; saved for next time
 ```
 
-## Qué se prueba
+The web and desktop app have an EN/ES selector in the side rail, and the choice is saved in `llm-tuner/settings.json`, next to the presets.
 
-Para cada tipo de caché KV (`f16`, `q8_0`, `q4_0`) el estimador calcula:
+## What gets tried
 
-- **Memoria por capa**, leída del GGUF (tamaño real de cada tensor).
-- **Caché de contexto** según capas con atención, cabezas KV, dimensión y ventana deslizante (SWA).
-- **Reparto de capas entre GPUs**, con prioridad a la GPU con el enlace PCIe más ancho y sin monitor, y el margen libre igualado entre tarjetas.
-- **En modelos MoE que no caben**, cuántas capas de expertos pueden quedarse en la RAM (`--n-cpu-moe`).
-- **Velocidad esperada**, según el ancho de banda de memoria.
+For each KV cache type (`f16`, `q8_0`, `q4_0`) the estimator computes:
 
-Las mejores opciones se miden con un prompt corto y otro que llena ~50 % del contexto. Gana la más rápida con contexto lleno, ponderada por la calidad del tipo de KV.
+- **Memory per layer**, read from the GGUF (the real size of each tensor).
+- **Context cache** based on layers with attention, KV heads, dimension and sliding window (SWA).
+- **Layer split across GPUs**, prioritizing the GPU with the widest PCIe link and no monitor attached, with free headroom balanced evenly across cards.
+- **For MoE models that don't fit**, how many expert layers can stay in RAM (`--n-cpu-moe`).
+- **Expected speed**, based on memory bandwidth.
 
-- **LM Studio**: se ejecuta el mismo `llama-server` que usa LM Studio con los parámetros exactos. El resultado se escribe en la config del modelo (`~/.lmstudio/.internal/user-concrete-model-default-config/…`) y en `hardware-config.json`. LM Studio solo se reinicia si cambia la config de hardware.
-- **Ollama**: cada opción se mide en un `ollama serve` privado en otro puerto, porque el tipo de KV y Flash Attention son globales. Se crea el modelo `<modelo>-tuned-16k` con `num_ctx`, `num_gpu` y `num_thread`, y se configuran las variables del servidor (systemd en Linux, `setx` en Windows, `launchctl` en macOS).
+The best options are measured with a short prompt and another that fills ~50% of the context. The fastest one with a full context wins, weighted by the quality of the KV type.
 
-Antes de modificar cualquier archivo se guarda una copia `*.bak-llm-tuner-*`.
+- **LM Studio**: it runs the same `llama-server` that LM Studio uses, with the exact same parameters. The result is written to the model's config (`~/.lmstudio/.internal/user-concrete-model-default-config/…`) and to `hardware-config.json`. LM Studio only restarts if the hardware config changes.
+- **Ollama**: each option is measured on a private `ollama serve` on another port, because the KV type and Flash Attention are global. The model `<model>-tuned-16k` is created with `num_ctx`, `num_gpu` and `num_thread`, and the server variables are configured (systemd on Linux, `setx` on Windows, `launchctl` on macOS).
 
-## Dónde se guardan los presets
+A `*.bak-llm-tuner-*` copy is saved before modifying any file.
+
+## Where presets are stored
 
 - Linux: `~/.config/llm-tuner/presets/`
 - macOS: `~/Library/Application Support/llm-tuner/presets/`
 - Windows: `%APPDATA%\llm-tuner\presets\`
 
-## Estado por plataforma
+## Platform status
 
-| | Probado | Notas |
+| | Tested | Notes |
 |---|---|---|
-| Linux + NVIDIA + LM Studio | ✅ 2× RTX 5070, Ryzen 7 5800X | Calibrado con mediciones reales |
-| Linux + Ollama | Pruebas unitarias | Falta probarlo con Ollama instalado |
-| Windows / macOS | Sin probar | Rutas, instaladores y detección implementados |
-| AMD (ROCm) / Apple Silicon / Intel | Sin probar | Detección de VRAM incluida; ancho de banda por tabla |
+| Linux + NVIDIA + LM Studio | ✅ 2× RTX 5070, Ryzen 7 5800X | Calibrated with real measurements |
+| Linux + Ollama | Unit tests | Still needs testing with Ollama installed |
+| Windows / macOS | Untested | Paths, installers and detection implemented |
+| AMD (ROCm) / Apple Silicon / Intel | Untested | VRAM detection included; bandwidth from table |
 
-## Pruebas
+## Tests
 
 ```bash
 npm test
 ```
 
-Incluye como regresión los resultados reales de 2× RTX 5070 con Qwen2.5-Coder-32B: 16K y 20K con q8_0 caben enteros, 24K no; 32K cabe solo con q4_0.
+Includes as regression the real results of 2× RTX 5070 with Qwen2.5-Coder-32B: 16K and 20K with q8_0 fit entirely, 24K doesn't; 32K only fits with q4_0.
 
-## Notas
+## Notes
 
-- Con npm 11 y Node 26, la instalación de Electron puede terminar sin extraer el binario (en `node_modules/electron/dist` solo queda `locales`). En ese caso, extrae `~/.cache/electron/*/electron-*.zip` en `node_modules/electron/dist` y crea `node_modules/electron/path.txt` con el texto `electron`. `npm run desktop` desactiva el sandbox de Chromium solo cuando no puede funcionar (no hay `chrome-sandbox` con setuid de root).
-- Los archivos internos de LM Studio no son una API pública. Esta versión está verificada con LM Studio 0.4.25.
+- With npm 11 and Node 26, installing Electron can end up without extracting the binary (only `locales` is left in `node_modules/electron/dist`). If so, extract `~/.cache/electron/*/electron-*.zip` into `node_modules/electron/dist` and create `node_modules/electron/path.txt` with the text `electron`. `npm run desktop` disables the Chromium sandbox only when it can't work (no `chrome-sandbox` with root setuid).
+- LM Studio's internal files are not a public API. This version is verified with LM Studio 0.4.25.

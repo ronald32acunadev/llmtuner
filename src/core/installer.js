@@ -13,28 +13,28 @@ export async function installPlans(engineId) {
   const plans = [];
 
   if (engineId === 'ollama') {
-    if (PLATFORM === 'linux') plans.push({ id: 'script', label: 'Script oficial (ollama.com/install.sh, pide sudo)', shell: 'curl -fsSL https://ollama.com/install.sh | sh', needsSudo: true });
+    if (PLATFORM === 'linux') plans.push({ id: 'script', labelCode: 'install.ollamaScript', shell: 'curl -fsSL https://ollama.com/install.sh | sh', needsSudo: true });
     if (PLATFORM === 'darwin') {
-      if (brew) plans.push({ id: 'brew', label: 'Homebrew (brew install --cask ollama)', cmd: 'brew', args: ['install', '--cask', 'ollama'] });
-      plans.push({ id: 'dmg', label: 'Descargar Ollama.dmg', url: 'https://ollama.com/download/Ollama.dmg', manual: true });
+      if (brew) plans.push({ id: 'brew', labelCode: 'install.ollamaBrew', cmd: 'brew', args: ['install', '--cask', 'ollama'] });
+      plans.push({ id: 'dmg', labelCode: 'install.ollamaDmg', url: 'https://ollama.com/download/Ollama.dmg', manual: true });
     }
     if (PLATFORM === 'win32') {
-      if (winget) plans.push({ id: 'winget', label: 'winget (Ollama.Ollama)', cmd: 'winget', args: ['install', '-e', '--id', 'Ollama.Ollama', '--accept-source-agreements', '--accept-package-agreements'] });
-      plans.push({ id: 'ps1', label: 'Script oficial PowerShell', cmd: 'powershell', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'irm https://ollama.com/install.ps1 | iex'] });
+      if (winget) plans.push({ id: 'winget', labelCode: 'install.ollamaWinget', cmd: 'winget', args: ['install', '-e', '--id', 'Ollama.Ollama', '--accept-source-agreements', '--accept-package-agreements'] });
+      plans.push({ id: 'ps1', labelCode: 'install.ollamaPs1', cmd: 'powershell', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'irm https://ollama.com/install.ps1 | iex'] });
     }
   }
 
   if (engineId === 'lmstudio') {
     if (PLATFORM === 'linux' || PLATFORM === 'darwin') {
-      plans.push({ id: 'llmster', label: 'LM Studio sin interfaz (llmster + lms, sin sudo)', shell: 'curl -fsSL https://lmstudio.ai/install.sh | bash' });
+      plans.push({ id: 'llmster', labelCode: 'install.lmsHeadless', shell: 'curl -fsSL https://lmstudio.ai/install.sh | bash' });
     }
-    if (PLATFORM === 'darwin' && brew) plans.push({ id: 'brew', label: 'App de escritorio con Homebrew (brew install --cask lm-studio)', cmd: 'brew', args: ['install', '--cask', 'lm-studio'] });
+    if (PLATFORM === 'darwin' && brew) plans.push({ id: 'brew', labelCode: 'install.lmsBrew', cmd: 'brew', args: ['install', '--cask', 'lm-studio'] });
     if (PLATFORM === 'win32') {
-      if (winget) plans.push({ id: 'winget', label: 'App de escritorio con winget (ElementLabs.LMStudio)', cmd: 'winget', args: ['install', '-e', '--id', 'ElementLabs.LMStudio', '--accept-source-agreements', '--accept-package-agreements'] });
-      plans.push({ id: 'ps1', label: 'LM Studio sin interfaz (llmster, script PowerShell)', cmd: 'powershell', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'irm https://lmstudio.ai/install.ps1 | iex'] });
+      if (winget) plans.push({ id: 'winget', labelCode: 'install.lmsWinget', cmd: 'winget', args: ['install', '-e', '--id', 'ElementLabs.LMStudio', '--accept-source-agreements', '--accept-package-agreements'] });
+      plans.push({ id: 'ps1', labelCode: 'install.lmsHeadlessPs1', cmd: 'powershell', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'irm https://lmstudio.ai/install.ps1 | iex'] });
     }
     const plat = { linux: 'linux', darwin: 'darwin', win32: 'win32' }[PLATFORM];
-    plans.push({ id: 'download', label: 'Descargar la app de escritorio desde lmstudio.ai', url: `https://lmstudio.ai/download/latest/${plat}/${arch}`, manual: true });
+    plans.push({ id: 'download', labelCode: 'install.lmsDownload', url: `https://lmstudio.ai/download/latest/${plat}/${arch}`, manual: true });
   }
   return plans;
 }

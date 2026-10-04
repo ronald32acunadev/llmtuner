@@ -1,7 +1,7 @@
 {
   "name": "llm-tuner",
   "version": "0.1.0",
-  "description": "Detecta tu hardware y encuentra la configuración más rápida para ejecutar LLMs locales con LM Studio u Ollama.",
+  "description": "Detects your hardware and finds the fastest configuration to run local LLMs with LM Studio or Ollama.",
   "type": "module",
   "main": "src/core/index.js",
   "bin": {
@@ -12,21 +12,26 @@
     "web": "node src/web/server.js",
     "desktop": "node electron/launch.js",
     "dist": "electron-builder",
-    "test": "node --test test/"
+    "dist:win": "electron-builder --win portable",
+    "test": "node --test test/*.test.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@inquirer/prompts": "^7.0.0",
     "systeminformation": "^5.23.0"
   },
   "devDependencies": {
-    "electron": "^38.0.0"
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "dev.llm-tuner.app",
     "productName": "LLM Tuner",
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
     "files": [
       "src/**",
       "electron/**",
@@ -35,12 +40,17 @@
     "linux": {
       "target": [
         "AppImage"
-      ]
+      ],
+      "icon": "electron/icon.png"
     },
     "win": {
       "target": [
-        "nsis"
-      ]
+        "portable"
+      ],
+      "icon": "electron/icon.ico"
+    },
+    "portable": {
+      "artifactName": "${productName}-portable.${ext}"
     },
     "mac": {
       "target": [
