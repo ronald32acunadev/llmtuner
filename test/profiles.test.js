@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { KV_TYPES } from '../src/core/estimator.js';
+import { KV_TYPES, placeLayers } from '../src/core/estimator.js';
 import { rankGpus } from '../src/core/hardware.js';
-import { PROFILES, DEFAULT_PROFILE, normalizeProfile, QUALITY_KV_TYPES, kvTypesFor, meetsQuality, pickBest, fitsFullyOnGpu, pickVariant, recommendProfile, HINT_TARGETS, variantHints } from '../src/core/profiles.js';
+import { PROFILES, DEFAULT_PROFILE, normalizeProfile, QUALITY_KV_TYPES, kvTypesFor, meetsQuality, pickBest, fitsFullyOnGpu, pickVariant, recommendProfile, HINT_TARGETS, HINT_MIN_GAIN, variantHints } from '../src/core/profiles.js';
 
 const MiB = 1024 ** 2;
 const GiB = 1024 ** 3;
@@ -50,6 +50,17 @@ const small = {
   outputBytes: 300 * MiB,
   embdBytes: 200 * MiB,
   fileBytes: Math.round(12.5 * GiB),
+};
+
+// A MoE model whose dense and expert layers do not all fit on the GPUs, but fit when the experts stay in RAM.
+const moe = {
+  ...qwen32,
+  isMoE: true,
+  nExperts: 128,
+  nExpertsUsed: 8,
+  layerBytes: Array(64).fill((26 * GiB) / 64),
+  layerExpertBytes: Array(64).fill((22 * GiB) / 64),
+  fileBytes: Math.round(27 * GiB),
 };
 
 const mk = (kvType, deep, { ok = true, fullOffload = true, cpuMoeLayers = 0, short = 25 } = {}) => ({
@@ -229,4 +240,24 @@ test('variantHints lists heavier quantizations that would fit fully on GPU', () 
   assert.deepEqual(variantHints({ ...small, bitsPerWeight: 6 }, hw, opts).map((h) => h.quant), ['Q8_0', 'Q6_K']);
   assert.deepEqual(variantHints(q4, hw, opts), []);
   assert.deepEqual(variantHints({ ...small, bitsPerWeight: null }, hw, opts), []);
+});
+
+test('variantHints only hints quantizations at least 5% heavier than the file on disk', () => {
+  const opts = { ctx: 16384, kvTypes: ALL_KV };
+  assert.equal(HINT_MIN_GAIN, 1.05);
+  // A Q8_0 file measures 8.50 once rounded, just below the 8.5008 target.
+  assert.deepEqual(variantHints({ ...small, bitsPerWeight: 8.50 }, hw, opts), []);
+  // A Q6_K file measures 6.56, just below the 6.5633 target; only Q8_0 is really heavier.
+  assert.deepEqual(variantHints({ ...small, bitsPerWeight: 6.56 }, hw, opts).map((h) => h.quant), ['Q8_0']);
+});
+
+test('a MoE model that only fits with experts in RAM does not fit fully on GPU', () => {
+  const opts = { ctx: 16384, kvTypes: ALL_KV };
+  for (const kvType of ALL_KV) {
+    assert.equal(placeLayers(moe, hw.gpus, { ctx: 16384, kvType }).fullOffload, false, kvType);
+    assert.equal(placeLayers(moe, hw.gpus, { ctx: 16384, kvType, cpuMoeLayers: moe.nLayers }).fullOffload, true, kvType);
+  }
+  assert.equal(fitsFullyOnGpu(moe, hw, opts), false);
+  const variants = [variant('m:moe', moe, true)];
+  assert.deepEqual(pickVariant('quality', variants, hw, opts), { variant: variants[0], reasonCode: 'profile.variant.noFullGpu', fallback: true });
 });

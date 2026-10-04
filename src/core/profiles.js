@@ -91,6 +91,10 @@ export const HINT_TARGETS = Object.freeze([
   { quant: 'Q5_K_M', bitsPerWeight: 5.7036 },
 ]);
 
+// A hint must be at least 5% heavier than the file on disk, because measured bits per weight
+// are rounded and the targets come from another model.
+export const HINT_MIN_GAIN = 1.05;
+
 /** Heavier quantizations, not downloaded, that would still fit fully on GPU (sizes estimated). */
 export function variantHints(meta, hw, { ctx, kvTypes, downloadedQuants = [] }) {
   if (!meta.bitsPerWeight) return [];
@@ -98,7 +102,7 @@ export function variantHints(meta, hw, { ctx, kvTypes, downloadedQuants = [] }) 
   const downloaded = downloadedQuants.map((q) => String(q).toLowerCase());
   const results = [];
   for (const target of HINT_TARGETS) {
-    if (target.bitsPerWeight <= meta.bitsPerWeight) continue;
+    if (target.bitsPerWeight < meta.bitsPerWeight * HINT_MIN_GAIN) continue;
     if (downloaded.includes(target.quant.toLowerCase())) continue;
     const scale = target.bitsPerWeight / meta.bitsPerWeight;
     const scaled = {
