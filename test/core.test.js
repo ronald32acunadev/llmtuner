@@ -103,6 +103,13 @@ test('GGUF reader parses metadata and tensor sizes', async () => {
   assert.equal(meta.kvHeadsPerLayer.filter(Boolean).length, 1); // only layer 0 has attention
 });
 
+test('GGUF summary reports bits per weight', () => {
+  const kv = { 'general.architecture': 'llama', 'llama.block_count': 2, 'llama.embedding_length': 256, 'llama.attention.head_count': 4 };
+  assert.equal(summarizeGguf({ kv, tensors: [{ name: 'blk.0.attn_k.weight', dims: [256, 64], type: 1, bytes: 256 * 64 * 2 }, { name: 'blk.1.ffn_up.weight', dims: [256, 64], type: 1, bytes: 256 * 64 * 2 }], fileBytes: 0 }).bitsPerWeight, 16);
+  assert.equal(summarizeGguf({ kv, tensors: [{ name: 'blk.0.ffn_up.weight', dims: [256, 3], type: 12, bytes: 432 }, { name: 'output.weight', dims: [100], type: 1, bytes: 200 }], fileBytes: 0 }).bitsPerWeight, 5.82);
+  assert.equal(summarizeGguf({ kv, tensors: [], fileBytes: 0 }).bitsPerWeight, null);
+});
+
 // Minimal GGUF v3: 5 kv pairs, 3 tensors (two in layer 0 incl. attention, one in layer 1).
 function buildGguf() {
   const parts = [];

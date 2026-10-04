@@ -147,6 +147,15 @@ export function summarizeGguf({ kv, tensors, fileBytes }) {
   const nExperts = g('expert_count') || 0;
   const nExpertsUsed = g('expert_used_count') || 0;
 
+  let totalBytes = 0, totalElements = 0;
+  for (const t of tensors) {
+    totalBytes += t.bytes;
+    let elements = 1;
+    for (const d of t.dims) elements *= d;
+    totalElements += elements;
+  }
+  const bitsPerWeight = totalElements === 0 ? null : +(totalBytes * 8 / totalElements).toFixed(2);
+
   return {
     arch,
     name: kv['general.name'] || null,
@@ -159,6 +168,7 @@ export function summarizeGguf({ kv, tensors, fileBytes }) {
     vocab,
     trainContext: g('context_length') || null,
     fileBytes,
+    bitsPerWeight,
     layerBytes,
     layerExpertBytes,
     outputBytes,
