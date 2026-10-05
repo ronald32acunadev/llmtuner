@@ -17,6 +17,24 @@ export default {
   'status.applying': 'Aplicando configuración…',
   'status.loading': 'Cargando el modelo…',
 
+  // Load profiles: names, descriptions and the reason codes the core emits
+  'profile.name.speed': 'Velocidad',
+  'profile.name.balanced': 'Equilibrado',
+  'profile.name.quality': 'Calidad',
+  'profile.desc.speed': 'más tokens por segundo; acepta optimizaciones con pérdida',
+  'profile.desc.balanced': 'velocidad ponderada por calidad; el comportamiento predeterminado',
+  'profile.desc.quality': 'la menor pérdida que aún se ejecuta por completo en GPU',
+  'profile.variant.lightest': 'Variante {quant} ({key}): la más ligera de las descargadas.',
+  'profile.variant.selected': 'Variante {quant} ({key}): la seleccionada.',
+  'profile.variant.heaviestFit': 'Variante {quant} ({key}): la más pesada de las descargadas que cabe por completo en GPU.',
+  'profile.variant.noFullGpu': 'Ninguna variante descargada cabe por completo en GPU: el perfil de calidad usa la regla del equilibrado con {quant} ({key}).',
+  'profile.variant.preset': 'Variante {quant} ({key}): la que se midió para el preset guardado.',
+  'profile.variant.none': 'No se encontró ninguna variante descargada: se usa {quant} ({key}).',
+  'profile.recommend.qualityFits': 'Se recomienda Calidad: una variante descargada cabe por completo en GPU con una caché KV precisa.',
+  'profile.recommend.balancedFits': 'Se recomienda Equilibrado: la variante seleccionada cabe por completo en GPU solo con una caché KV más comprimida de la que admite el perfil de calidad.',
+  'profile.recommend.partialOffload': 'Se recomienda Velocidad: la variante seleccionada no cabe por completo en GPU con este contexto, así que una parte se ejecutará en la CPU.',
+  'profile.fallback.noFullGpuConfig': 'Ninguna configuración con todo en GPU superó la medición: el perfil de calidad usó la regla del equilibrado.',
+
   // Errors
   'errors.unknownEngine': 'Motor desconocido: {engine}',
   'errors.noConfigWorked': 'Ninguna configuración funcionó con este contexto. Prueba con uno menor.',
@@ -57,6 +75,7 @@ export default {
 
   'errors.unknownLocale': 'Idioma desconocido "{lang}". Valores válidos: {list}',
   'errors.unknownTheme': 'Tema desconocido "{theme}". Valores válidos: {list}',
+  'errors.unknownProfile': 'Perfil desconocido "{profile}". Valores válidos: {list}',
   'errors.installNotFinished': 'La instalación no terminó. Vuelve a ejecutar llm-tuner cuando acabe.',
   'errors.modelDownloadFailed': 'No se pudo descargar el modelo',
   'errors.noInstaller': 'No hay un instalador automático para este sistema.',
@@ -83,6 +102,7 @@ Uso: llm-tuner [opciones]
   --engine <lmstudio|ollama>   Motor
   --model <clave>              Modelo (clave de LM Studio o nombre de Ollama)
   --ctx <tokens>               Contexto (p. ej. 16384)
+  --profile <speed|balanced|quality>  Qué optimizar (se pregunta si se omite; balanced con --yes o --json)
   --force                      Volver a medir aunque exista un preset
   --candidates <n>             Configuraciones a probar al medir (3)
   --yes                        No pedir confirmación
@@ -119,6 +139,10 @@ Los presets se guardan en {presetsDir}`,
   'cli.tunedContexts': 'Contextos ya ajustados: {list}',
   'cli.context': 'Contexto (tokens):',
   'cli.contextRange': 'Entre 512 y {limit}',
+  'cli.profile': 'Perfil de carga:',
+  'cli.profileHint': 'Estimación: {quant} (unos {size}) no está descargada y cabría por completo en tus GPUs.',
+  'cli.profileSwitch': 'La variante {quant} se ajusta mejor a este perfil: selecciónala en {engine} para usarla. Se cargará la que está seleccionada ahora.',
+  'cli.profileNotSaved': 'No se pudo guardar la preferencia de perfil: {error}',
   'cli.presetHit': 'Preset encontrado ({date}): {config} · {tps} t/s medidos. No hace falta volver a medir.',
   'cli.benchShort': '{tps} corto',
   'cli.benchDeep': ' · {tps} con {tokens} tokens',
