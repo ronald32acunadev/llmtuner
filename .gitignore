@@ -2,3 +2,6 @@ node_modules/
 dist/
 *.log
 *.tgz
+
+# Per-machine agent skill registry (regenerated locally, holds absolute paths)
+.atl/
