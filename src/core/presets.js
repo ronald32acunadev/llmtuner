@@ -21,26 +21,45 @@ export function hardwareFingerprint(hw) {
 
 const slug = (s) => s.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120);
 
-export function presetPath(engine, modelKey, ctx) {
-  return path.join(presetsDir(), `${engine}__${slug(modelKey)}__${ctx}.json`);
+/** Returns the path to the preset file. */
+export function presetPath(engine, modelKey, ctx, profile = 'balanced') {
+  const suffix = profile === 'balanced' ? '' : `__${profile}`;
+  return path.join(presetsDir(), `${engine}__${slug(modelKey)}__${ctx}${suffix}.json`);
 }
 
-/** Return the preset if it exists and was measured on this hardware/model file. */
-export async function findPreset({ engine, modelKey, ctx, hw, modelBytes }) {
-  const p = await readJson(presetPath(engine, modelKey, ctx));
+/** Identifies the downloaded variants of a model (keys + file sizes), order independent. */
+export function variantsSignature(variants) {
+  if (!Array.isArray(variants) || !variants.length) return '';
+  return variants.map((v) => `${v.key}:${v.sizeBytes}`).sort().join('|');
+}
+
+/** Return the preset if it exists and was measured on this hardware/model/variants file. */
+export async function findPreset({ engine, modelKey, ctx, hw, modelBytes, profile = 'balanced', variants }) {
+  // A preset without a profile field is a balanced preset.
+  const p = await readJson(presetPath(engine, modelKey, ctx, profile));
   if (!p) return { preset: null, reason: 'none' };
   if (p.fingerprint !== hardwareFingerprint(hw)) return { preset: null, stale: p, reason: 'hardware' };
-  if (modelBytes && p.modelBytes && p.modelBytes !== modelBytes) return { preset: null, stale: p, reason: 'model' };
+  if (profile !== 'balanced' && Array.isArray(variants)) {
+    if (variantsSignature(variants) !== variantsSignature(p.variants)) {
+      return { preset: null, stale: p, reason: 'variants' };
+    }
+    return { preset: p, reason: 'hit' };
+  }
+  if (modelBytes && p.modelBytes && p.modelBytes !== modelBytes) {
+    return { preset: null, stale: p, reason: 'model' };
+  }
   return { preset: p, reason: 'hit' };
 }
 
-export async function savePreset({ engine, modelKey, ctx, hw, modelBytes, best, results }) {
+/** Save the winner of a measurement as the preset of its profile. */
+export async function savePreset({ engine, modelKey, ctx, hw, modelBytes, best, results, profile = 'balanced', variant = null, variants = null }) {
   const { placement, score, ...candidate } = best.candidate;
   const preset = {
     version: 1,
     engine,
     model: modelKey,
     ctx,
+    profile,
     modelBytes: modelBytes || null,
     fingerprint: hardwareFingerprint(hw),
     hardware: { cpu: hw.cpu.brand, gpus: hw.gpus.map((g) => ({ index: g.index, name: g.name, totalBytes: g.totalBytes, pcieGen: g.pcieGen, pcieWidth: g.pcieWidth })) },
@@ -49,13 +68,16 @@ export async function savePreset({ engine, modelKey, ctx, hw, modelBytes, best, 
     bench: best.bench,
     tried: (results || []).map((r) => ({ id: r.candidate.id, ok: r.bench.ok, error: r.bench.error || null, shortTps: r.bench.short?.genTps ?? null, deepTps: r.bench.deep?.genTps ?? null })),
   };
-  const file = presetPath(engine, modelKey, ctx);
+  if (profile !== 'balanced') {
+    Object.assign(preset, { variant, variants: Array.isArray(variants) ? [...variants].map((v) => ({ key: v.key, sizeBytes: v.sizeBytes })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0) : null });
+  }
+  const file = presetPath(engine, modelKey, ctx, profile);
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, JSON.stringify(preset, null, 2));
   return { file, preset };
 }
 
-/** All presets for a model (to show which contexts are already tuned). */
+/** All presets for a model (to show which contexts and profiles are already tuned). */
 export async function listPresets({ engine, modelKey } = {}) {
   const dir = presetsDir();
   const files = await fs.readdir(dir).catch(() => []);
@@ -66,7 +88,7 @@ export async function listPresets({ engine, modelKey } = {}) {
     if (!p) continue;
     if (engine && p.engine !== engine) continue;
     if (modelKey && p.model !== modelKey) continue;
-    out.push({ file: path.join(dir, f), engine: p.engine, model: p.model, ctx: p.ctx, createdAt: p.createdAt, fingerprint: p.fingerprint, kvType: p.candidate.kvType, fullOffload: p.candidate.fullOffload, shortTps: p.bench?.short?.genTps, deepTps: p.bench?.deep?.genTps });
+    out.push({ file: path.join(dir, f), engine: p.engine, model: p.model, ctx: p.ctx, profile: p.profile || 'balanced', variant: p.variant?.key || null, createdAt: p.createdAt, fingerprint: p.fingerprint, kvType: p.candidate.kvType, fullOffload: p.candidate.fullOffload, shortTps: p.bench?.short?.genTps, deepTps: p.bench?.deep?.genTps });
   }
-  return out.sort((a, b) => a.ctx - b.ctx);
+  return out.sort((a, b) => a.ctx - b.ctx || a.profile.localeCompare(b.profile));
 }
