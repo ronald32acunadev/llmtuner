@@ -58,12 +58,19 @@
           <label for="ctx" data-i18n="web.context">Context (tokens)</label>
           <input id="ctx" type="number" min="512" step="1024" value="16384">
         </div>
-        <button id="load-btn" class="btn primary" type="button" disabled data-i18n="web.loadButton">Load</button>
       </div>
       <div id="ctx-chips" class="chips"></div>
+      <div class="field profile-field">
+        <span id="profile-label" class="field-label" data-i18n="web.profile">Load profile</span>
+        <div id="profile-options" class="profile-options" role="radiogroup" aria-labelledby="profile-label" aria-describedby="profile-detail"></div>
+        <div id="profile-detail" class="profile-detail small" aria-live="polite"></div>
+      </div>
       <div id="model-meta" class="meta muted small"></div>
       <div id="gpus" class="gpus"></div>
-      <label class="check"><input type="checkbox" id="force"> <span data-i18n="web.force">Measure again even if a preset exists</span></label>
+      <div class="row wrap actions">
+        <label class="check"><input type="checkbox" id="force"> <span data-i18n="web.force">Measure again even if a preset exists</span></label>
+        <button id="load-btn" class="btn primary" type="button" disabled data-i18n="web.loadButton">Load</button>
+      </div>
     </section>
 
     <section id="sec-load" class="panel" hidden>

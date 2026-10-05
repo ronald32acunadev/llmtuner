@@ -288,4 +288,27 @@ test('web UI serves index.html with theme switch and style.css with theme tokens
   assert.match(js, /setupDrawer/);
 });
 
+test('web UI offers the load profile between the context and the Load button', async () => {
+  const html = await (await get('/')).text();
+  assert.match(html, /id="profile-options"[^>]*role="radiogroup"/);
+  assert.match(html, /id="profile-label"[^>]*data-i18n="web\.profile"/);
+  assert.match(html, /id="profile-detail"/);
+  // Flow: context -> profile -> Load.
+  const at = (needle) => html.indexOf(needle);
+  assert.ok(at('id="ctx"') < at('id="profile-options"'));
+  assert.ok(at('id="profile-options"') < at('id="load-btn"'));
+
+  // The view-model is a module of its own, shared with the Node tests.
+  const r = await get('/profile.js');
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get('content-type'), /javascript/);
+  assert.match(await r.text(), /export function profileDetailLines/);
+
+  const js = await (await get('/app.js')).text();
+  assert.match(js, /from '\.\/profile\.js'/);
+  assert.match(js, /type="radio"/);
+  const css = await (await get('/style.css')).text();
+  assert.match(css, /\.profile-option\.selected/);
+});
+
 

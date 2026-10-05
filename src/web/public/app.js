@@ -1,4 +1,5 @@
 import { format } from '/i18n/core.js';
+import { initialProfile, profileOptions, profileDetailLines, profileEventLines, presetsFor, presetFor } from './profile.js';
 
 const $ = (s) => document.querySelector(s);
 const GiB = 1024 ** 3;
@@ -13,6 +14,9 @@ const errText = (o, fallbackKey = 'bench.loadFailed') => (o?.code ? t(o.code, o.
 const benchErr = (b) => (b.errorCode ? t(b.errorCode, b.errorParams) : b.error);
 
 const state = { hw: null, engines: [], engine: null, presets: [], meta: null, loadedModel: null, chatMessages: [], chatBusy: false };
+// Load profile: the stored choice (null until the user picks one), the ids the server accepts, the per-profile
+// preview of the last plan (null while there is none) and what the chips were last drawn with.
+Object.assign(state, { storedProfile: null, profileIds: undefined, profilePlan: null, profileSaveError: null, maxContext: null, chipsProfile: null });
 
 async function api(path, body) {
   const res = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
@@ -132,6 +136,9 @@ async function boot() {
   document.documentElement.lang = s.lang;
   applyStatic();
   setupDrawer();
+  state.storedProfile = s.profile ?? null;
+  state.profileIds = s.profiles;
+  renderProfile();
   $('#lang').value = s.lang;
   $('#lang').onchange = async () => {
     const prev = s.lang;
@@ -236,6 +243,9 @@ async function onModelChange() {
   if (!model) return;
   $('#load-btn').disabled = true;
   $('#model-meta').textContent = t('web.readingModel');
+  // The preview of the previous model says nothing about this one.
+  state.profilePlan = null;
+  renderProfile();
   const [{ presets }, plan] = await Promise.all([
     api(`/api/presets?engine=${state.engine.id}&model=${encodeURIComponent(model)}`),
     api('/api/plan', { engine: state.engine.id, model, ctx: Number($('#ctx').value) }).catch((err) => ({ error: err.message })),
@@ -243,6 +253,8 @@ async function onModelChange() {
   state.presets = presets;
   if (plan.error) { $('#model-meta').textContent = t('web.modelReadFailed', { error: plan.error }); return; }
   state.meta = plan.meta;
+  state.maxContext = plan.maxContext;
+  state.profilePlan = plan.profiles ?? null;
   const m = plan.meta;
   $('#ctx').max = m.trainContext || 131072;
   $('#model-meta').textContent = [
@@ -251,28 +263,77 @@ async function onModelChange() {
     t('web.trainedUpTo', { ctx: m.trainContext ? k(m.trainContext) : '?' }),
     t('web.maxAllGpu', { list: Object.entries(plan.maxContext).map(([kv, v]) => `${v ? k(v) : '—'} (KV ${kv})`).join(', ') }),
   ].join(' · ');
+  renderProfile();
   renderChips(plan.maxContext);
   renderGpus(plan.candidates[0]);
   updatePresetPill();
   $('#load-btn').disabled = false;
 }
 
+// ---------- Load profile ----------
+const selectedProfile = () => initialProfile(state.storedProfile, state.profilePlan);
+
+function renderProfile() {
+  const box = $('#profile-options');
+  const options = profileOptions(state.profilePlan, t, state.profileIds);
+  // The radios are built once and only updated afterwards, so keyboard focus survives a refresh.
+  if (!box.children.length) {
+    box.innerHTML = options.map((o) => `<label class="profile-option" data-id="${esc(o.id)}">
+      <span class="profile-head"><input type="radio" name="profile" value="${esc(o.id)}"><b>${esc(o.name)}</b><span class="tag prio" hidden>${esc(t('web.recommended'))}</span></span>
+      <small>${esc(o.description)}</small></label>`).join('');
+    box.querySelectorAll('input').forEach((input) => { input.onchange = () => chooseProfile(input.value); });
+  }
+  const current = selectedProfile();
+  for (const label of box.children) {
+    const o = options.find((x) => x.id === label.dataset.id);
+    label.classList.toggle('selected', o.id === current);
+    label.querySelector('input').checked = o.id === current;
+    label.querySelector('.tag').hidden = !o.recommended;
+  }
+  const lines = profileDetailLines(state.profilePlan, current, t, { engineName: state.engine?.name, formatBytes: gb });
+  if (state.profileSaveError) lines.push({ level: 'warn', text: t('web.profileNotSaved', { error: state.profileSaveError }) });
+  $('#profile-detail').innerHTML = lines.map((l) => `<div${l.level === 'warn' ? ' class="warn"' : ''}>${esc(l.text)}</div>`).join('');
+}
+
+// The profile in use changed (a click, or a new recommendation while none is stored): redraw what depends on it.
+function refreshProfileViews() {
+  renderProfile();
+  if (state.maxContext && state.chipsProfile !== selectedProfile()) renderChips(state.maxContext);
+  updatePresetPill();
+}
+
+async function chooseProfile(profile) {
+  state.storedProfile = profile;
+  state.profileSaveError = null;
+  refreshProfileViews();
+  // Remembering the choice is a convenience: a failed save is reported and never blocks loading.
+  try {
+    await api('/api/settings', { profile });
+  } catch (err) {
+    state.profileSaveError = err.message;
+    renderProfile();
+  }
+}
+
 function renderChips(maxContext) {
   const limit = state.meta.trainContext || 131072;
   const q8 = maxContext.q8_0 || 0;
-  const values = [...new Set([4096, 8192, 16384, 32768, 65536, 131072, ...state.presets.map((p) => p.ctx)])].filter((v) => v <= limit).sort((a, b) => a - b);
+  // Presets are saved per context and profile: the chips show the ones of the selected profile.
+  const profile = selectedProfile();
+  state.chipsProfile = profile;
+  const values = [...new Set([4096, 8192, 16384, 32768, 65536, 131072, ...presetsFor(state.presets, profile).map((p) => p.ctx)])].filter((v) => v <= limit).sort((a, b) => a - b);
   $('#ctx-chips').innerHTML = values.map((v) => {
-    const p = state.presets.find((x) => x.ctx === v);
+    const p = presetFor(state.presets, v, profile);
     const cls = p ? 'chip saved' : v <= q8 ? 'chip fits' : 'chip';
     const title = p ? t('web.presetSavedTitle', { tps: p.shortTps }) : v <= q8 ? t('web.fitsGpu') : t('web.mayNeedKv');
     return `<button type="button" class="${cls}" data-v="${v}" title="${esc(title)}">${k(v)}${p ? ' ✓' : ''}</button>`;
   }).join('');
-  $('#ctx-chips').querySelectorAll('button').forEach((b) => { b.onclick = () => { $('#ctx').value = b.dataset.v; updatePresetPill(); }; });
+  $('#ctx-chips').querySelectorAll('button').forEach((b) => { b.onclick = () => { $('#ctx').value = b.dataset.v; onCtxChange(); }; });
 }
 
 function updatePresetPill() {
   const ctx = Number($('#ctx').value);
-  const p = state.presets.find((x) => x.ctx === ctx);
+  const p = presetFor(state.presets, ctx, selectedProfile());
   const pill = $('#preset-pill');
   pill.hidden = false;
   pill.className = p ? 'pill ok' : 'pill warn';
@@ -296,15 +357,28 @@ function renderGpus(candidate) {
 
 $('#model').onchange = onModelChange;
 let timer;
-$('#ctx').oninput = () => { updatePresetPill(); clearTimeout(timer); timer = setTimeout(async () => {
-  const plan = await api('/api/plan', { engine: state.engine.id, model: $('#model').value, ctx: Number($('#ctx').value) }).catch(() => null);
-  if (plan) renderGpus(plan.candidates[0]);
-}, 400); };
+// A new context changes the plan: the GPU meters and what each profile would do are refreshed once typing settles.
+function onCtxChange() {
+  updatePresetPill();
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    const model = $('#model').value;
+    const ctx = Number($('#ctx').value);
+    const plan = await api('/api/plan', { engine: state.engine.id, model, ctx }).catch(() => null);
+    // An answer for a model or context that is no longer the chosen one is stale.
+    if (!plan || model !== $('#model').value || ctx !== Number($('#ctx').value)) return;
+    renderGpus(plan.candidates[0]);
+    state.profilePlan = plan.profiles ?? null;
+    refreshProfileViews();
+  }, 400);
+}
+$('#ctx').oninput = onCtxChange;
 
 // ---------- Load ----------
 $('#load-btn').onclick = async () => {
   const model = $('#model').value;
   const ctx = Number($('#ctx').value);
+  const profile = selectedProfile();
   $('#load-btn').disabled = true;
   setBusy(true);
   $('#sec-load').hidden = false;
@@ -321,14 +395,27 @@ $('#load-btn').onclick = async () => {
   $('#load-result').innerHTML = '';
   const log = $('#load-log');
   log.textContent = '';
-  const addLog = (s) => { log.textContent += s + '\n'; log.scrollTop = log.scrollHeight; };
+  // One element per line, so a warning can be styled on its own.
+  const addLog = (s, level = 'note') => {
+    const line = document.createElement('span');
+    if (level === 'warn') line.className = 'warn';
+    line.textContent = s + '\n';
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  };
   const tbody = $('#results tbody');
   tbody.innerHTML = '';
   const rows = [];
 
   try {
-    const { jobId } = await api('/api/load', { engine: state.engine.id, model, ctx, force: $('#force').checked });
+    const { jobId } = await api('/api/load', { engine: state.engine.id, model, ctx, profile, force: $('#force').checked });
+    // Progress event before the current one: a fallback that repeats its reason is not logged twice.
+    let previous = null;
     const done = await follow(jobId, (e) => {
+      if (e.type === 'variant-picked' || e.type === 'profile-fallback') {
+        for (const line of profileEventLines(e, t, { engineName: state.engine.name, previous })) addLog(line.text, line.level);
+      }
+      previous = e;
       if (e.type === 'status') addLog(t(e.code, e.params));
       if (e.type === 'preset-hit') addLog(t('web.presetHit', { date: e.preset.createdAt.slice(0, 10), config: describe(e.preset.candidate) }));
       if (e.type === 'plan') {
