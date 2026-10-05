@@ -102,7 +102,7 @@ Uso: llm-tuner [opciones]
   --engine <lmstudio|ollama>   Motor
   --model <clave>              Modelo (clave de LM Studio o nombre de Ollama)
   --ctx <tokens>               Contexto (p. ej. 16384)
-  --profile <speed|balanced|quality>  Qué optimizar (se pregunta si se omite; balanced con --yes o --json)
+  --profile <speed|balanced|quality>  Qué optimizar (se pregunta en el asistente; balanced con --yes, --json, o si se indican motor, modelo y contexto)
   --force                      Volver a medir aunque exista un preset
   --candidates <n>             Configuraciones a probar al medir (3)
   --yes                        No pedir confirmación
