@@ -1,6 +1,6 @@
 # Feature: Load Profiles (speed / balanced / quality)
 
-Status: implemented on 2026-10-04 across five local slice branches; `npm test` 162/162. Open: the real-load check of `T-11` (needs the owner's go-ahead) and delivery (push and pull requests are the owner's). Where this document's design sections and the code differ, `docs/PROYECTO.md` and the code are the reference; the differences are listed under `T-10`.
+Status: implemented on 2026-10-04 across five local slice branches; `npm test` 162/162. Every task is checked off, including one real load per profile on LM Studio. Open: delivery (push and pull requests are the owner's) and the points listed as not exercised under `T-11`. Where this document's design sections and the code differ, `docs/PROYECTO.md` and the code are the reference; the differences are listed under `T-10`.
 
 ## Objective
 Let the user choose, before pressing Load, what the tuner optimizes for: maximum speed, a balance, or the best answer quality the hardware can run fully on GPU. Each profile applies a deterministic rule to pick the model variant and the load configuration.
@@ -231,11 +231,19 @@ Text and docs:
   - Checks: structural readback by the writer (consistent outline, every table with equal column counts, no placeholders, every identifier found in `src/` with `rg`).
   - Corrections the documentation pass made to this document's earlier wording, where the code is the reference: the quality fallback only changes the winner rule, so `q4_0` is still never measured under `quality`; there are two fallback points, `profile.variant.noFullGpu` before measuring and `profile.fallback.noFullGpuConfig` after it; Ollama tags are grouped by base name, parameter size, family and `tagStem`; `kvTypesFor('quality')` returns the engine's full list when the engine has neither `f16` nor `q8_0`; on a `speed`/`quality` miss VRAM is freed twice (in `load`, then in `run`).
 
-- [ ] `T-11`: Full verification
+- [x] `T-11`: Full verification
   - Scope: `npm test`, CLI smoke in `en` and `es`, manual load of each profile on the real LM Studio and Ollama
   - Route: direct inline
-  - Done: `npm test` 162/162 by the parent; CLI smoke (`--help`, `--profile bogus`, `--presets`) in `en` and `es` in a temp config dir by two independent verifiers; desktop UI opened on the owner's machine against the real engines, preview only.
-  - Pending, needs the owner's go-ahead: a real load with each profile. It unloads whatever model the engine has loaded (the one `pumbastudio` serves, in LM Studio) and measures for several minutes per profile. No real load has been run with `speed` or `quality` yet.
+  - Automated: `npm test` 162/162 by the parent; CLI smoke (`--help`, `--profile bogus`, `--presets`) in `en` and `es` in a temp config dir by two independent verifiers; desktop UI opened on the owner's machine against the real engines, preview only.
+  - Real load, authorized by the owner ("full load"), on LM Studio with `mistralai/ministral-3-3b` (Q4_K_M) at 8,192 context through the CLI with `--yes`; no model was loaded beforehand:
+    - `--profile quality`: exit 0 in 36 s. Measured `q8_0` (89.2 t/s deep) and `f16` (94.7); `q4_0` was not measured. Winner `f16`, all on GPU. Preset `lmstudio__mistralai_ministral-3-3b__8192__quality.json` with the variant list and `selected: true`. Loaded: 168.7 t/s.
+    - `--profile speed`: exit 0 in 41 s. Measured `q8_0` (89.1), `f16` (90.9) and `q4_0` (60.1). Winner `f16`. Preset with the `__speed` suffix. Loaded: 172.2 t/s.
+    - `--profile quality` again: exit 0 in 9 s, preset hit, nothing measured, "the one measured for the saved preset". Loaded: 172.9 t/s.
+    - No `--profile`: exit 0 in 39 s, three KV types measured, winner `f16`, preset saved under the legacy name `lmstudio__mistralai_ministral-3-3b__8192.json`.
+    - `--presets` lists the three with their profile, next to the older `meta/muse-glimmer` preset shown as `balanced`.
+  - Side effects of that real run, as designed: three preset files in the owner's config dir, the per-model LM Studio config for that model created by the first load (there was no earlier file, so no backup was needed, and the later loads produced the same content), and `mistralai/ministral-3-3b` left loaded in LM Studio.
+  - Not exercised on real hardware: the variant pick (every model has one downloaded variant), the quality fallback (the model fits fully on GPU), the desktop Load button with a profile, and Ollama.
+  - Observation: on this model and hardware a quantized KV cache is slower (`q4_0` 60 t/s against `f16` 91 to 95), so the three profiles end on the same configuration and differ only in what they may measure.
 
 ## Review record
 Receipt-driven development is on (global). Reviewed boundary starts at the tracker branch point.
@@ -250,5 +258,9 @@ Receipt-driven development is on (global). Reviewed boundary starts at the track
 
 - Range `e37cf1d`..`9483356` (`T-8c`, `T-9`, `T-9b`, desktop slice): assessed `high` (`process_boundary` in `src/cli/index.js`), due. Declined by the owner for that candidate; no review record. An independent read-only verifier ran instead: verdict "pass with findings", `npm test` 156/156, live endpoint checks against a mock with a temp config dir, real settings file untouched. Its findings that were defects are fixed in `T-9c`; the rest are listed there as left open.
 
+- Range `9483356`..`9719df1` (`T-10`, `T-9c`): assessed `medium`, due (`slice_budget_reached`, 526 lines). Consent granted by the owner. One lens (`review-reliability`): approved and acknowledged, lineage `review-b19c4accf25712d5`. One warning and two suggestions, none blocking and all about the DOM wiring in `src/web/public/app.js`, which has no automated test: the stale-answer guard is proved only through its two pure predicates; when only the context changed, the plan depends on the debounced context request; the cached detail markup would go out of step if another code path rewrote that element.
+
+Engram mirror (`odd/load-profiles/tasks`): pending resync. The last successful copy predates `T-6`; later saves were refused by the memory hook ("host session registration could not be confirmed"). This file is complete and authoritative.
+
 ## Progress
-Slices 1 to 4 complete: `T-1` to `T-6`, `T-8` and `T-9` done, with their follow-ups `T-3b`, `T-4b`, `T-8b`, `T-8c` and `T-9b`. The profile can be chosen from the CLI and from the desktop UI. Running authored changed lines: about 3,260 (2,345 through `47666d4`, 228 in `74ff80e` and `655dae2`, 691 in slice 4), feature document excluded; tests are more than half of that. The original forecast of 900 to 1,200 was low by a factor of about three: it did not count the tests each task needed nor the five follow-up units that reviews and verification added. Slice 5 (`feat/load-profiles-05-docs`) adds the documentation and the `T-9c` fixes, 499 more lines (327 documentation, 172 code and tests). Every task is done except the real-load part of `T-11`, which waits for the owner. Nothing has been pushed and no pull request has been opened.
+Slices 1 to 4 complete: `T-1` to `T-6`, `T-8` and `T-9` done, with their follow-ups `T-3b`, `T-4b`, `T-8b`, `T-8c` and `T-9b`. The profile can be chosen from the CLI and from the desktop UI. Running authored changed lines: about 3,260 (2,345 through `47666d4`, 228 in `74ff80e` and `655dae2`, 691 in slice 4), feature document excluded; tests are more than half of that. The original forecast of 900 to 1,200 was low by a factor of about three: it did not count the tests each task needed nor the five follow-up units that reviews and verification added. Slice 5 (`feat/load-profiles-05-docs`) adds the documentation and the `T-9c` fixes, 499 more lines (327 documentation, 172 code and tests). Every task is done; `T-11` records the real loads. Nothing has been pushed and no pull request has been opened.
