@@ -152,10 +152,19 @@ Text and docs:
   - Route: delegated direct
   - Checks: focused test file, then `npm test`
 
-- [ ] `T-5`: Presets keyed by profile
-  - Scope: `src/core/presets.js`, `test/core.test.js`
-  - Route: direct inline
-  - Checks: `node --test test/core.test.js`; `balanced` file name unchanged; invalidation on variant-list change.
+- [x] `T-3b`: Review follow-ups in the profile rules (added after the review of `T-2`/`T-3`)
+  - Scope: `src/core/profiles.js`, `test/profiles.test.js`
+  - Route: delegated direct, same writer as `T-5`
+  - Commit: `e35358c`
+  - Reason: the review left two warnings. `variantHints` could hint the quantization the file already is (rounded 8.50 against the 8.5008 target); fixed with `HINT_MIN_GAIN = 1.05`. The MoE rule in `fitsFullyOnGpu` was unproved; a MoE fixture now proves it (regression guard, no code change needed).
+  - Checks: RED on the hint guard (`Q8_0` hinted for an 8.50 file), then `node --test test/profiles.test.js` passed 16/16.
+
+- [x] `T-5`: Presets keyed by profile
+  - Scope: `src/core/presets.js`, `test/presets.test.js` (new; `core.test.js` imports statically without `LLM_TUNER_CONFIG_DIR`, so preset tests there could reach the real config dir)
+  - Route: delegated direct
+  - Commit: `a703727`
+  - Checks: RED 1 pass / 9 fail, then `node --test test/presets.test.js` passed 10/10; `npm test` passed 79/79. `balanced` keeps the legacy file name; a file with no `profile` field is found as `balanced`; `speed` and `quality` presets go stale with reason `variants` when the downloaded variant list changes.
+  - Notes for `T-6`: pass `variants` to both `savePreset` and `findPreset` (a stored `variants: null` goes stale against any list); run `normalizeProfile` before calling presets (the profile becomes a file suffix unvalidated); pass the profile to `presetPath` in the `preset-hit` event; re-export `variantsSignature` from `src/core/index.js` if an interface needs it. For non-balanced profiles a matching variant signature replaces the `modelBytes` check, since sizes are part of the signature.
 
 - [ ] `T-6`: Tuner wiring
   - Scope: `src/core/tuner.js`, `src/core/settings.js`, `test/core.test.js`, `test/settings.test.js`
@@ -187,5 +196,11 @@ Text and docs:
   - Route: direct inline
   - Checks: all suites passing; manual results recorded here.
 
+## Review record
+Receipt-driven development is on (global). Reviewed boundary starts at the tracker branch point.
+
+- Range tracker..`fab0ab1` (`T-2`, `T-3`, feature document): assessed `medium`, due (`slice_budget_reached`, 573 lines). Consent granted by the owner. One lens (`review-reliability`): approved and acknowledged, lineage `review-adda041ec2b3e469`. Five advisory findings, none blocking; the two warnings were fixed in `T-3b`. Three suggestions left open: `kvTypesFor('quality')` returns the full list when an engine has neither `f16` nor `q8_0`; `bitsPerWeight` is not asserted through the real-buffer reader test; `pickVariant` does not guard a variant with no `meta`.
+- Whole branch against `main` (54 files, 9,243 lines, risk `high`), raised by the stop hook: consent granted by the owner, but START refused with `lens_context_budget_exceeded`. No review authority was created. The features that predate this one are not reviewed against `main`; they would have to be reviewed as smaller candidates. Not part of this feature.
+
 ## Progress
-`T-1`, `T-2` and `T-3` done. Running authored changed lines: 374 (17 in `ae418ef`, 357 in `b3a84c1`). Next step: `T-5` (presets keyed by profile), which closes slice 1.
+Slice 1 complete: `T-1`, `T-2`, `T-3`, `T-3b` and `T-5` done. Running authored changed lines: 634 (17 in `ae418ef`, 357 in `b3a84c1`, 41 in `e35358c`, 219 in `a703727`), feature document excluded. Next step: slice 2 on `feat/load-profiles-02-engines`, starting with `T-4`.
