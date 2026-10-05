@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { select, input, confirm, search } from '@inquirer/prompts';
-import { detectHardware, detectEngines, Tuner, installPlans, runInstall, listPresets, presetsDir, fmtBytes, readSettings, writeSettings, THEMES, TunerError } from '../core/index.js';
+import { detectHardware, detectEngines, Tuner, installPlans, runInstall, listPresets, presetsDir, fmtBytes, readSettings, writeSettings, THEMES, PROFILES, DEFAULT_PROFILE, TunerError } from '../core/index.js';
 import { t as translate, LOCALES, errorText } from '../i18n/index.js';
+import { profileChoices, profileNotes, profileSwitchNote, profileEventLines, shouldAskProfile } from './profile.js';
 
 const args = parseArgs(process.argv.slice(2));
 let { lang, theme } = await readSettings();
@@ -21,6 +22,12 @@ if ('theme' in args) {
   }
   theme = args.theme;
   try { await writeSettings({ theme }); } catch (e) { console.error(c.y(t('cli.themeNotSaved', { error: e.message }))); }
+}
+if ('profile' in args) {
+  if (!PROFILES.includes(args.profile)) {
+    console.error(translate(lang, 'errors.unknownProfile', { profile: args.profile ?? '', list: PROFILES.join(', ') }));
+    process.exit(1);
+  }
 }
 
 const isLight = () => theme === 'light';
@@ -52,7 +59,7 @@ if (args.settings) {
 } else if (args.presets) {
   const list = await listPresets({ engine: args.engine, modelKey: args.model });
   if (!list.length) console.log(t('cli.noPresets'));
-  for (const p of list) console.log(`${p.engine.padEnd(9)} ${p.model}  ${p.ctx / 1024}K  KV ${p.kvType}  ${p.fullOffload ? t('candidate.allGpu') : t('cli.partial')}  ${p.shortTps} t/s  ${c.dim(p.createdAt.slice(0, 16).replace('T', ' '))}`);
+  for (const p of list) console.log(`${p.engine.padEnd(9)} ${p.model}  ${p.ctx / 1024}K${p.profile ? `  ${p.profile}${p.variant && p.variant !== p.model ? ` (${p.variant})` : ''}` : ''}  KV ${p.kvType}  ${p.fullOffload ? t('candidate.allGpu') : t('cli.partial')}  ${p.shortTps} t/s  ${c.dim(p.createdAt.slice(0, 16).replace('T', ' '))}`);
 } else {
   main().catch((e) => {
     if (e?.name === 'ExitPromptError') process.exit(130);
@@ -178,9 +185,43 @@ async function main() {
     }));
   }
 
-  // 4. Load (preset or benchmark)
+  // 4. Profile
+  let profile = args.profile;
+  if (!profile && !shouldAskProfile(args)) {
+    profile = DEFAULT_PROFILE; // Non-interactive and fully flagged runs keep the behaviour scripts already rely on.
+  }
+  // The wizard gives the switch advice with its prompt; a profile that comes from a flag gets it with the load events.
+  const advisedByWizard = !profile;
+  if (!profile) {
+    const plan = await tuner.profilePlan(modelKey, ctx);
+    const { profile: stored } = await readSettings();
+    for (const line of profileNotes(plan, t)) {
+      out((line.level === 'warn' ? c.y : c.dim)(`  ${line.text}`));
+    }
+    profile = await select({
+      message: t('cli.profile'),
+      ...profileChoices(plan, t, { stored, mark: c.y, dim: c.dim }),
+    });
+    try {
+      await writeSettings({ profile });
+    } catch (e) {
+      console.error(c.y(t('cli.profileNotSaved', { error: e.message })));
+    }
+    const switchNote = profileSwitchNote(plan, profile, t, tuner.engine.name);
+    if (switchNote) out(c.dim(`  ${switchNote}`));
+  }
+
+  // 5. Load (preset or benchmark)
+  // Progress event before the current one: a fallback that repeats its reason is not printed twice.
+  let previous = null;
   tuner.on('progress', (e) => {
     if (args.json) return;
+    if (e.type === 'variant-picked' || e.type === 'profile-fallback') {
+      for (const line of profileEventLines(e, previous, t, advisedByWizard ? null : tuner.engine.name)) {
+        out((line.level === 'warn' ? c.y : c.dim)(`  ${line.text}`));
+      }
+    }
+    previous = e;
     if (e.type === 'status') out(c.dim(`\n${t(e.code, e.params)}`));
     if (e.type === 'preset-hit') out(c.g(`\n✓ ${t('cli.presetHit', { date: e.preset.createdAt.slice(0, 10), config: describe(e.preset.candidate), tps: e.preset.bench.short.genTps })}`));
     if (e.type === 'candidate-start') out(`  [${e.index + 1}/${e.total}] ${describe(e.candidate)}`);
@@ -193,6 +234,7 @@ async function main() {
   });
 
   const result = await tuner.load(modelKey, ctx, {
+    profile,
     force: !!args.force,
     dryRun: !!args['dry-run'],
     maxCandidates: Number(args.candidates) || 3,

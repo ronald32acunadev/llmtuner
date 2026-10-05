@@ -29,7 +29,7 @@
       <li data-step="load" data-i18n="web.stepLoad">Load</li>
     </ol>
     <div class="hw-mini" id="hw-mini" data-i18n="web.detectingHw">Detecting hardware…</div>
-    <p class="rail-note" data-i18n="web.railNote">The configuration is decided from your hardware, the model metadata and real measurements. The result is saved as a preset: it is only measured again if you change the context.</p>
+    <p class="rail-note" data-i18n="web.railNote">The configuration is decided from your hardware, the model metadata and real measurements. The result is saved as a preset: it is only measured again if you change the context or the load profile.</p>
   </aside>
 
   <main>
@@ -58,18 +58,25 @@
           <label for="ctx" data-i18n="web.context">Context (tokens)</label>
           <input id="ctx" type="number" min="512" step="1024" value="16384">
         </div>
-        <button id="load-btn" class="btn primary" type="button" disabled data-i18n="web.loadButton">Load</button>
       </div>
       <div id="ctx-chips" class="chips"></div>
+      <div class="field profile-field">
+        <span id="profile-label" class="field-label" data-i18n="web.profile">Load profile</span>
+        <div id="profile-options" class="profile-options" role="radiogroup" aria-labelledby="profile-label" aria-describedby="profile-detail"></div>
+        <div id="profile-detail" class="profile-detail small" aria-live="polite"></div>
+      </div>
       <div id="model-meta" class="meta muted small"></div>
       <div id="gpus" class="gpus"></div>
-      <label class="check"><input type="checkbox" id="force"> <span data-i18n="web.force">Measure again even if a preset exists</span></label>
+      <div class="row wrap actions">
+        <label class="check"><input type="checkbox" id="force"> <span data-i18n="web.force">Measure again even if a preset exists</span></label>
+        <button id="load-btn" class="btn primary" type="button" disabled data-i18n="web.loadButton">Load</button>
+      </div>
     </section>
 
     <section id="sec-load" class="panel" hidden>
       <header><h2 id="load-title" data-i18n="web.loading">Loading</h2><span class="pill" id="load-status" data-i18n="web.inProgress">in progress</span></header>
       <div id="bench" hidden>
-        <p class="muted small" data-i18n="web.benchIntro">There is no preset for this context: several configurations are tested on your hardware. It takes a few minutes and only happens once.</p>
+        <p class="muted small" data-i18n="web.benchIntro">There is no preset for this context and profile: several configurations are tested on your hardware. It takes a few minutes and only happens once.</p>
         <div class="table-wrap">
           <table id="results">
             <thead><tr><th data-i18n="web.colConfig">Configuration</th><th data-i18n="web.colGpuLayers">GPU layers</th><th class="num" data-i18n="web.colEstimated">Estimated</th><th class="num" data-i18n="web.colShort">Short</th><th class="num" data-i18n="web.colDeep">With context</th><th class="num">CPU</th><th data-i18n="web.colVram">Peak VRAM</th></tr></thead>

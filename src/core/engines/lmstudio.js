@@ -32,10 +32,27 @@ function apiUrl() {
   return /^https?:\/\//.test(h) ? h.replace(/\/$/, '') : `http://${h}`.replace(/\/$/, '');
 }
 
+/** Variants of one `lms ls --json` entry: [{ key, quant, selected }]. */
+export function lmsVariants(entry) {
+  if (!entry.variants?.length) {
+    return [{ key: entry.modelKey || entry.path, quant: entry.quantization?.name ?? null, selected: true }];
+  }
+  const variants = entry.variants.map((id) => {
+    const at = id.lastIndexOf('@');
+    return {
+      key: id,
+      quant: at === -1 ? null : id.slice(at + 1).toUpperCase(),
+      selected: id === entry.selectedVariant
+    };
+  });
+  if (!variants.some((v) => v.selected)) variants[0].selected = true;
+  return variants;
+}
+
 export const lmstudio = {
   id: 'lmstudio',
   name: 'LM Studio',
-  capabilities: { kvTypes: ['f16', 'q8_0', 'q4_0'], perModelKv: true, gpuOrder: true, cpuMoe: true, exactBenchmark: true },
+  capabilities: { kvTypes: ['f16', 'q8_0', 'q4_0'], perModelKv: true, gpuOrder: true, cpuMoe: true, exactBenchmark: true, variantSelect: false },
 
   async detect() {
     const home = await lmsHome();
@@ -83,6 +100,31 @@ export const lmstudio = {
     const want = path.basename(concrete || key).toLowerCase();
     const found = await findFile(root, (n) => n.toLowerCase().endsWith('.gguf') && (n.toLowerCase() === want || n.toLowerCase().includes(want.replace(/\.gguf$/, ''))), 4);
     return found;
+  },
+
+  /** Downloaded variants of a model: [{ key, quant, sizeBytes, selected, file }]. */
+  async listVariants(ctx, key) {
+    const { bin } = ctx.detection;
+    if (!bin) return [];
+    const r = await run(bin, ['ls', '--json']);
+    if (r.code !== 0) return [];
+    let list;
+    try { list = JSON.parse(r.stdout); } catch { return []; }
+    // Valid JSON that is not a list of models (an object, null) means there is nothing to list.
+    if (!Array.isArray(list)) return [];
+    const entry = list.find((m) => m && typeof m === 'object' && m.type === 'llm' && m.format === 'gguf' && (m.modelKey || m.path) === key);
+    if (!entry) return [];
+    const results = [];
+    for (const v of lmsVariants(entry)) {
+      const file = await this.resolveModelFile(ctx, v.key);
+      const size = file ? (await fs.stat(file).catch(() => null))?.size : null;
+      if (size != null) {
+        results.push({ key: v.key, quant: v.quant, sizeBytes: size, selected: v.selected, file });
+      } else if (v.selected) {
+        results.push({ key: v.key, quant: v.quant, sizeBytes: entry.sizeBytes, selected: true, file: null });
+      }
+    }
+    return results;
   },
 
   async modelMeta(ctx, key) {

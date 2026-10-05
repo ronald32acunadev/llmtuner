@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError } from '../core/index.js';
+import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError, PROFILES } from '../core/index.js';
 import { THEMES } from '../core/settings.js';
 import { LOCALES, messagesFor } from '../i18n/index.js';
 import { openUrl } from '../core/installer.js';
@@ -32,6 +32,12 @@ function createJob() {
 
 let busy = false;
 
+/** The load profile a request names, or a TunerError the browser translates. */
+function knownProfile(value) {
+  if (!PROFILES.includes(value)) throw new TunerError('errors.unknownProfile', { profile: String(value ?? ''), list: PROFILES.join(', ') });
+  return value;
+}
+
 async function body(req) {
   let data = '';
   for await (const chunk of req) data += chunk;
@@ -44,11 +50,11 @@ function send(res, status, obj) {
 }
 
 const routes = {
-  'GET /api/settings': async () => ({ ...(await readSettings()), locales: LOCALES, themes: THEMES }),
+  'GET /api/settings': async () => ({ ...(await readSettings()), locales: LOCALES, themes: THEMES, profiles: PROFILES }),
 
   'POST /api/settings': async (req) => {
     const payload = await body(req);
-    if (payload?.lang === undefined && payload?.theme === undefined) throw new TunerError('errors.unknownLocale', { lang: '', list: LOCALES.join(', ') });
+    if (payload?.lang === undefined && payload?.theme === undefined && payload?.profile === undefined) throw new TunerError('errors.unknownLocale', { lang: '', list: LOCALES.join(', ') });
     const patch = {};
     if (payload.lang !== undefined) {
       if (!LOCALES.includes(payload.lang)) throw new TunerError('errors.unknownLocale', { lang: String(payload.lang ?? ''), list: LOCALES.join(', ') });
@@ -58,7 +64,8 @@ const routes = {
       if (!THEMES.includes(payload.theme)) throw new TunerError('errors.unknownTheme', { theme: String(payload.theme ?? ''), list: THEMES.join(', ') });
       patch.theme = payload.theme;
     }
-    return { ...(await writeSettings(patch)), locales: LOCALES, themes: THEMES };
+    if (payload.profile !== undefined) patch.profile = knownProfile(payload.profile);
+    return { ...(await writeSettings(patch)), locales: LOCALES, themes: THEMES, profiles: PROFILES };
   },
 
   'GET /api/state': async () => {
@@ -93,9 +100,12 @@ const routes = {
   'POST /api/plan': async (req) => {
     const { engine, model, ctx } = await body(req);
     const tuner = await Tuner.create(engine);
-    const p = await tuner.plan(model, Number(ctx) || 8192);
+    const context = Number(ctx) || 8192;
+    const p = await tuner.plan(model, context);
     const { layerBytes, layerExpertBytes, kvHeadsPerLayer, swaLayers, ...meta } = p.model.meta;
-    return { meta, maxContext: p.maxContext, candidates: p.candidates.map(slim) };
+    // What each load profile would do: a preview that never unloads or measures. The plan is still useful without it.
+    const profiles = await tuner.profilePlan(model, context).catch(() => null);
+    return { meta, maxContext: p.maxContext, candidates: p.candidates.map(slim), profiles };
   },
 
   'GET /api/presets': async (req, url) => ({ presets: await listPresets({ engine: url.searchParams.get('engine'), modelKey: url.searchParams.get('model') }) }),
@@ -103,12 +113,15 @@ const routes = {
   // The "Load" button: preset -> apply + load, or benchmark -> preset -> apply + load.
   'POST /api/load': async (req) => {
     if (busy) throw new TunerError('errors.loadInProgress');
-    const { engine, model, ctx, force = false, candidates = 3 } = await body(req);
+    const { engine, model, ctx, force = false, candidates = 3, profile } = await body(req);
+    // An unknown profile is rejected before any job exists; without one the tuner uses its default.
+    const options = { force, maxCandidates: Number(candidates) };
+    if (profile !== undefined) options.profile = knownProfile(profile);
     const tuner = await Tuner.create(engine);
     const job = createJob();
     tuner.on('progress', (e) => job.emit(e));
     busy = true;
-    tuner.load(model, Number(ctx), { force, maxCandidates: Number(candidates) })
+    tuner.load(model, Number(ctx), options)
       .then((r) => job.finish({ ok: !!r.loaded?.ok || !!r.applied?.pendingCommands?.length, result: { ...r, report: r.report && { ...r.report, best: r.report.best && { candidate: slim(r.report.best.candidate), bench: r.report.best.bench } } } }))
       .catch((e) => job.finish({ ok: false, ...errorBody(e) }))
       .finally(() => { busy = false; });

@@ -9,7 +9,7 @@ import { installPlans } from '../src/core/installer.js';
 import { Tuner } from '../src/core/tuner.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const NAMESPACES = ['engine', 'status', 'errors', 'install', 'bench', 'changes', 'candidate', 'common', 'cli', 'web'];
+const NAMESPACES = ['engine', 'status', 'errors', 'install', 'bench', 'changes', 'candidate', 'common', 'cli', 'web', 'profile'];
 const KEY_RE = new RegExp(`["'\`]((?:${NAMESPACES.join('|')})\\.[A-Za-z0-9_.]+)["'\`]`, 'g');
 const paramsOf = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
