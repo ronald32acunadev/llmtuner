@@ -232,7 +232,7 @@ test('speed measures, applies and loads the lightest variant when the engine can
   assert.equal(preset.profile, 'speed');
   assert.equal(preset.model, 'm:q4');
   assert.deepEqual(preset.variant, { key: 'm:q3', quant: 'Q3_K_M', sizeBytes: q3.fileBytes });
-  assert.deepEqual(preset.variants, [{ key: 'm:q3', sizeBytes: q3.fileBytes }, { key: 'm:q4', sizeBytes: q4.fileBytes }]);
+  assert.deepEqual(preset.variants, [{ key: 'm:q3', sizeBytes: q3.fileBytes }, { key: 'm:q4', sizeBytes: q4.fileBytes, selected: true }]);
   assert.equal(result.profile, 'speed');
   assert.equal(result.variant, 'm:q3');
   assert.equal(result.source, 'benchmark');
@@ -438,4 +438,40 @@ test('variants lists each downloaded variant with its meta and always includes t
   assert.equal(result.variant, 'm:q4');
   assert.equal(result.candidate.id, 'q4_0-65');
   assert.deepEqual(named('listVariants'), []);
+});
+
+test('a profile preset goes stale when another variant is selected in an engine that cannot select variants', async () => {
+  const q3Selected = [variant('fam@q3', 'Q3_K_M', true), variant('fam@q4', 'Q4_K_M')];
+  const q4Selected = [variant('fam@q3', 'Q3_K_M'), variant('fam@q4', 'Q4_K_M', true)];
+
+  // The first load measures and saves.
+  let tuner = setup({ variantSelect: false, variants: q3Selected });
+  const first = await tuner.load('fam', CTX, { profile: 'quality' });
+  assert.equal(first.source, 'benchmark');
+  const saved = JSON.parse(await fs.readFile(presetPath('fake', 'fam', CTX, 'quality'), 'utf8'));
+  assert.deepEqual(saved.variants, [{ key: 'fam@q3', sizeBytes: q3.fileBytes, selected: true }, { key: 'fam@q4', sizeBytes: q4.fileBytes }]);
+
+  // Same selection: the preset is reused.
+  tuner = setup({ variantSelect: false, variants: q3Selected });
+  const hit = await tuner.load('fam', CTX, { profile: 'quality' });
+  assert.equal(hit.source, 'preset');
+  assert.deepEqual(named('benchmark'), []);
+
+  // The user selects the heavier variant in the engine: the family key now reads that file, and the variant list itself is unchanged.
+  try {
+    METAS.fam = q4;
+    tuner = setup({ variantSelect: false, variants: q4Selected });
+    const again = await tuner.load('fam', CTX, { profile: 'quality' });
+    assert.equal(again.source, 'benchmark');
+    assert.equal(events.find((e) => e.type === 'status').code, 'status.searchVariants');
+    assert.deepEqual(events.filter((e) => e.type === 'preset-hit'), []);
+    assert.deepEqual(named('benchmark').map((c) => c[1]), ['fam', 'fam']);
+
+    // The new preset remembers the new selection.
+    const resaved = JSON.parse(await fs.readFile(presetPath('fake', 'fam', CTX, 'quality'), 'utf8'));
+    assert.deepEqual(resaved.variants, [{ key: 'fam@q3', sizeBytes: q3.fileBytes }, { key: 'fam@q4', sizeBytes: q4.fileBytes, selected: true }]);
+    assert.equal(resaved.variant.sizeBytes, q4.fileBytes);
+  } finally {
+    METAS.fam = q3;
+  }
 });

@@ -210,3 +210,39 @@ test('a quality preset stored without variants goes stale when variants appear',
   assert.equal(found.reason, 'variants');
   assert.equal(found.preset, null);
 });
+
+test('variantsSignature encodes which variant is selected', () => {
+  const a = [{ ...Q4, selected: true }, Q8];
+  const b = [Q4, { ...Q8, selected: true }];
+  assert.notEqual(variantsSignature(a), variantsSignature(b));
+  assert.equal(variantsSignature(a), `m@q4_k_m:${19 * GiB}:selected|m@q8_0:${34 * GiB}`);
+  assert.equal(variantsSignature([...a].reverse()), variantsSignature(a));
+  // Entries without a `selected` field are unselected.
+  assert.equal(variantsSignature([Q4, Q8]), variantsSignature([{ ...Q4, selected: false }, { ...Q8, selected: false }]));
+  assert.equal(variantsSignature([Q4, Q8]), `m@q4_k_m:${19 * GiB}|m@q8_0:${34 * GiB}`);
+  assert.notEqual(variantsSignature(a), variantsSignature([Q4, Q8]));
+});
+
+test('a quality preset goes stale when another downloaded variant is selected', async () => {
+  const { preset } = await save({ profile: 'quality', variant: Q4, variants: [{ ...Q8, selected: false }, { ...Q4, selected: true }] });
+  // Only the selected entry carries the flag.
+  assert.deepEqual(preset.variants, [{ ...Q4, selected: true }, Q8]);
+  const same = await find({ profile: 'quality', variants: [{ ...Q4, selected: true }, { ...Q8, selected: false }] });
+  assert.equal(same.reason, 'hit');
+  assert.deepEqual(same.preset, preset);
+  // The list is the same, so only the selection can tell that another file would be loaded.
+  const other = await find({ profile: 'quality', variants: [{ ...Q4, selected: false }, { ...Q8, selected: true }] });
+  assert.equal(other.reason, 'variants');
+  assert.equal(other.preset, null);
+  assert.deepEqual(other.stale, preset);
+});
+
+test('a profile preset saved before the selection was stored is measured again', async () => {
+  // A preset file written by an older version has no `selected` field in its variants.
+  await save({ profile: 'speed', variant: Q4, variants: [Q4, Q8] });
+  const found = await find({ profile: 'speed', variants: [{ ...Q4, selected: true }, { ...Q8, selected: false }] });
+  assert.equal(found.reason, 'variants');
+  assert.equal(found.preset, null);
+  // A lookup that carries no selection still matches it.
+  assert.equal((await find({ profile: 'speed', variants: [Q8, Q4] })).reason, 'hit');
+});

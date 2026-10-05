@@ -243,8 +243,8 @@ export class Tuner extends EventEmitter {
     const modelBytes = model.meta.fileBytes;
     // Listing the variants of a non-balanced profile needs no hardware; picking one does, so the pick waits.
     const variants = profile === DEFAULT_PROFILE ? null : await this.variants(key);
-    const listed = variants?.map((v) => ({ key: v.key, sizeBytes: v.sizeBytes }));
-    // A profile preset is keyed by the key the user chose plus the profile, and goes stale with the variant list.
+    const listed = variants?.map((v) => ({ key: v.key, sizeBytes: v.sizeBytes, selected: v.selected }));
+    // A profile preset is keyed by the key the user chose plus the profile, and goes stale with the variant list or its selected entry.
     const keyed = variants ? { profile, variants: listed } : {};
     let target = null;
     let source = 'preset';

@@ -30,10 +30,20 @@ export function presetPath(engine, modelKey, ctx, profile = DEFAULT_PROFILE) {
   return path.join(presetsDir(), `${engine}__${slug(modelKey)}__${ctx}${suffix}.json`);
 }
 
-/** Identifies the downloaded variants of a model (keys + file sizes), order independent. */
+/** Identifies the downloaded variants of a model (keys + file sizes + which one is selected), order independent. */
 export function variantsSignature(variants) {
   if (!Array.isArray(variants) || !variants.length) return '';
-  return variants.map((v) => `${v.key}:${v.sizeBytes}`).sort().join('|');
+  return variants.map((v) => v.selected ? `${v.key}:${v.sizeBytes}:selected` : `${v.key}:${v.sizeBytes}`).sort().join('|');
+}
+
+/** The variant list a profile preset stores: key and file size, sorted by key, with the selected one flagged. */
+function storedVariants(variants) {
+  if (!Array.isArray(variants)) return null;
+  return variants.map((v) => {
+    const obj = { key: v.key, sizeBytes: v.sizeBytes };
+    if (v.selected) obj.selected = true;
+    return obj;
+  }).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
 }
 
 /** Return the preset if it exists and was measured on this hardware/model/variants file. */
@@ -77,7 +87,7 @@ export async function savePreset({ engine, modelKey, ctx, hw, modelBytes, best, 
     tried: (results || []).map((r) => ({ id: r.candidate.id, ok: r.bench.ok, error: r.bench.error || null, shortTps: r.bench.short?.genTps ?? null, deepTps: r.bench.deep?.genTps ?? null })),
   };
   if (profile !== DEFAULT_PROFILE) {
-    Object.assign(preset, { variant, variants: Array.isArray(variants) ? [...variants].map((v) => ({ key: v.key, sizeBytes: v.sizeBytes })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0) : null });
+    Object.assign(preset, { variant, variants: storedVariants(variants) });
   }
   const file = presetPath(engine, modelKey, ctx, profile);
   await fs.mkdir(path.dirname(file), { recursive: true });
