@@ -192,10 +192,16 @@ Text and docs:
   - Route: direct inline
   - Checks: `node --test test/i18n.test.js`
 
-- [ ] `T-8`: CLI profile flag and wizard step
-  - Scope: `src/cli/index.js`, `test/cli.test.js`
+- [x] `T-8`: CLI profile flag and wizard step
+  - Scope: `src/cli/index.js`, `src/i18n/en.js`, `src/i18n/es.js`, `test/cli.test.js`, `test/i18n.test.js` (the `profile` namespace added to the allowlist, a mechanical inline edit by the parent)
   - Route: delegated direct
-  - Checks: `node --test test/cli.test.js`
+  - Commits: `55d5792` (flag, wizard step, presets listing, catalog keys), `f258b19` and `47666d4` (`T-8b` below)
+  - Checks: RED 0 pass / 4 fail on the flag, help and presets tests and 7 failing helper tests, then `node --test test/cli.test.js` 22/22; `node --test test/i18n.test.js` 14/14; `npm test` 132/132. Smoke: `--profile bogus` prints `Unknown profile "bogus". Valid values: speed, balanced, quality` and exits 1, in `en` and `es`.
+  - Behaviour: `--profile <speed|balanced|quality>`; without the flag, non-interactive runs (`--yes`, `--json`) use `balanced`; the wizard shows the three profiles with the recommended one marked, preselects the stored profile or the recommended one, and stores the choice. Only the interactive choice is stored; a `--profile` flag applies to that run only. `--presets` prints the profile id and the variant key.
+  - `T-8b`: every `profile-fallback` event now carries its `variant`, so interfaces do not have to remember the previous event; with `--profile` on an engine that cannot select variants the CLI prints the "select this variant" advice from the `variant-picked` event.
+  - Not covered by a test: the interactive prompt itself and the progress handler inside `main()`; their logic lives in the tested helpers `profileChoices`, `profileNotes`, `profileSwitchNote` and `profileEventLines`.
+  - Known limits: the wizard's advice comes from the preview (`profilePlan`), computed before VRAM is freed, so it can differ from what the load picks; on a preset hit no switch advice is shown; the CLI recognises a fallback pick through the reason code `profile.variant.noFullGpu`, since `variant-picked` has no `fallback` flag.
+  - Incident: a manual smoke run by the writer, without `LLM_TUNER_CONFIG_DIR`, rewrote the owner's real `~/.config/llm-tuner/settings.json` to `{"lang":"en","theme":"system"}`. The CLI printed English before those calls and the theme is merged from the existing file, so the effective values are believed unchanged, but the previous content was not captured. Later writers are told never to run the CLI without a temp config dir.
 
 - [ ] `T-9`: Web and desktop profile selector
   - Scope: `src/web/server.js`, `src/web/public/index.html`, `src/web/public/app.js`, `src/web/public/style.css`, `test/server.test.js`
@@ -219,5 +225,7 @@ Receipt-driven development is on (global). Reviewed boundary starts at the track
 - Whole branch against `main` (54 files, 9,243 lines, risk `high`), raised by the stop hook: consent granted by the owner, but START refused with `lens_context_budget_exceeded`. No review authority was created. The features that predate this one are not reviewed against `main`; they would have to be reviewed as smaller candidates. Not part of this feature. Raised again at 56 files and 9,969 lines: declined by the owner for that candidate.
 - Range `fab0ab1`..`01ee498` (`T-3b`, `T-5`, `T-4`): assessed `medium`, due (`slice_budget_reached`, 559 lines). Consent granted by the owner. One lens (`review-reliability`): approved and acknowledged, lineage `review-b1259c14be70b663`. Four warnings and three suggestions, none blocking, addressed in `T-4b`.
 
+- Range `01ee498`..`cf91f6e` (`T-4b`, `T-6`): assessed `medium`, due (`slice_budget_reached`, 989 lines). Declined by the owner for that candidate; no review record. Verification of record: the writers' reported commands plus the parent's `npm test` 120/120.
+
 ## Progress
-Slices 1 and 2 complete: `T-1` to `T-6` done, including `T-3b` and `T-4b`. The core is finished; no interface exposes the profile yet. Running authored changed lines: 1,911 (17 in `ae418ef`, 357 in `b3a84c1`, 41 in `e35358c`, 219 in `a703727`, 264 in `4eb7699`, 273 in `ac1c55d`, 507 in `b119502`, 76 in `6199f6b`, 157 in `d529d98`), feature document excluded. Next step: slice 3 on `feat/load-profiles-03-cli` (`T-8`). The original forecast of 900 to 1,200 is already used with four tasks left; the review follow-ups account for 314 of those lines and the tests for most of the rest. Revised forecast: about 2,800 to 3,200 for the whole feature.
+Slices 1, 2 and 3 complete: `T-1` to `T-6` and `T-8` done, including `T-3b`, `T-4b` and `T-8b`. The profile can be chosen from the CLI; the desktop UI does not expose it yet. Running authored changed lines: 2,345 (17 in `ae418ef`, 357 in `b3a84c1`, 41 in `e35358c`, 219 in `a703727`, 264 in `4eb7699`, 273 in `ac1c55d`, 507 in `b119502`, 76 in `6199f6b`, 157 in `d529d98`, 301 in `55d5792`, 23 in `f258b19`, 111 in `47666d4`), feature document excluded. Next step: slice 4 on `feat/load-profiles-04-desktop` (`T-9`). The original forecast of 900 to 1,200 is already used with four tasks left; the review follow-ups account for 314 of those lines and the tests for most of the rest. Revised forecast: about 2,800 to 3,200 for the whole feature.
