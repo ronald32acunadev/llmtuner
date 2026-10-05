@@ -16,10 +16,10 @@ const get = (p) => fetch(url + p);
 const post = (p, body) => fetch(url + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? '' : JSON.stringify(body) });
 
 test('settings default to English and system theme and can be changed', async () => {
-  assert.deepEqual(await (await get('/api/settings')).json(), { lang: 'en', theme: 'system', locales: ['en', 'es'], themes: ['system', 'light', 'dark'] });
+  assert.deepEqual(await (await get('/api/settings')).json(), { lang: 'en', theme: 'system', profile: null, locales: ['en', 'es'], themes: ['system', 'light', 'dark'] });
   const r = await post('/api/settings', { lang: 'es' });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { lang: 'es', theme: 'system', locales: ['en', 'es'], themes: ['system', 'light', 'dark'] });
+  assert.deepEqual(await r.json(), { lang: 'es', theme: 'system', profile: null, locales: ['en', 'es'], themes: ['system', 'light', 'dark'] });
   assert.equal((await (await get('/api/settings')).json()).lang, 'es');
   await post('/api/settings', { lang: 'en' });
 });
@@ -38,7 +38,7 @@ test('an unknown or missing language is rejected and nothing changes', async () 
 test('theme can be changed via POST /api/settings', async () => {
   const r = await post('/api/settings', { theme: 'dark' });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { lang: 'en', theme: 'dark', locales: ['en', 'es'], themes: ['system', 'light', 'dark'] });
+  assert.deepEqual(await r.json(), { lang: 'en', theme: 'dark', profile: null, locales: ['en', 'es'], themes: ['system', 'light', 'dark'] });
   assert.equal((await (await get('/api/settings')).json()).theme, 'dark');
   await post('/api/settings', { theme: 'system' });
 });
