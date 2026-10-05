@@ -216,7 +216,7 @@ test('--presets shows the profile and the variant of each preset', async () => {
 
 // The helpers are imported in-process: the CLI stays idle when it is not the entry script.
 process.env.LLM_TUNER_CONFIG_DIR = dir;
-const { profileChoices, profileNotes, profileSwitchNote, profileEventText } = await import('../src/cli/index.js');
+const { profileChoices, profileNotes, profileSwitchNote, profileEventLines } = await import('../src/cli/index.js');
 const { t: translate } = await import('../src/i18n/index.js');
 const tr = (lang) => (key, params) => translate(lang, key, params);
 
@@ -277,23 +277,58 @@ test('profileSwitchNote tells which variant to select in the engine, only when a
   assert.equal(profileSwitchNote(PLAN, 'balanced', tr('en'), 'LM Studio'), null);
 });
 
-test('profileEventText translates the variant and fallback events', () => {
-  const picked = { type: 'variant-picked', reasonCode: 'profile.variant.heaviestFit', variant: { key: 'm:q8', quant: 'Q8_0' } };
-  assert.equal(profileEventText(picked, null, tr('en')), 'Variant Q8_0 (m:q8): the heaviest one downloaded that fits fully on GPU.');
-  const unknown = { type: 'variant-picked', reasonCode: 'profile.variant.selected', variant: { key: 'm', quant: null } };
-  assert.equal(profileEventText(unknown, null, tr('es')), 'Variante ? (m): la seleccionada.');
-  const measured = { type: 'profile-fallback', reasonCode: 'profile.fallback.noFullGpuConfig' };
-  assert.match(profileEventText(measured, picked, tr('en')), /^No fully-on-GPU configuration passed the measurement/);
-  assert.match(profileEventText(measured, picked, tr('es')), /^Ninguna configuración con todo en GPU superó la medición/);
+test('profileEventLines renders the variant and fallback events from their own variant', () => {
+  const picked = { type: 'variant-picked', reasonCode: 'profile.variant.heaviestFit', variant: { key: 'm:q8', quant: 'Q8_0' }, recommendSwitch: false };
+  assert.deepEqual(profileEventLines(picked, null, tr('en'), 'LM Studio'), [{ text: 'Variant Q8_0 (m:q8): the heaviest one downloaded that fits fully on GPU.', level: 'note' }]);
+
+  const unknown = { type: 'variant-picked', reasonCode: 'profile.variant.selected', variant: { key: 'm', quant: null }, recommendSwitch: false };
+  assert.deepEqual(profileEventLines(unknown, null, tr('es'), 'LM Studio'), [{ text: 'Variante ? (m): la seleccionada.', level: 'note' }]);
+
+  // A fallback needs no earlier event: it carries the variant itself.
+  const noFit = { type: 'profile-fallback', reasonCode: 'profile.variant.noFullGpu', variant: { key: 'm:q4', quant: 'Q4_K_M' } };
+  assert.deepEqual(profileEventLines(noFit, null, tr('en'), 'LM Studio'), [{ text: 'No downloaded variant fits fully on GPU: the quality profile uses the balanced rule with Q4_K_M (m:q4).', level: 'warn' }]);
+  assert.deepEqual(profileEventLines(noFit, null, tr('es'), 'LM Studio'), [{ text: 'Ninguna variante descargada cabe por completo en GPU: el perfil de calidad usa la regla del equilibrado con Q4_K_M (m:q4).', level: 'warn' }]);
+
+  const measured = { type: 'profile-fallback', reasonCode: 'profile.fallback.noFullGpuConfig', variant: { key: 'm:q4', quant: 'Q4_K_M' } };
+  assert.deepEqual(profileEventLines(measured, picked, tr('en'), 'LM Studio'), [{ text: 'No fully-on-GPU configuration passed the measurement: the quality profile used the balanced rule.', level: 'warn' }]);
+  assert.deepEqual(profileEventLines(measured, picked, tr('es'), 'LM Studio'), [{ text: 'Ninguna configuración con todo en GPU superó la medición: el perfil de calidad usó la regla del equilibrado.', level: 'warn' }]);
 });
 
-test('profileEventText does not repeat a fallback reason the variant line already gave', () => {
-  const noFit = { type: 'variant-picked', reasonCode: 'profile.variant.noFullGpu', variant: { key: 'm:q4', quant: 'Q4_K_M' } };
-  const fallback = { type: 'profile-fallback', reasonCode: 'profile.variant.noFullGpu' };
-  assert.match(profileEventText(noFit, null, tr('en')), /uses the balanced rule with Q4_K_M \(m:q4\)/);
-  assert.equal(profileEventText(fallback, noFit, tr('en')), null);
-  // Without a matching variant line the fallback is still filled with the last picked variant.
+test('profileEventLines prints a fallback reason once, as a warning', () => {
+  const variant = { key: 'm:q4', quant: 'Q4_K_M' };
+  const noFit = { type: 'variant-picked', reasonCode: 'profile.variant.noFullGpu', variant, recommendSwitch: false };
+  const fallback = { type: 'profile-fallback', reasonCode: 'profile.variant.noFullGpu', variant };
   const other = { ...noFit, reasonCode: 'profile.variant.selected' };
-  assert.match(profileEventText(fallback, other, tr('es')), /con Q4_K_M \(m:q4\)/);
-  assert.doesNotMatch(profileEventText(fallback, null, tr('en')) ?? '', /undefined/);
+  const expected = { en: 'No downloaded variant fits fully on GPU: the quality profile uses the balanced rule with Q4_K_M (m:q4).', es: 'Ninguna variante descargada cabe por completo en GPU: el perfil de calidad usa la regla del equilibrado con Q4_K_M (m:q4).' };
+
+  for (const lang of ['en', 'es']) {
+    const line = { text: expected[lang], level: 'warn' };
+    // The variant line explains that the quality profile could not be honoured: it is a warning.
+    assert.deepEqual(profileEventLines(noFit, null, tr(lang), 'LM Studio'), [line], lang);
+    // The fallback that follows it repeats the same reason: nothing more is printed.
+    assert.deepEqual(profileEventLines(fallback, noFit, tr(lang), 'LM Studio'), [], lang);
+    // After a different line, or with none before, the fallback prints its reason.
+    assert.deepEqual(profileEventLines(fallback, other, tr(lang), 'LM Studio'), [line], lang);
+    assert.deepEqual(profileEventLines(fallback, null, tr(lang), 'LM Studio'), [line], lang);
+  }
+});
+
+test('profileEventLines adds the switch advice when the event recommends another variant', () => {
+  const picked = { type: 'variant-picked', reasonCode: 'profile.variant.heaviestFit', variant: { key: 'fam@q8', quant: 'Q8_0' }, loads: 'fam', recommendSwitch: true };
+  assert.deepEqual(profileEventLines(picked, null, tr('en'), 'LM Studio'), [
+    { text: 'Variant Q8_0 (fam@q8): the heaviest one downloaded that fits fully on GPU.', level: 'note' },
+    { text: 'The Q8_0 variant suits this profile better: select it in LM Studio to use it. The one selected now is the one that will be loaded.', level: 'note' },
+  ]);
+  assert.deepEqual(profileEventLines(picked, null, tr('es'), 'Ollama'), [
+    { text: 'Variante Q8_0 (fam@q8): la más pesada de las descargadas que cabe por completo en GPU.', level: 'note' },
+    { text: 'La variante Q8_0 se ajusta mejor a este perfil: selecciónala en Ollama para usarla. Se cargará la que está seleccionada ahora.', level: 'note' },
+  ]);
+  // Without a quantization the advice names the variant by its key.
+  const unnamed = { ...picked, variant: { key: 'fam@q8', quant: null } };
+  assert.equal(profileEventLines(unnamed, null, tr('en'), 'LM Studio')[1].text, 'The fam@q8 variant suits this profile better: select it in LM Studio to use it. The one selected now is the one that will be loaded.');
+  // No advice when the engine loads the pick itself.
+  assert.equal(profileEventLines({ ...picked, recommendSwitch: false }, null, tr('en'), 'LM Studio').length, 1);
+  // No advice without an engine name: the wizard already gave it with the profile prompt.
+  assert.equal(profileEventLines(picked, null, tr('en')).length, 1);
+  assert.equal(profileEventLines(picked, null, tr('es'), null).length, 1);
 });

@@ -43,6 +43,9 @@ const c = {
   cyan: (s) => isLight() ? `\x1b[36m${s}\x1b[0m` : `\x1b[96m${s}\x1b[0m`,
 };
 
+// Reasons of a `variant-picked` event that mean the profile could not be honoured: the core flags them with a `profile-fallback` event right after.
+const FALLBACK_REASONS = new Set(['profile.variant.noFullGpu']);
+
 if (args.help) {
   console.log(t('cli.help', { presetsDir: presetsDir() }));
   process.exit(0);
@@ -193,6 +196,8 @@ async function main() {
   if (!profile && (args.yes || args.json)) {
     profile = DEFAULT_PROFILE; // Non-interactive runs keep the behaviour scripts already rely on.
   }
+  // The wizard gives the switch advice with its prompt; a profile that comes from a flag gets it with the load events.
+  const advisedByWizard = !profile;
   if (!profile) {
     const plan = await tuner.profilePlan(modelKey, ctx);
     const { profile: stored } = await readSettings();
@@ -213,19 +218,16 @@ async function main() {
   }
 
   // 5. Load (preset or benchmark)
-  // Last variant-picked event: a fallback that follows it reuses its variant.
-  let lastPick = null;
+  // Progress event before the current one: a fallback that repeats its reason is not printed twice.
+  let previous = null;
   tuner.on('progress', (e) => {
     if (args.json) return;
     if (e.type === 'variant-picked' || e.type === 'profile-fallback') {
-      const text = profileEventText(e, lastPick, t);
-      if (text != null) {
-        out(e.type === 'profile-fallback' ? c.y(`  ${text}`) : c.dim(`  ${text}`));
-      }
-      if (e.type === 'variant-picked') {
-        lastPick = e;
+      for (const line of profileEventLines(e, previous, t, advisedByWizard ? null : tuner.engine.name)) {
+        out((line.level === 'warn' ? c.y : c.dim)(`  ${line.text}`));
       }
     }
+    previous = e;
     if (e.type === 'status') out(c.dim(`\n${t(e.code, e.params)}`));
     if (e.type === 'preset-hit') out(c.g(`\n✓ ${t('cli.presetHit', { date: e.preset.createdAt.slice(0, 10), config: describe(e.preset.candidate), tps: e.preset.bench.short.genTps })}`));
     if (e.type === 'candidate-start') out(`  [${e.index + 1}/${e.total}] ${describe(e.candidate)}`);
@@ -328,12 +330,24 @@ export function profileSwitchNote(plan, profile, t, engine) {
   return t('cli.profileSwitch', { quant: info.quant ?? info.variant, engine });
 }
 
-/** Text of a `variant-picked` or `profile-fallback` event; null when the fallback repeats the reason the variant line gave. */
-export function profileEventText(event, lastPick, t) {
-  if (event.type === 'profile-fallback' && event.reasonCode === lastPick?.reasonCode) return null;
-  // A fallback event carries no variant: its text is filled with the one picked just before.
-  const variant = event.variant ?? lastPick?.variant;
-  return t(event.reasonCode, variant ? { quant: variant.quant ?? '?', key: variant.key } : undefined);
+/** Lines to print for a `variant-picked` or `profile-fallback` event, as `{ text, level }` with level `note` or `warn`; `previous` is the event before it and `engine` the engine name, or null to leave the switch advice out. */
+export function profileEventLines(event, previous, t, engine = null) {
+  const { variant } = event;
+  const isFallback = event.type === 'profile-fallback';
+  const lines = [];
+
+  // A fallback that repeats the reason of the line before it is not printed again.
+  if (!(isFallback && event.reasonCode === previous?.reasonCode)) {
+    const level = isFallback || FALLBACK_REASONS.has(event.reasonCode) ? 'warn' : 'note';
+    lines.push({ text: t(event.reasonCode, { quant: variant.quant ?? '?', key: variant.key }), level });
+  }
+
+  // The engine cannot load the pick itself: tell the user which variant to select there.
+  if (event.type === 'variant-picked' && event.recommendSwitch && engine) {
+    lines.push({ text: t('cli.profileSwitch', { quant: variant.quant ?? variant.key, engine }), level: 'note' });
+  }
+
+  return lines;
 }
 
 /** True when another script imports this file (the tests do, for the pure helpers): the CLI then stays idle. */
