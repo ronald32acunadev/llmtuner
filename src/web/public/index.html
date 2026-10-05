@@ -29,7 +29,7 @@
       <li data-step="load" data-i18n="web.stepLoad">Load</li>
     </ol>
     <div class="hw-mini" id="hw-mini" data-i18n="web.detectingHw">Detecting hardware…</div>
-    <p class="rail-note" data-i18n="web.railNote">The configuration is decided from your hardware, the model metadata and real measurements. The result is saved as a preset: it is only measured again if you change the context.</p>
+    <p class="rail-note" data-i18n="web.railNote">The configuration is decided from your hardware, the model metadata and real measurements. The result is saved as a preset: it is only measured again if you change the context or the load profile.</p>
   </aside>
 
   <main>
@@ -76,7 +76,7 @@
     <section id="sec-load" class="panel" hidden>
       <header><h2 id="load-title" data-i18n="web.loading">Loading</h2><span class="pill" id="load-status" data-i18n="web.inProgress">in progress</span></header>
       <div id="bench" hidden>
-        <p class="muted small" data-i18n="web.benchIntro">There is no preset for this context: several configurations are tested on your hardware. It takes a few minutes and only happens once.</p>
+        <p class="muted small" data-i18n="web.benchIntro">There is no preset for this context and profile: several configurations are tested on your hardware. It takes a few minutes and only happens once.</p>
         <div class="table-wrap">
           <table id="results">
             <thead><tr><th data-i18n="web.colConfig">Configuration</th><th data-i18n="web.colGpuLayers">GPU layers</th><th class="num" data-i18n="web.colEstimated">Estimated</th><th class="num" data-i18n="web.colShort">Short</th><th class="num" data-i18n="web.colDeep">With context</th><th class="num">CPU</th><th data-i18n="web.colVram">Peak VRAM</th></tr></thead>
