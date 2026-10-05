@@ -2,17 +2,39 @@
   "name": "llm-tuner",
   "version": "0.1.0",
   "description": "Detects your hardware and finds the fastest configuration to run local LLMs with LM Studio or Ollama.",
+  "keywords": [
+    "llm",
+    "lm-studio",
+    "ollama",
+    "gguf",
+    "llama.cpp",
+    "benchmark",
+    "gpu",
+    "vram"
+  ],
+  "homepage": "https://github.com/ronald32acunadev/llmtuner#readme",
+  "bugs": {
+    "url": "https://github.com/ronald32acunadev/llmtuner/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ronald32acunadev/llmtuner.git"
+  },
+  "license": "MIT",
   "type": "module",
   "main": "src/core/index.js",
   "bin": {
-    "llm-tuner": "src/cli/index.js"
+    "llm-tuner": "src/cli/index.js",
+    "llm-tuner-desktop": "electron/launch.js"
   },
+  "files": [
+    "src/",
+    "electron/",
+    "README.es.md"
+  ],
   "scripts": {
     "start": "node src/cli/index.js",
-    "web": "node src/web/server.js",
     "desktop": "node electron/launch.js",
-    "dist": "electron-builder",
-    "dist:win": "electron-builder --win portable",
     "test": "node --test test/*.test.js"
   },
   "engines": {
@@ -20,46 +42,7 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^7.0.0",
-    "systeminformation": "^5.23.0"
-  },
-  "devDependencies": {
     "electron": "^44.5.1",
-    "electron-builder": "^26.15.3"
-  },
-  "build": {
-    "appId": "dev.llm-tuner.app",
-    "productName": "LLM Tuner",
-    "extraMetadata": {
-      "main": "electron/main.js"
-    },
-    "files": [
-      "src/**",
-      "electron/**",
-      "package.json"
-    ],
-    "linux": {
-      "target": [
-        "AppImage"
-      ],
-      "icon": "electron/icon.png"
-    },
-    "win": {
-      "target": [
-        "portable"
-      ],
-      "icon": "electron/icon.ico"
-    },
-    "portable": {
-      "artifactName": "${productName}-portable.${ext}"
-    },
-    "mac": {
-      "target": [
-        "dmg"
-      ]
-    }
-  },
-  "license": "MIT",
-  "allowScripts": {
-    "electron@38.8.6": true
+    "systeminformation": "^5.23.0"
   }
 }

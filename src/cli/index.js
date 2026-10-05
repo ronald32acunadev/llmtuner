@@ -54,8 +54,6 @@ if (args.settings) {
     console.error(c.r(`\n${t('common.error', { message: errorText(lang, e) })}`));
     process.exit(1);
   }
-} else if (args.web) {
-  await import('../web/server.js').then((m) => m.startServer({ open: true }));
 } else if (args.presets) {
   const list = await listPresets({ engine: args.engine, modelKey: args.model });
   if (!list.length) console.log(t('cli.noPresets'));
@@ -290,7 +288,7 @@ function vramStr(peaks = {}) {
 }
 
 function parseArgs(argv) {
-  const flags = new Set(['help', 'yes', 'dry-run', 'json', 'web', 'force', 'presets', 'settings']);
+  const flags = new Set(['help', 'yes', 'dry-run', 'json', 'force', 'presets', 'settings']);
   const o = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];

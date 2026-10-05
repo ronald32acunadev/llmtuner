@@ -1,0 +1,99 @@
+{
+  "model": "qwen/qwen2.5-coder-14b",
+  "context": 16384,
+  "goldStandard": {
+    "q1": {
+      "expected": "DECODE_EFFICIENCY = 0.7 (70% of theoretical bandwidth) and readCost for q4_0 = x12 (12 times slower to read with Flash Attention).",
+      "keywords": [
+        "0.7",
+        "12",
+        "readcost",
+        "q4_0"
+      ]
+    },
+    "q2": {
+      "expected": "LM Studio returns \"Model not found\" for per-variant keys. The project set variantSelect: false in LM Studio, measures/loads the selected variant, and only recommends switching without modifying LM Studio internal files.",
+      "keywords": [
+        "model not found",
+        "variantselect",
+        "false",
+        "recommends"
+      ]
+    },
+    "q3": {
+      "expected": "PER_GPU_OVERHEAD = 350 MiB and PER_GPU_RESERVE = 64 MiB.",
+      "keywords": [
+        "350",
+        "64"
+      ]
+    }
+  },
+  "results": {
+    "speed": {
+      "candidate": {
+        "id": "f16-49",
+        "kvType": "f16",
+        "fullOffload": true,
+        "gpuLayers": 49
+      },
+      "timings": {
+        "promptTokens": 11551,
+        "promptTps": 1939.1267634243522,
+        "genTokens": 140,
+        "genTps": 28.684083614722816,
+        "totalSeconds": "10.82"
+      },
+      "evaluation": {
+        "q1Pass": true,
+        "q2Pass": true,
+        "q3Pass": true,
+        "score": "3/3"
+      },
+      "text": "1. The value of `DECODE_EFFICIENCY` is 0.7, and the `readCost` for `q4_0` is ×12.\n2. `lms load` in LM Studio rejects per-variant identifiers because LM Studio cannot load a specific variant by key. The project adopted a solution where the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one.\n3. The exact values of `PER_GPU_OVERHEAD` and `PER_GPU_RESERVE` defined in the estimator are 350 MiB and 64 MiB, respectively."
+    },
+    "balanced": {
+      "candidate": {
+        "id": "q8_0-49",
+        "kvType": "q8_0",
+        "fullOffload": true,
+        "gpuLayers": 49
+      },
+      "timings": {
+        "promptTokens": 11551,
+        "promptTps": 2282.2867204936742,
+        "genTokens": 140,
+        "genTps": 30.750069408879696,
+        "totalSeconds": "9.60"
+      },
+      "evaluation": {
+        "q1Pass": true,
+        "q2Pass": true,
+        "q3Pass": true,
+        "score": "3/3"
+      },
+      "text": "1. The value of `DECODE_EFFICIENCY` is 0.7, and the `readCost` for `q4_0` is ×12.\n2. `lms load` in LM Studio rejects per-variant identifiers because LM Studio cannot load a specific variant by key. The project adopted a solution where the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one.\n3. The exact values of `PER_GPU_OVERHEAD` and `PER_GPU_RESERVE` defined in the estimator are 350 MiB and 64 MiB, respectively."
+    },
+    "quality": {
+      "candidate": {
+        "id": "f16-49",
+        "kvType": "f16",
+        "fullOffload": true,
+        "gpuLayers": 49
+      },
+      "timings": {
+        "promptTokens": 11551,
+        "promptTps": 2657.6451069396726,
+        "genTokens": 140,
+        "genTps": 35.67940387160035,
+        "totalSeconds": "8.27"
+      },
+      "evaluation": {
+        "q1Pass": true,
+        "q2Pass": true,
+        "q3Pass": true,
+        "score": "3/3"
+      },
+      "text": "1. The value of `DECODE_EFFICIENCY` is 0.7, and the `readCost` for `q4_0` is ×12.\n2. `lms load` in LM Studio rejects per-variant identifiers because LM Studio cannot load a specific variant by key. The project adopted a solution where the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one.\n3. The exact values of `PER_GPU_OVERHEAD` and `PER_GPU_RESERVE` defined in the estimator are 350 MiB and 64 MiB, respectively."
+    }
+  }
+}

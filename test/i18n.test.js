@@ -82,11 +82,13 @@ test('every catalog key matches the allowed key syntax', () => {
   for (const key of Object.keys(CATALOGS.en)) assert.match(key, /^[a-z]+(\.[A-Za-z0-9_]+)+$/, key);
 });
 
-test('every key referenced in src/ exists in the English catalog', async () => {
+test('every key referenced in src/ and electron/ exists in the English catalog', async () => {
   const missing = [];
-  for (const file of await sourceFiles(path.join(ROOT, 'src'))) {
-    const text = await fs.readFile(file, 'utf8');
-    for (const m of text.matchAll(KEY_RE)) if (!(m[1] in CATALOGS.en)) missing.push(`${path.relative(ROOT, file)}: ${m[1]}`);
+  for (const dir of ['src', 'electron']) {
+    for (const file of await sourceFiles(path.join(ROOT, dir))) {
+      const text = await fs.readFile(file, 'utf8');
+      for (const m of text.matchAll(KEY_RE)) if (!(m[1] in CATALOGS.en)) missing.push(`${path.relative(ROOT, file)}: ${m[1]}`);
+    }
   }
   assert.deepEqual(missing, []);
 });

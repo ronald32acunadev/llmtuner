@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # LLM Tuner
 
-Node.js app (Windows/macOS/Linux) that loads a local LLM in LM Studio or Ollama with the fastest configuration for a given context. It detects the hardware, reads the GGUF, estimates the memory, measures the best options and saves the winner as a preset to avoid measuring again. It has three interfaces over the same core: CLI, web and Electron.
+Node.js app (Windows/macOS/Linux) that loads a local LLM in LM Studio or Ollama with the fastest configuration for a given context. It detects the hardware, reads the GGUF, estimates the memory, measures the best options and saves the winner as a preset to avoid measuring again. It has two interfaces over the same core: the CLI and the desktop app (Electron), which shows the web UI in a native window.
 
 **Read `docs/PROYECTO.md` before changing anything.** It contains the idea, the agreed user flow, the architecture, the calibrated formulas, the LM Studio and Ollama internal details, the real measurements, known issues and the pending items.
 
@@ -18,7 +18,7 @@ Node.js app (Windows/macOS/Linux) that loads a local LLM in LM Studio or Ollama 
 - Code, identifiers and base strings are in English. Every user-facing string goes through `src/i18n` and must exist in both `en` and `es`. `src/core` emits codes (`code`, `reasonCode`, `labelCode`, `errorCode`, `noteCode`, `TunerError(code, params)`), never translated text.
 - Never write LM Studio's `hardware-config.json` with the app open. The per-model config can be written with the app open.
 - Always save a backup (`*.bak-llm-tuner-*`) before modifying the engines' config files.
-- `src/core` doesn't depend on any interface; the CLI, the web and Electron only consume `Tuner` and its events.
+- `src/core` doesn't depend on any interface; the CLI and the web UI shown by Electron only consume `Tuner` and its events.
 - LM Studio's internal files are not a public API; the integration is verified against LM Studio 0.4.25.
 
 ## Commands
@@ -27,17 +27,17 @@ Node ≥ 22, ESM (`"type": "module"`). No build step, no linter, no framework on
 
 ```bash
 npm start                    # CLI wizard (src/cli/index.js)
-npm run web                  # http://127.0.0.1:7860 (PORT env overrides)
 npm run desktop              # Electron (electron/launch.js → main.js)
-npm run dist / dist:win      # electron-builder (AppImage / Windows portable / dmg)
 npm test                     # node --test test/*.test.js
 
 node --test test/core.test.js                          # one test file
 node --test --test-name-pattern="<regex>" test/*.test.js  # one test by name
 
 node src/cli/index.js --engine lmstudio --model <key> --ctx 16384 --yes   # non-interactive
-# other flags: --force, --dry-run, --candidates N, --json, --presets, --web, --lang <en|es>
+# other flags: --force, --dry-run, --candidates N, --json, --presets, --lang <en|es>
 ```
+
+Distribution is npm only (`llm-tuner`, commands `llm-tuner` and `llm-tuner-desktop`). A push to the `release` branch publishes; see `docs/PROYECTO.md` §11.
 
 ## Architecture
 
@@ -57,5 +57,5 @@ node src/cli/index.js --engine lmstudio --model <key> --ctx 16384 --yes   # non-
 
 ## Gotchas
 
-- With npm 11 + Node 26, Electron may install without its binary (only `locales` in `node_modules/electron/dist`). Fix: extract `~/.cache/electron/*/electron-*.zip` into `node_modules/electron/dist` and create `node_modules/electron/path.txt` containing `electron`.
+- Electron 44 has no install script: `npm install` leaves `node_modules/electron/dist` without the binary, and the first `npm run desktop` or `llm-tuner-desktop` downloads it. If that download fails: extract `~/.cache/electron/*/electron-*.zip` into `node_modules/electron/dist` and create `node_modules/electron/path.txt` containing `electron`.
 - `electron/launch.js` disables the Chromium sandbox only when `chrome-sandbox` lacks root setuid.

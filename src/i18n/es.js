@@ -110,12 +110,12 @@ Uso: llm-tuner [opciones]
   --dry-run                    Medir y mostrar cambios sin aplicar nada ni guardar preset
   --presets                    Listar presets guardados
   --json                       Salida final en JSON
-  --web                        Abrir la interfaz web
   --lang <en|es>               Idioma de la interfaz (se guarda para la próxima vez)
   --theme <system|light|dark>  Tema de la interfaz (se guarda para la próxima)
   /settings                    Menú interactivo de configuración
 
 Los presets se guardan en {presetsDir}`,
+  'cli.desktopStartFailed': 'No se pudo iniciar la aplicación de escritorio: {error}\nEl entorno de escritorio (Electron) se descarga la primera vez que ejecutas llm-tuner-desktop, así que esa primera ejecución necesita conexión a la red.\nLa interfaz de terminal funciona sin él: ejecuta llm-tuner.',
   'cli.settingsTitle': 'Configuración',
   'cli.settingsMenu': 'Selecciona una opción para configurar:',
   'cli.settingsLanguage': 'Idioma',

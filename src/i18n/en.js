@@ -110,12 +110,12 @@ Usage: llm-tuner [options]
   --dry-run                    Measure and show the changes without applying anything or saving a preset
   --presets                    List saved presets
   --json                       Final output as JSON
-  --web                        Open the web interface
   --lang <en|es>               Interface language (saved for next time)
   --theme <system|light|dark>  Interface theme (saved for next time)
   /settings                    Interactive settings menu
 
 Presets are saved in {presetsDir}`,
+  'cli.desktopStartFailed': 'Could not start the desktop app: {error}\nThe desktop runtime (Electron) is downloaded the first time you run llm-tuner-desktop, so that first run needs a network connection.\nThe terminal interface works without it: run llm-tuner.',
   'cli.settingsTitle': 'Settings',
   'cli.settingsMenu': 'Select an option to configure:',
   'cli.settingsLanguage': 'Language',

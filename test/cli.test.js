@@ -30,6 +30,16 @@ test('help is in English by default', () => {
   assert.match(r.stdout, /\/settings/);
 });
 
+test('help does not offer a web mode in either language', () => {
+  assert.doesNotMatch(cli('--help').stdout, /--web/);
+  assert.doesNotMatch(cli('--lang', 'es', '--help').stdout, /--web/);
+});
+
+test('the CLI does not load the web server', async () => {
+  const source = await fs.readFile(CLI, 'utf8');
+  assert.doesNotMatch(source, /web\/server\.js/);
+});
+
 test('--lang es switches to Spanish and is remembered', async () => {
   const r = cli('--lang', 'es', '--help');
   assert.equal(r.status, 0);
