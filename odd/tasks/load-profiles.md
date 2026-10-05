@@ -147,10 +147,12 @@ Text and docs:
   - Checks: RED `ERR_MODULE_NOT_FOUND` for `profiles.js` (module-level, the module is new), then `node --test test/profiles.test.js` passed 14/14, including the regression case proving `pickBest` in `balanced` matches the previous scoring; `npm test` passed 67/67. Parent spot check: `node --test test/profiles.test.js` 14/14.
   - Notes for later tasks: `recommendProfile` with no variants returns `speed`; callers always pass at least the selected variant. On equal weight `pickVariant` returns the first variant for `speed` and the last for `quality`. A MoE model that only reaches full offload with experts in RAM counts as "does not fit fully on GPU", consistent with `meetsQuality`.
 
-- [ ] `T-4`: `listVariants` in both engines
-  - Scope: `src/core/engines/lmstudio.js`, `src/core/engines/ollama.js`, `test/server.test.js` or a focused engine test with mocked hosts
+- [x] `T-4`: `listVariants` in both engines
+  - Scope: `src/core/engines/lmstudio.js`, `src/core/engines/ollama.js`, `test/engines.test.js` (new)
   - Route: delegated direct
-  - Checks: focused test file, then `npm test`
+  - Commit: `4eb7699`
+  - Checks: RED 13/13 failing (`lmsVariants is not a function`, `listVariants is not a function`, missing `variantSelect`), then `node --test test/engines.test.js` passed 13/13; `node --test test/server.test.js` 10/10; `npm test` 92/92. No real engine was contacted: a fake `lms` script in a temp home and a mock Ollama server.
+  - Notes for `T-6`: always pass the base model key to Ollama `listVariants`; a `-tuned-` tag passed as the key returns sibling tags with none selected. An Ollama key without a tag (`llama3.2`) returns `[]`; `listModels` always returns full names, so the normal flow is unaffected. LM Studio `listVariants` spawns `lms ls --json` on each call.
 
 - [x] `T-3b`: Review follow-ups in the profile rules (added after the review of `T-2`/`T-3`)
   - Scope: `src/core/profiles.js`, `test/profiles.test.js`
@@ -203,4 +205,4 @@ Receipt-driven development is on (global). Reviewed boundary starts at the track
 - Whole branch against `main` (54 files, 9,243 lines, risk `high`), raised by the stop hook: consent granted by the owner, but START refused with `lens_context_budget_exceeded`. No review authority was created. The features that predate this one are not reviewed against `main`; they would have to be reviewed as smaller candidates. Not part of this feature.
 
 ## Progress
-Slice 1 complete: `T-1`, `T-2`, `T-3`, `T-3b` and `T-5` done. Running authored changed lines: 634 (17 in `ae418ef`, 357 in `b3a84c1`, 41 in `e35358c`, 219 in `a703727`), feature document excluded. Next step: slice 2 on `feat/load-profiles-02-engines`, starting with `T-4`.
+Slice 1 complete: `T-1`, `T-2`, `T-3`, `T-3b` and `T-5` done. Slice 2 (`feat/load-profiles-02-engines`) in progress: `T-4` done. Running authored changed lines: 898 (17 in `ae418ef`, 357 in `b3a84c1`, 41 in `e35358c`, 219 in `a703727`, 264 in `4eb7699`), feature document excluded. Next step: `T-6` (tuner wiring and settings), which closes slice 2.
