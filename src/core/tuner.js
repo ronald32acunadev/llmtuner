@@ -117,9 +117,8 @@ export class Tuner extends EventEmitter {
     };
   }
 
-  /** Resolve what a non-balanced profile measures and loads, and announce the picked variant. */
-  async profileTarget(key, ctx, profile, model) {
-    const variants = await this.variants(key);
+  /** Pick the variant a non-balanced profile measures and loads with the hardware as it is now, and announce it. */
+  profileTarget(key, ctx, profile, model, variants) {
     const { kvTypes } = this.engine.capabilities;
     const canSelect = !!this.engine.capabilities.variantSelect;
     const pick = pickVariant(profile, variants, this.hw, { ctx, kvTypes });
@@ -147,12 +146,39 @@ export class Tuner extends EventEmitter {
 
     return {
       key: targetKey,
-      canSelect,
       fallback: pick.fallback,
       variant: { key: targetKey, quant: loaded.quant, sizeBytes: loaded.sizeBytes },
-      listed: variants.map(({ key, sizeBytes }) => ({ key, sizeBytes })),
-      metas: new Map(variants.map((v) => [v.key, v.meta])),
     };
+  }
+
+  /** Announce the variant a profile preset stored: on a preset hit nothing is picked. */
+  presetTarget(key, profile, model, preset) {
+    const canSelect = !!this.engine.capabilities.variantSelect;
+    const stored = { key, quant: null, sizeBytes: model.meta.fileBytes, ...preset.variant };
+    // An engine that cannot select variants always loads under the chosen key.
+    const targetKey = canSelect ? stored.key : key;
+    const variant = { key: targetKey, quant: stored.quant, sizeBytes: stored.sizeBytes };
+
+    this.log('variant-picked', {
+      profile,
+      variant,
+      reasonCode: 'profile.variant.preset',
+      loads: targetKey,
+      recommendSwitch: false,
+    });
+
+    return {
+      key: targetKey,
+      fallback: false,
+      variant,
+    };
+  }
+
+  /** Unload the engine's loaded models and re-detect the hardware, so the free-VRAM snapshot is realistic. */
+  async freeVram() {
+    this.log('status', { code: 'status.freeingVram' });
+    await this.engine.prepare(this.ctx);
+    this.hw = this.ctx.hw = await detectHardware();
   }
 
   /**
@@ -161,11 +187,7 @@ export class Tuner extends EventEmitter {
    * The profile restricts the KV cache types.
    */
   async plan(key, ctx, { unload = false, profile = DEFAULT_PROFILE } = {}) {
-    if (unload) {
-      this.log('status', { code: 'status.freeingVram' });
-      await this.engine.prepare(this.ctx);
-      this.hw = this.ctx.hw = await detectHardware();
-    }
+    if (unload) await this.freeVram();
     const model = await this.modelInfo(key);
     const engineKvTypes = this.engine.capabilities.kvTypes;
     // The profile restricts the KV cache types that are planned; the context limits cover every engine type.
@@ -211,16 +233,19 @@ export class Tuner extends EventEmitter {
    * Main flow behind the "Load" button:
    * preset for (model, ctx, hardware, profile)? -> apply + load.
    * Otherwise benchmark -> save preset -> apply + load.
-   * Balanced measures and loads the key the user chose; speed and quality resolve a variant first.
+   * Balanced measures and loads the key the user chose; speed and quality reuse the variant stored in
+   * the preset, or pick one once the VRAM is free.
    */
   async load(key, ctx, { force = false, dryRun = false, maxCandidates = 3, depthFraction = 0.5, measure = true, confirmApply = async () => true, profile: requested = DEFAULT_PROFILE } = {}) {
     const profile = normalizeProfile(requested);
     const model = await this.modelInfo(key);
     const modelBytes = model.meta.fileBytes;
-    const target = profile === DEFAULT_PROFILE ? null : await this.profileTarget(key, ctx, profile, model);
+    // Listing the variants of a non-balanced profile needs no hardware; picking one does, so the pick waits.
+    const variants = profile === DEFAULT_PROFILE ? null : await this.variants(key);
+    const listed = variants?.map((v) => ({ key: v.key, sizeBytes: v.sizeBytes }));
     // A profile preset is keyed by the key the user chose plus the profile, and goes stale with the variant list.
-    const keyed = target ? { profile, variants: target.listed } : {};
-    let loadKey = target ? target.key : key;
+    const keyed = variants ? { profile, variants: listed } : {};
+    let target = null;
     let source = 'preset';
     let candidate;
     let report = null;
@@ -228,26 +253,32 @@ export class Tuner extends EventEmitter {
 
     if (found.preset) {
       candidate = found.preset.candidate;
-      // The preset remembers which variant it measured.
-      if (target?.canSelect) loadKey = found.preset.variant?.key ?? key;
       this.log('preset-hit', { preset: found.preset, file: presetPath(this.engine.id, key, ctx, profile) });
+      // The preset remembers which variant it measured: nothing is picked and no VRAM is freed.
+      if (variants) target = this.presetTarget(key, profile, model, found.preset);
     } else {
       source = 'benchmark';
       const code = { none: 'status.searchNone', hardware: 'status.searchHardware', model: 'status.searchModel', forced: 'status.searchForced', variants: 'status.searchVariants' }[found.reason];
       this.log('status', { code });
-      report = await this.run(loadKey, ctx, { maxCandidates, depthFraction, profile });
+      if (variants) {
+        // The pick depends on the free VRAM, so the engine's models are unloaded before it.
+        await this.freeVram();
+        target = this.profileTarget(key, ctx, profile, model, variants);
+      }
+      report = await this.run(target?.key ?? key, ctx, { maxCandidates, depthFraction, profile });
       if (!report.best) throw new TunerError('errors.noConfigWorked');
       candidate = report.best.candidate;
       // Quality found no configuration that keeps its promise: say so once.
       if (profile === 'quality' && !target.fallback && !meetsQuality(candidate)) this.log('profile-fallback', { profile, reasonCode: 'profile.fallback.noFullGpuConfig' });
       if (!dryRun) {
-        const saved = await savePreset({ engine: this.engine.id, modelKey: key, ctx, hw: this.hw, modelBytes, best: report.best, results: this.lastReport.results, ...(target ? { profile, variant: target.variant, variants: target.listed } : {}) });
+        const saved = await savePreset({ engine: this.engine.id, modelKey: key, ctx, hw: this.hw, modelBytes, best: report.best, results: this.lastReport.results, ...(target ? { profile, variant: target.variant, variants: listed } : {}) });
         this.log('preset-saved', { file: saved.file, preset: saved.preset });
       }
     }
 
     // The variant a profile picked is applied and loaded with its own metadata.
-    const meta = loadKey === key ? model.meta : target.metas.get(loadKey) ?? (await this.modelInfo(loadKey)).meta;
+    const loadKey = target?.key ?? key;
+    const meta = loadKey === key ? model.meta : variants?.find((v) => v.key === loadKey)?.meta ?? (await this.modelInfo(loadKey)).meta;
     const modelObj = { key: loadKey, meta };
     const preview = await this.engine.apply(this.ctx, modelObj, candidate, { dryRun: true });
     if (dryRun) return { source, candidate: slim(candidate), report, preview, profile, variant: loadKey };

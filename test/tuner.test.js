@@ -32,6 +32,15 @@ const HW = {
   ]),
 };
 
+// The same GPUs while another model is loaded in the engine: almost no free VRAM.
+const HW_BUSY = {
+  ...HW,
+  gpus: rankGpus([
+    { index: 0, name: 'RTX 5070', totalBytes: 12227 * MiB, usedBytes: 10851 * MiB, freeBytes: 1376 * MiB, pcieGBps: 2, displayAttached: true, bandwidthGBps: 672 },
+    { index: 1, name: 'RTX 5070', totalBytes: 12227 * MiB, usedBytes: 10466 * MiB, freeBytes: 1761 * MiB, pcieGBps: 15.8, displayAttached: false, bandwidthGBps: 672 },
+  ]),
+};
+
 // The same model at another weight quantization: weight bytes scale with bits per weight.
 const requant = (meta, bpw) => ({
   ...meta,
@@ -65,13 +74,18 @@ const TPS = { f16: 20, q8_0: 22.2, q4_0: 23.5 };
 
 const calls = [];
 const events = [];
-const state = { tuner: null, variants: [], failFullOffload: false };
+const state = { variants: [], failFullOffload: false, hw: HW, hwAfterPrepare: null };
 
-/** Tuner.plan({ unload: true }) re-detects the real hardware; the fake engine pins the fixture back so the tests do not depend on the machine. */
-function pinHardware() {
-  if (state.tuner) {
-    state.tuner.hw = state.tuner.ctx.hw = HW;
-  }
+/** Tuner re-detects the real hardware after engine.prepare; the accessor pins the fixture so the tests do not depend on the machine. */
+function pinHardware(tuner) {
+  const descriptor = {
+    get() { return state.hw; },
+    set() {},
+    configurable: true,
+    enumerable: true,
+  };
+  Object.defineProperty(tuner, 'hw', descriptor);
+  Object.defineProperty(tuner.ctx, 'hw', descriptor);
 }
 
 const fake = {
@@ -84,7 +98,6 @@ const fake = {
   },
   async modelMeta(ctx, key) {
     calls.push(['modelMeta', key]);
-    pinHardware();
     if (!METAS[key]) {
       throw new Error(`unknown model ${key}`);
     }
@@ -92,6 +105,9 @@ const fake = {
   },
   async prepare() {
     calls.push(['prepare']);
+    if (state.hwAfterPrepare !== null) {
+      state.hw = state.hwAfterPrepare;
+    }
   },
   async benchmark(ctx, model, candidate) {
     calls.push(['benchmark', model.key, candidate.id]);
@@ -127,14 +143,16 @@ ENGINES.fake = fake;
 ENGINES.bare = { ...fake, id: 'bare', listVariants: undefined };
 
 /** Initializes state and the tuner instance for a test case. */
-function setup({ engine = 'fake', variantSelect = true, variants = [], failFullOffload = false } = {}) {
+function setup({ engine = 'fake', variantSelect = true, variants = [], failFullOffload = false, hw = HW, hwAfterPrepare = null } = {}) {
   calls.length = 0;
   events.length = 0;
   ENGINES[engine].capabilities = { ...fake.capabilities, variantSelect };
   state.variants = variants;
   state.failFullOffload = failFullOffload;
-  const tuner = new Tuner(engine, { installed: true }, HW);
-  state.tuner = tuner;
+  state.hw = hw;
+  state.hwAfterPrepare = hwAfterPrepare;
+  const tuner = new Tuner(engine, { installed: true }, hw);
+  pinHardware(tuner);
   tuner.on('progress', (e) => events.push(e));
   return tuner;
 }
@@ -237,6 +255,8 @@ test('quality keeps the selected variant and recommends a better one when the en
   assert.deepEqual(preset.variant, { key: 'fam', quant: 'Q3_K_M', sizeBytes: q3.fileBytes });
 
   // When the heaviest variant that fits is the selected one there is nothing to recommend.
+  // The preset of the first load is removed: a preset hit announces the stored variant instead of picking.
+  await fs.rm(presetsDir(), { recursive: true, force: true });
   const same = setup({ variantSelect: false, variants: [variant('fam@q3', 'Q3_K_M'), variant('fam@q4', 'Q4_K_M', true)] });
   await same.load('fam', CTX, { profile: 'quality' });
   const again = events.find((e) => e.type === 'variant-picked');
@@ -272,6 +292,50 @@ test('quality falls back and says why when nothing stays fully on GPU', async ()
   result = await tuner.load('m:q4', CTX, { profile: 'quality' });
   assert.deepEqual(fallbacks(), [{ profile: 'quality', reasonCode: 'profile.fallback.noFullGpuConfig' }]);
   assert.equal(result.candidate.id, 'f16-62');
+});
+
+test('quality picks the variant after freeing VRAM, not with the hardware seen before', async () => {
+  const tuner = setup({ variantSelect: true, hw: HW_BUSY, hwAfterPrepare: HW, variants: [variant('m:q3', 'Q3_K_M', true), variant('m:q4', 'Q4_K_M')] });
+  let preparedAtPick = null;
+  tuner.on('progress', (e) => {
+    if (e.type === 'variant-picked') {
+      preparedAtPick = named('prepare').length;
+    }
+  });
+  const result = await tuner.load('m:q3', CTX, { profile: 'quality' });
+  // The engine's models are unloaded before the variant is picked.
+  assert.equal(preparedAtPick, 1);
+  assert.deepEqual(events.slice(0, 3).map((e) => e.code ?? e.type), ['status.searchNone', 'status.freeingVram', 'variant-picked']);
+  // With the VRAM free the heavier variant fits fully on GPU, so it is the one measured and loaded.
+  const picked = events.filter((e) => e.type === 'variant-picked');
+  assert.equal(picked.length, 1);
+  assert.equal(picked[0].reasonCode, 'profile.variant.heaviestFit');
+  assert.equal(picked[0].variant.key, 'm:q4');
+  assert.equal(picked[0].loads, 'm:q4');
+  assert.deepEqual(events.filter((e) => e.type === 'profile-fallback'), []);
+  assert.deepEqual(named('benchmark').map((c) => c[1]), ['m:q4', 'm:q4']);
+  assert.deepEqual(named('load'), [['load', 'm:q4', 'q8_0-65']]);
+  assert.equal(result.variant, 'm:q4');
+  assert.equal(result.source, 'benchmark');
+});
+
+test('a profile preset hit loads the stored variant without freeing VRAM or picking again', async () => {
+  const options = { variantSelect: true, hw: HW_BUSY, hwAfterPrepare: HW, variants: [variant('m:q3', 'Q3_K_M', true), variant('m:q4', 'Q4_K_M')] };
+  await setup(options).load('m:q3', CTX, { profile: 'quality' });
+  // The model is loaded now, so the free VRAM is low again: picking here would fall back to the selected variant.
+  const tuner = setup(options);
+  const hit = await tuner.load('m:q3', CTX, { profile: 'quality' });
+  assert.equal(hit.source, 'preset');
+  assert.equal(hit.variant, 'm:q4');
+  assert.deepEqual(named('prepare'), []);
+  assert.deepEqual(named('benchmark'), []);
+  assert.deepEqual(named('load'), [['load', 'm:q4', 'q8_0-65']]);
+  const picked = events.filter((e) => e.type === 'variant-picked');
+  assert.equal(picked.length, 1);
+  const { type, at, ...data } = picked[0];
+  assert.deepEqual(data, { profile: 'quality', variant: { key: 'm:q4', quant: 'Q4_K_M', sizeBytes: q4.fileBytes }, reasonCode: 'profile.variant.preset', loads: 'm:q4', recommendSwitch: false });
+  assert.deepEqual(events.filter((e) => e.type === 'profile-fallback'), []);
+  assert.deepEqual(events.map((e) => e.type).slice(0, 2), ['preset-hit', 'variant-picked']);
 });
 
 test('a profile preset is reused until the downloaded variants change', async () => {
