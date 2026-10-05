@@ -31,11 +31,15 @@ export function profileChoices(plan, t, { stored = null, mark = (s) => s, dim = 
   return { choices, default: stored ?? plan.recommended.profile };
 }
 
-/** Lines shown with the profile prompt: why a profile is recommended and which heavier variants would fit. */
+/** Lines shown with the profile prompt, as `{ text, level }` with level `note` or `warn`: why a profile is recommended, a warning when the preview is conservative and which heavier variants would fit. */
 export function profileNotes(plan, t) {
-  const notes = [t(plan.recommended.reasonCode)];
+  const notes = [{ text: t(plan.recommended.reasonCode), level: 'note' }];
+  if (plan.vramBusy) {
+    // The plan was made with the VRAM that is free now; a real load frees it first.
+    notes.push({ text: t('profile.preview.vramBusy'), level: 'warn' });
+  }
   for (const h of plan.hints) {
-    notes.push(t('cli.profileHint', { quant: h.quant, size: fmtBytes(h.estimatedBytes) }));
+    notes.push({ text: t('cli.profileHint', { quant: h.quant, size: fmtBytes(h.estimatedBytes) }), level: 'note' });
   }
   return notes;
 }

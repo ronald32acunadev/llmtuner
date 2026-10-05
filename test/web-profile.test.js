@@ -76,6 +76,20 @@ test('profileDetailLines adds the switch advice when the engine cannot load the 
   assert.equal(profileDetailLines(PLAN, 'balanced', tr('en'), opts).some((l) => l.kind === 'switch'), false);
 });
 
+test('profileDetailLines warns that the preview is conservative only when VRAM is in use', () => {
+  const busy = { ...PLAN, vramBusy: true };
+  const en = profileDetailLines(busy, 'quality', tr('en'), opts);
+  assert.deepEqual(en.map((l) => l.kind), ['detail', 'recommend', 'busy', 'hint', 'switch']);
+  assert.deepEqual(en[2], { kind: 'busy', level: 'warn', text: "VRAM is in use right now, so this preview is conservative. Loading first unloads this engine's models and then makes the real choice." });
+  assert.deepEqual(profileDetailLines(busy, 'quality', tr('es'), opts)[2], { kind: 'busy', level: 'warn', text: 'La VRAM está en uso en este momento, así que esta vista previa es conservadora. Al cargar, primero se descargan los modelos de este motor y después se hace la elección real.' });
+  // Without a recommendation the warning still follows the detail.
+  assert.deepEqual(profileDetailLines({ ...busy, recommended: null, hints: [] }, 'balanced', tr('en'), opts).map((l) => l.kind), ['detail', 'busy']);
+  // Idle or unknown VRAM: no warning.
+  for (const plan of [PLAN, { ...PLAN, vramBusy: false }]) {
+    assert.equal(profileDetailLines(plan, 'quality', tr('en'), opts).some((l) => l.kind === 'busy'), false);
+  }
+});
+
 test('profileDetailLines warns when the profile falls back and names the key when the quantization is unknown', () => {
   const noFit = { ...PLAN, profiles: { ...PLAN.profiles, quality: { ...PLAN.profiles.balanced, reasonCode: 'profile.variant.noFullGpu', fallback: true, kvTypes: ['f16', 'q8_0'] } } };
   assert.deepEqual(profileDetailLines(noFit, 'quality', tr('en'), opts)[0], {

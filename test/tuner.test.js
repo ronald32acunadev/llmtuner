@@ -400,6 +400,21 @@ test('profilePlan summarizes every profile without measuring', async () => {
   assert.deepEqual(named('benchmark'), []);
 });
 
+test('profilePlan flags a conservative preview when VRAM is in use', async () => {
+  const variants = [variant('m:q3', 'Q3_K_M'), variant('m:q4', 'Q4_K_M', true)];
+  const idle = await setup({ variants }).profilePlan('m:q4', CTX);
+  assert.equal(idle.vramBusy, false);
+
+  // Another model is loaded: the plan is made with the little VRAM that is free, and says so.
+  const busy = await setup({ variants, hw: HW_BUSY }).profilePlan('m:q4', CTX);
+  assert.equal(busy.vramBusy, true);
+  assert.deepEqual(busy.recommended, { profile: 'speed', reasonCode: 'profile.recommend.partialOffload' });
+
+  // The preview still does not unload or measure.
+  for (const name of ['prepare', 'benchmark', 'apply', 'load']) assert.deepEqual(named(name), [], name);
+  assert.deepEqual(events, []);
+});
+
 test('variants lists each downloaded variant with its meta and always includes the chosen key', async () => {
   const tuner = setup({ variants: [variant('m:q3', 'Q3_K_M'), variant('m:q4', 'Q4_K_M', true)] });
   assert.deepEqual(await tuner.variants('m:q4'), [

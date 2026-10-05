@@ -25,8 +25,9 @@ export function profileOptions(plan, t, ids = PROFILE_IDS) {
 
 /**
  * Lines under the selector for the chosen profile, as `{ kind, level, text }`: what will load and why (`detail`),
- * why a profile is recommended (`recommend`), one estimate per heavier variant that would fit (`hint`) and the
- * advice to select another variant in the engine (`switch`). Empty without a plan.
+ * why a profile is recommended (`recommend`), a warning that the preview is conservative while VRAM is in use (`busy`),
+ * one estimate per heavier variant that would fit (`hint`) and the advice to select another variant in the engine (`switch`).
+ * Empty without a plan.
  */
 export function profileDetailLines(plan, profile, t, { engineName, formatBytes }) {
   const info = plan?.profiles?.[profile];
@@ -39,6 +40,10 @@ export function profileDetailLines(plan, profile, t, { engineName, formatBytes }
 
   if (plan.recommended?.reasonCode) {
     lines.push({ kind: 'recommend', level: 'note', text: t(plan.recommended.reasonCode) });
+  }
+  // The plan was made with the VRAM that is free now; a real load frees it first.
+  if (plan.vramBusy) {
+    lines.push({ kind: 'busy', level: 'warn', text: t('profile.preview.vramBusy') });
   }
   for (const hint of plan.hints ?? []) {
     lines.push({ kind: 'hint', level: 'note', text: t('web.profileHint', { quant: hint.quant, size: formatBytes(hint.estimatedBytes) }) });

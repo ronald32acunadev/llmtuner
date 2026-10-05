@@ -33,6 +33,7 @@ export default {
   'profile.recommend.qualityFits': 'Quality is recommended: a downloaded variant fits fully on GPU with a precise KV cache.',
   'profile.recommend.balancedFits': 'Balanced is recommended: the selected variant fits fully on GPU only with a more compressed KV cache than the quality profile allows.',
   'profile.recommend.partialOffload': 'Speed is recommended: the selected variant does not fit fully on GPU at this context, so part of it will run on the CPU.',
+  'profile.preview.vramBusy': "VRAM is in use right now, so this preview is conservative. Loading first unloads this engine's models and then makes the real choice.",
   'profile.fallback.noFullGpuConfig': 'No fully-on-GPU configuration passed the measurement: the quality profile used the balanced rule.',
 
   // Errors

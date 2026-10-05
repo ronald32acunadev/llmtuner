@@ -83,6 +83,18 @@ export function recommendProfile(variants, hw, { ctx, kvTypes }) {
   return { profile: 'speed', reasonCode: 'profile.recommend.partialOffload' };
 }
 
+// A GPU counts as busy above this fraction of its memory in use; a desktop compositor alone stays below it.
+export const VRAM_BUSY_FRACTION = 0.2;
+
+/** True when at least one GPU has more than `fraction` of its memory in use. */
+export function vramInUse(hw, fraction = VRAM_BUSY_FRACTION) {
+  if (!hw || !Array.isArray(hw.gpus) || hw.gpus.length === 0) return false;
+  return hw.gpus.some((gpu) => {
+    if (!gpu || !Number.isFinite(gpu.usedBytes) || !Number.isFinite(gpu.totalBytes)) return false;
+    return gpu.usedBytes > gpu.totalBytes * fraction;
+  });
+}
+
 // Heavier quantizations worth hinting at, with their bits per weight.
 // Source: llama.cpp tools/quantize/README.md, Llama-3.1-8B table.
 export const HINT_TARGETS = Object.freeze([

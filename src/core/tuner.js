@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { detectHardware } from './hardware.js';
 import { planCandidates, maxFullOffloadContext } from './estimator.js';
 import { findPreset, savePreset, presetPath } from './presets.js';
-import { PROFILES, DEFAULT_PROFILE, normalizeProfile, kvTypesFor, meetsQuality, pickBest, pickVariant, recommendProfile, variantHints } from './profiles.js';
+import { PROFILES, DEFAULT_PROFILE, normalizeProfile, kvTypesFor, meetsQuality, pickBest, pickVariant, recommendProfile, variantHints, vramInUse } from './profiles.js';
 import { lmstudio } from './engines/lmstudio.js';
 import { ollama } from './engines/ollama.js';
 import { TunerError, benchError } from './errors.js';
@@ -114,6 +114,8 @@ export class Tuner extends EventEmitter {
       recommended: recommendProfile(variants, this.hw, opts),
       profiles,
       hints: variantHints(selected.meta, this.hw, { ...opts, downloadedQuants: variants.map((v) => v.quant).filter(Boolean) }),
+      // The plan uses the VRAM that is free now; a real load unloads the engine's models first.
+      vramBusy: vramInUse(this.hw),
     };
   }
 

@@ -33,6 +33,7 @@ export default {
   'profile.recommend.qualityFits': 'Se recomienda Calidad: una variante descargada cabe por completo en GPU con una caché KV precisa.',
   'profile.recommend.balancedFits': 'Se recomienda Equilibrado: la variante seleccionada cabe por completo en GPU solo con una caché KV más comprimida de la que admite el perfil de calidad.',
   'profile.recommend.partialOffload': 'Se recomienda Velocidad: la variante seleccionada no cabe por completo en GPU con este contexto, así que una parte se ejecutará en la CPU.',
+  'profile.preview.vramBusy': 'La VRAM está en uso en este momento, así que esta vista previa es conservadora. Al cargar, primero se descargan los modelos de este motor y después se hace la elección real.',
   'profile.fallback.noFullGpuConfig': 'Ninguna configuración con todo en GPU superó la medición: el perfil de calidad usó la regla del equilibrado.',
 
   // Errors

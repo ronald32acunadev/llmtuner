@@ -281,12 +281,27 @@ test('profileChoices omits the quantization when it is unknown', () => {
 test('profileNotes gives the reason of the recommendation and one estimate per hint', () => {
   const en = profileNotes(PLAN, tr('en'));
   assert.equal(en.length, 2);
-  assert.match(en[0], /^Quality is recommended/);
-  assert.match(en[1], /^Estimate: Q6_K \(about 12\.00 GiB\) is not downloaded/);
+  assert.deepEqual(en.map((l) => l.level), ['note', 'note']);
+  assert.match(en[0].text, /^Quality is recommended/);
+  assert.match(en[1].text, /^Estimate: Q6_K \(about 12\.00 GiB\) is not downloaded/);
   const es = profileNotes(PLAN, tr('es'));
-  assert.match(es[0], /^Se recomienda Calidad/);
-  assert.match(es[1], /^Estimación: Q6_K \(unos 12\.00 GiB\) no está descargada/);
-  assert.deepEqual(profileNotes({ ...PLAN, hints: [] }, tr('en')), [en[0]]);
+  assert.match(es[0].text, /^Se recomienda Calidad/);
+  assert.match(es[1].text, /^Estimación: Q6_K \(unos 12\.00 GiB\) no está descargada/);
+  assert.deepEqual(profileNotes({ ...PLAN, hints: [] }, tr('en')), [{ text: en[0].text, level: 'note' }]);
+});
+
+test('profileNotes warns that the preview is conservative only when VRAM is in use', () => {
+  const busy = { ...PLAN, vramBusy: true };
+  const en = profileNotes(busy, tr('en'));
+  assert.deepEqual(en.map((l) => l.level), ['note', 'warn', 'note']);
+  assert.equal(en[1].text, "VRAM is in use right now, so this preview is conservative. Loading first unloads this engine's models and then makes the real choice.");
+  assert.match(en[0].text, /^Quality is recommended/);
+  assert.match(en[2].text, /^Estimate: Q6_K/);
+  assert.deepEqual(profileNotes(busy, tr('es'))[1], { text: 'La VRAM está en uso en este momento, así que esta vista previa es conservadora. Al cargar, primero se descargan los modelos de este motor y después se hace la elección real.', level: 'warn' });
+  // Idle or unknown VRAM: no warning.
+  for (const plan of [PLAN, { ...PLAN, vramBusy: false }]) {
+    assert.equal(profileNotes(plan, tr('en')).some((l) => l.level === 'warn'), false);
+  }
 });
 
 test('profileSwitchNote tells which variant to select in the engine, only when a switch is recommended', () => {

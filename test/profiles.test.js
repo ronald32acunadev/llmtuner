@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { KV_TYPES, placeLayers } from '../src/core/estimator.js';
 import { rankGpus } from '../src/core/hardware.js';
-import { PROFILES, DEFAULT_PROFILE, normalizeProfile, QUALITY_KV_TYPES, kvTypesFor, meetsQuality, pickBest, fitsFullyOnGpu, pickVariant, recommendProfile, HINT_TARGETS, HINT_MIN_GAIN, variantHints } from '../src/core/profiles.js';
+import { PROFILES, DEFAULT_PROFILE, normalizeProfile, QUALITY_KV_TYPES, kvTypesFor, meetsQuality, pickBest, fitsFullyOnGpu, pickVariant, recommendProfile, HINT_TARGETS, HINT_MIN_GAIN, variantHints, VRAM_BUSY_FRACTION, vramInUse } from '../src/core/profiles.js';
 
 const MiB = 1024 ** 2;
 const GiB = 1024 ** 3;
@@ -260,4 +260,28 @@ test('a MoE model that only fits with experts in RAM does not fit fully on GPU',
   assert.equal(fitsFullyOnGpu(moe, hw, opts), false);
   const variants = [variant('m:moe', moe, true)];
   assert.deepEqual(pickVariant('quality', variants, hw, opts), { variant: variants[0], reasonCode: 'profile.variant.noFullGpu', fallback: true });
+});
+
+test('vramInUse is true when a GPU has more than the busy fraction of its memory in use', () => {
+  assert.equal(VRAM_BUSY_FRACTION, 0.2);
+  const busyGpu = { index: 1, totalBytes: 12227 * MiB, usedBytes: 10466 * MiB, freeBytes: 1761 * MiB };
+  const cases = [
+    ['no hardware', null, false],
+    ['undefined hardware', undefined, false],
+    ['no gpus field', {}, false],
+    ['no GPUs', { gpus: [] }, false],
+    ['idle GPUs', hw, false],
+    ['one GPU above the fraction', { gpus: [hw.gpus[0], busyGpu] }, true],
+    ['exactly at the fraction', { gpus: [{ totalBytes: 1000, usedBytes: 200 }] }, false],
+    ['just above the fraction', { gpus: [{ totalBytes: 1000, usedBytes: 201 }] }, true],
+    ['missing usedBytes', { gpus: [{ totalBytes: 12227 * MiB }] }, false],
+    ['missing totalBytes', { gpus: [{ usedBytes: 10466 * MiB }] }, false],
+    ['a GPU without fields next to a busy one', { gpus: [{ name: 'unknown' }, busyGpu] }, true],
+  ];
+  for (const [label, hardware, expected] of cases) {
+    assert.equal(vramInUse(hardware), expected, label);
+  }
+  // The fraction can be overridden: the display GPU uses about 7% of its memory.
+  assert.equal(vramInUse(hw, 0.05), true);
+  assert.equal(vramInUse(hw, 0.5), false);
 });

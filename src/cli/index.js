@@ -196,7 +196,7 @@ async function main() {
     const plan = await tuner.profilePlan(modelKey, ctx);
     const { profile: stored } = await readSettings();
     for (const line of profileNotes(plan, t)) {
-      out(c.dim(`  ${line}`));
+      out((line.level === 'warn' ? c.y : c.dim)(`  ${line.text}`));
     }
     profile = await select({
       message: t('cli.profile'),
