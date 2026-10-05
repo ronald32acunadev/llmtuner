@@ -94,7 +94,7 @@ Hay un preset por motor, modelo, contexto y perfil.
 | Windows / macOS | Sin probar | Rutas, instaladores y detección implementados |
 | AMD (ROCm) / Apple Silicon / Intel | Sin probar | Detección de VRAM incluida; ancho de banda por tabla |
 
-Los perfiles de carga están cubiertos por pruebas unitarias. Los perfiles `speed` y `quality` aún no se han medido en hardware real.
+Los perfiles de carga están cubiertos por pruebas unitarias y se comprobaron con una carga real por perfil en LM Studio (Linux, 2× RTX 5070). La elección entre varias variantes descargadas de un modelo, y los perfiles en Ollama, aún no se han probado en hardware real.
 
 ## Pruebas
 

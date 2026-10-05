@@ -512,8 +512,18 @@ App timings: the first load (measuring 3 candidates + preset + load) takes 2 min
 - CLI, web and Electron starting up.
 - Unit tests (`npm test`).
 
-**Implemented, covered by unit tests only:**
-- Load profiles (`speed`, `balanced`, `quality`): rules, variant listing in both engines, presets per profile, the `--profile` flag and wizard step, and the selector in the web and desktop UI. The tests use fixtures and mock engines. No real load has been measured with `speed` or `quality` on real hardware yet, and the variant pick could not be exercised on the reference machine, where every model has a single downloaded variant.
+**Implemented, verified with one real load on LM Studio:**
+- Load profiles (`speed`, `balanced`, `quality`): rules, variant listing in both engines, presets per profile, the `--profile` flag and wizard step, and the selector in the web and desktop UI. The unit tests use fixtures and mock engines.
+- Real check on the reference machine (LM Studio, Ministral 3 3B Q4_K_M, 8K context, 2026-10-04), each profile measured, saved, applied and loaded through the CLI:
+
+  | Profile | KV types measured | Deep-context t/s (f16 / q8_0 / q4_0) | Winner | Preset file suffix |
+  |---|---|---|---|---|
+  | `quality` | `q8_0`, `f16` | 94.7 / 89.2 / not measured | `f16` | `__quality` |
+  | `speed` | `q8_0`, `f16`, `q4_0` | 90.9 / 89.1 / 60.1 | `f16` | `__speed` |
+  | `balanced` | `q8_0`, `f16`, `q4_0` | 94.9 / 86.1 / 60.1 | `f16` | none (legacy name) |
+
+  A second `quality` load was a preset hit and loaded without measuring. On this model and hardware a quantized KV cache is slower, not faster, so the three profiles choose the same configuration; they differ in what they are allowed to measure.
+- Not exercised on real hardware: the variant pick, because every model on the reference machine has a single downloaded variant; the quality fallback, because the model fits fully on GPU; and Ollama.
 
 **Implemented but untested:**
 - Ollama end to end.
@@ -531,7 +541,7 @@ App timings: the first load (measuring 3 candidates + preset + load) takes 2 min
 7. Detect in the interface that a preset became stale and explain why (hardware or model) before measuring again.
 8. Move presets between identical machines (export/import).
 9. If LM Studio changes its internal formats: detect the version and warn instead of writing blindly.
-10. Load each profile on the real LM Studio and Ollama, and record the measurements in §8.
+10. Load each profile with a model that has two or more downloaded variants, and on Ollama. A real load per profile is done for LM Studio with a single-variant model (see "Implemented, verified with one real load on LM Studio" above).
 11. **Next feature: keep more than one model loaded.** Today both engines unload every loaded model in `prepare()` and `load()`. Planning a second model against the remaining VRAM comes after load profiles. Owner requirement: LM Studio and Ollama stay separate engines but share the same VRAM, and one model may be loaded in each at the same time, so "what is loaded" must be checked across both engines, not only the one in use. This also lets the profile preview plan as if the engine's models were already unloaded (§9).
 12. Deferred: download a hinted variant from the app. Today the app only shows the hint and never downloads anything.
 

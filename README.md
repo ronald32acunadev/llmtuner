@@ -94,7 +94,7 @@ There is one preset per engine, model, context and profile.
 | Windows / macOS | Untested | Paths, installers and detection implemented |
 | AMD (ROCm) / Apple Silicon / Intel | Untested | VRAM detection included; bandwidth from table |
 
-Load profiles are covered by unit tests. The `speed` and `quality` profiles have not been measured on real hardware yet.
+Load profiles are covered by unit tests and were checked with one real load per profile on LM Studio (Linux, 2× RTX 5070). Choosing between several downloaded variants of a model, and the profiles on Ollama, have not been exercised on real hardware yet.
 
 ## Tests
 
