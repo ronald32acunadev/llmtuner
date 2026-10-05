@@ -1,6 +1,6 @@
 # LLM Tuner — project specification
 
-Handoff document to continue the project in another session or with another AI agent. Explains what it is, why it exists, how it works, what was measured and what's left. Last updated: 2026-09-25.
+Handoff document to continue the project in another session or with another AI agent. Explains what it is, why it exists, how it works, what was measured and what's left. Last updated: 2026-10-04.
 
 ---
 
@@ -8,7 +8,9 @@ Handoff document to continue the project in another session or with another AI a
 
 Running a local LLM fast depends on many parameters that almost nobody tunes well: how many layers go to the GPU, how much context fits, which KV cache type to use, in what order multiple GPUs are used, how many CPU threads… LM Studio's and Ollama's defaults tend to be conservative, and the user ends up with a saturated CPU and few tokens per second.
 
-**LLM Tuner** automates that tuning. The user chooses engine, model and context, and presses **Load**. The app finds the fastest configuration for their hardware, saves it as a preset and loads the model with it.
+**LLM Tuner** automates that tuning. The user chooses engine, model, context and a load profile, and presses **Load**. The app finds the best configuration for their hardware under that profile, saves it as a preset and loads the model with it.
+
+The profile says what to optimize for: `speed`, `balanced` or `quality`. Speed is no longer the only goal: more tokens per second does not mean better answers, and a user with spare VRAM may prefer to spend it on quality. See §4.5.
 
 ### Origin
 
@@ -23,11 +25,13 @@ The project came out of a real case. Qwen2.5-Coder-32B (Q4_K_M) on LM Studio ove
 5. **User flow** (defined by the user, must be respected):
    1. Choose engine (Ollama or LM Studio).
    2. The app lists the models already downloaded for that engine.
-   3. Choose a model, enter the context and press **Load**.
-   4. If no preset exists: the tests run to find the best performance for that model and context.
-   5. A **preset** is generated for that model and context, so the tests aren't repeated.
-   6. **It only measures again when the context changes** (or the hardware or the model file).
+   3. Choose a model and enter the context.
+   4. Choose a load profile (`speed`, `balanced` or `quality`) and press **Load**.
+   5. If no preset exists: the tests run to find the best configuration for that model, context and profile.
+   6. A **preset** is generated for that model, context and profile, so the tests aren't repeated.
+   7. **It only measures again when the context or the profile changes** (or the hardware, the model file or, for `speed` and `quality`, the list of downloaded variants).
 6. The app ships in **English** (default) and **Spanish**. Code and identifiers are in English.
+7. **The user chooses what to optimize for.** Lossless optimizations always apply; the load profile decides how much lossy optimization (weight quantization, KV cache quantization) is allowed. The rule of each profile is deterministic, like everything else.
 
 ---
 
@@ -45,9 +49,12 @@ Non-interactive CLI:
 
 ```bash
 node src/cli/index.js --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --yes
+node src/cli/index.js --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --profile quality --yes
 node src/cli/index.js --presets
-# other options: --force (re-measure), --dry-run, --candidates N, --json, --web, --lang <en|es>
+# other options: --profile <speed|balanced|quality>, --force (re-measure), --dry-run, --candidates N, --json, --web, --lang <en|es>
 ```
+
+The flow is engine → model → context → profile → **Load**. The wizard asks for the profile with the recommended one marked. Without `--profile`, a run with `--yes`, with `--json`, or with engine, model and context all given as flags uses `balanced`, so scripts written before profiles existed behave the same. An unknown `--profile` value is rejected with exit code 1.
 
 Requirements: Node ≥ 22. Dependencies: `systeminformation` and `@inquirer/prompts`; `electron` as a devDependency.
 
@@ -65,19 +72,23 @@ src/
     benchmark.js        deterministic synthetic code prompt; benchmark via API (LM Studio / Ollama)
     llama-server.js     launches LM Studio backend's llama-server with the exact parameters and measures
     presets.js          save and look up presets; hardware fingerprint
+    profiles.js         load profile rules (pure, no I/O): allowed KV types, variant pick, winner, recommendation, hints
+    settings.js         user preferences in settings.json: language, theme, last profile chosen
     installer.js        official per-OS install plans (winget, brew, scripts)
-    tuner.js            orchestrator: detectEngines, Tuner.plan/run/load, pickBest
+    tuner.js            orchestrator: detectEngines, Tuner.plan/run/load/profilePlan
     engines/
       lmstudio.js       detection, models, backend, config writing, apply, load
       ollama.js         detection, models, private server for measuring, Modelfile, variables, load
     index.js            public exports
   cli/index.js          CLI with @inquirer/prompts
+  cli/profile.js        pure helpers of the CLI profile step (choices, notes, event lines)
   web/server.js         http + SSE (/api/state, /api/models, /api/plan, /api/presets, /api/load, /api/install…)
   web/public/           index.html, app.js, style.css (vanilla, no framework)
+  web/public/profile.js view-model of the profile selector, shared by the browser and the Node tests
 electron/
   launch.js             disables the Chromium sandbox only if chrome-sandbox doesn't have root setuid
   main.js               starts the web server on a random port and opens it in a BrowserWindow
-test/core.test.js       unit tests with the measured cases as regression
+test/                   unit tests; core.test.js holds the measured cases as regression
 ```
 
 ### Common interface of an engine (`engines/*.js`)
@@ -86,6 +97,7 @@ test/core.test.js       unit tests with the measured cases as regression
 id, name, capabilities
 detect()                              → { installed, bin, version, …}
 listModels(ctx)                       → [{ key, name, sizeBytes, quant, … }]
+listVariants(ctx, key)                → [{ key, quant, sizeBytes, selected }] downloaded variants of that model
 modelMeta(ctx, key)                   → GGUF metadata (+ file)
 prepare(ctx)                          → unloads loaded models to free VRAM
 benchmark(ctx, model, candidate, o)   → { ok, short, deep, cpu, vramPeakBytes, error, oom }
@@ -95,7 +107,19 @@ load(ctx, model, o)                   → loads the model with the applied confi
 
 `ctx = { detection, hw }`.
 
-### `Tuner.load(model, ctx)` flow
+`capabilities` restricts what the core plans:
+
+| Capability | Meaning |
+|---|---|
+| `kvTypes` | KV cache types the engine supports; the profile's list is intersected with it |
+| `cpuMoe` | The engine can keep MoE expert layers in RAM (`--n-cpu-moe`) |
+| `variantSelect` | The engine can load a specific downloaded variant by key. `true` in Ollama, `false` in LM Studio (§5) |
+
+### `Tuner.load(model, ctx, { profile })` flow
+
+The profile goes through `normalizeProfile` first: an unknown value is `balanced`. The result carries `profile` and `variant` (the key that was loaded).
+
+**`balanced`** (the default; the flow that existed before profiles):
 
 1. `findPreset(engine, model, ctx, hw, modelBytes)`.
 2. **If there's a preset:** `preset-hit` event → `apply` (doesn't write if nothing changed) → `load`.
@@ -104,7 +128,44 @@ load(ctx, model, o)                   → loads the model with the applied confi
    2. The N best candidates are tried (3 by default).
    3. `pickBest` → `savePreset` → `preset-saved` event → `apply` → `load`.
 
-Progress events: `status`, `plan`, `candidate-start`, `bench-progress`, `candidate-done`, `preset-hit`, `preset-saved`, `applied`, `loaded`, `done`. The web UI receives them via SSE at `/api/jobs/:id/events`.
+**`speed` and `quality`** add the variant steps around that flow:
+
+1. **List the variants:** `Tuner.variants(key)` calls `listVariants` and reads the metadata of each one. It is never empty: when the engine lists nothing, the chosen key is the only variant. Listing needs no hardware.
+2. **Look up the preset:** `findPreset` with the profile and the variant list (§6).
+3. **If there's a preset:** `preset-hit` → `presetTarget` announces the variant stored in the preset with a `variant-picked` event (reason `profile.variant.preset`). Nothing is picked and no VRAM is freed → `apply` → `load`.
+4. **If there isn't one:**
+   1. **Free VRAM:** `freeVram()` unloads the engine's models (`prepare`) and re-detects the hardware. The pick depends on the free VRAM, so it must come first.
+   2. **Pick the variant:** `profileTarget` applies `pickVariant` (§4.5) and emits `variant-picked`, plus `profile-fallback` when the pick is a fallback.
+   3. **Measure:** `run()` on the variant to load, with the KV types of the profile (it unloads again, as in the `balanced` flow); `pickBest(results, profile)` chooses the winner. If the profile is `quality` and the winner does not meet its criteria, a `profile-fallback` event says so.
+   4. **Save, apply, load:** `savePreset` with the profile, the variant and the variant list → `preset-saved` → `apply` → `load`.
+
+On an engine with `variantSelect: false` the variant measured and loaded is always the one selected in the engine, under the key the user chose; the pick is only reported (`recommendSwitch: true` when it differs from the selected one).
+
+### `Tuner.profilePlan(model, ctx)`
+
+A preview of what each profile would do, used before pressing Load. It does not measure and does not unload anything. It returns:
+
+| Field | Content |
+|---|---|
+| `variants` | Downloaded variants: `key`, `quant`, `sizeBytes`, `selected`, `bitsPerWeight` |
+| `variantSelect` | The engine capability |
+| `recommended` | `{ profile, reasonCode }` (§4.5) |
+| `profiles` | One entry per profile: `variant` and `quant` (the pick), `reasonCode`, `fallback`, `kvTypes`, `loads` (the key that would be loaded), `recommendSwitch` |
+| `hints` | Heavier variants, not downloaded, that would fit fully on GPU (§4.5) |
+| `vramBusy` | The preview is conservative because VRAM is in use (§4.5) |
+
+The CLI wizard calls it directly. The web UI gets it as the `profiles` field of `POST /api/plan` (`null` if it fails; the rest of the plan is still returned). `POST /api/load` accepts `profile` and rejects an unknown one with `errors.unknownProfile` before creating a job.
+
+### Progress events
+
+`status`, `plan`, `candidate-start`, `bench-progress`, `candidate-done`, `preset-hit`, `preset-saved`, `applied`, `loaded`, `done`, and two for profiles:
+
+| Event | Payload | When |
+|---|---|---|
+| `variant-picked` | `profile`, `variant` (`key`, `quant`, `sizeBytes`), `reasonCode`, `loads`, `recommendSwitch` | `speed` and `quality` only: after the pick, or on a preset hit |
+| `profile-fallback` | `profile`, `reasonCode`, `variant` | `quality` could not keep its promise (§4.5) |
+
+Both carry codes only, never text. The web UI receives every event via SSE at `/api/jobs/:id/events`.
 
 ## Languages
 
@@ -161,14 +222,14 @@ Validated: 32K with q8_0 on Qwen 32B = 4352 MiB, exactly what llama.cpp allocate
 
 **Candidates (`planCandidates`):**
 
-- A split is computed for each KV type (f16, q8_0, q4_0).
+- A split is computed for each KV type the profile allows (f16, q8_0, q4_0 by default; see §4.5).
 - If an option is less than 1 GiB short of fitting entirely, an **optimistic** candidate (probe) with everything on GPU is also added. If it doesn't fit, it fails fast on load and is discarded.
 - **Threads:** 4 if everything is on GPU; physical cores − 1 if there are layers on the CPU.
 - **Order:** first the ones that fit entirely with a safety margin, then by estimated t/s × KV type quality.
 
 **Estimated speed:** time per token = bytes read on each GPU / (bandwidth × 0.7) + bytes on CPU / (RAM bandwidth × 0.6) + cache read at the given depth × `readCost`. Only used for ordering; the real measurement decides.
 
-**Final choice (`pickBest`):** maximum of `t/s with context × KV_quality`, with quality f16 = 1.0, q8_0 = 0.99 and q4_0 = 0.93.
+**Final choice (`pickBest`, `balanced` profile):** maximum of `t/s with context × KV_quality`, with quality f16 = 1.0, q8_0 = 0.99 and q4_0 = 0.93. `pickBest` lives in `profiles.js`; the rules of the other profiles are in §4.5.
 
 ### 4.4 Benchmark
 
@@ -176,6 +237,83 @@ Validated: 32K with q8_0 on Qwen 32B = 4352 MiB, exactly what llama.cpp allocate
 - **Two measurements:** a short prompt (~200 tokens) and a long one (~50% of the context). 200 tokens are generated with `ignore_eos` so the length is fixed.
 - **Sampling every 500 ms:** VRAM with `nvidia-smi` and CPU with `os.cpus()`, which works on every system.
 - **OOM detection** in the log (`cudaMalloc failed`, `out of memory`…). If it fails, the last 15 lines of the log are returned in `logTail`.
+
+### 4.5 Load profiles (`profiles.js`)
+
+A profile says what the tuner optimizes for. The module is pure: no I/O, no engine calls.
+
+**The estimator formulas of §4.3 did not change.** A profile only restricts which KV types `planCandidates` receives, which variant is measured and which rule picks the winner.
+
+**Governing rule.** There are two kinds of optimization, and the profile governs only one.
+
+| Kind | Examples | Applied |
+|---|---|---|
+| Lossless | Layer placement across GPUs, GPU order, threads, batch sizes, Flash Attention | Always, in every profile. They only add speed |
+| Lossy | A more aggressive weight quantization, a quantized KV cache | As much as the profile allows. They trade answer quality for speed or memory |
+
+**How loss is ordered.** With data read from the model, not hand-made tables.
+
+- **Weights:** bits per weight (`bitsPerWeight` in the GGUF summary) = total tensor bytes × 8 / total tensor elements, rounded to two decimals. More bits means less loss. If any variant lacks the value, variants are ordered by file size instead.
+- **KV cache:** `f16` is lossless, `q8_0` nearly lossless and `q4_0` the aggressive one (quality 1.0, 0.99 and 0.93 in `KV_TYPES`).
+
+**The three profiles.**
+
+| Profile | Variant (`pickVariant`) | KV types allowed (`kvTypesFor`) | Winner (`pickBest`) |
+|---|---|---|---|
+| `speed` | Lightest downloaded variant (lowest bits per weight) | `f16`, `q8_0`, `q4_0` | Highest measured t/s with context, with no quality weight |
+| `balanced` | The variant the user selected | `f16`, `q8_0`, `q4_0` | t/s with context × KV quality (§4.3) |
+| `quality` | Heaviest downloaded variant that fits fully on GPU at the requested context | `f16`, `q8_0` | Among results that are fully on GPU with `f16` or `q8_0`: highest KV precision; on a tie, highest t/s |
+
+- The KV types are always intersected with the engine's `capabilities.kvTypes`. If an engine supported neither `f16` nor `q8_0`, `quality` would plan with the engine's full list; both current engines support all three.
+- "Fits fully on GPU" is `fitsFullyOnGpu`: `placeLayers` reaches a full offload with at least one allowed KV type. A MoE model that only fits with expert layers in RAM does not count, in the pick and in the winner (`meetsQuality`).
+- The "Variant" column is what Ollama loads and what LM Studio only recommends (§5).
+- With a single downloaded variant, `speed` and `quality` differ only in the KV types and the winner rule.
+- `balanced` is the behavior that existed before profiles: same winner, same preset file.
+
+**Quality fallback.** `quality` promises a full GPU offload with a precise KV cache. When it cannot keep that promise it says so with a `profile-fallback` event and does not fail.
+
+| Case | Detected | What is used | Reason code |
+|---|---|---|---|
+| No downloaded variant fits fully on GPU | Before measuring, in the pick | The selected variant | `profile.variant.noFullGpu` |
+| The pick found a variant that fits, but no measured configuration of the loaded variant is fully on GPU with `f16` or `q8_0` | After measuring | The variant already loaded for the measurement | `profile.fallback.noFullGpuConfig` |
+
+Whenever no measured result meets the quality criteria, `pickBest` applies the `balanced` rule to the measured results. `q4_0` is still never planned, so a fallback is not identical to choosing `balanced`.
+
+**Recommended profile (`recommendProfile`).** The highest-quality profile whose outcome stays fully on GPU. The hardware decides; there is no t/s threshold.
+
+| Order | Condition | Recommended | Reason code |
+|---|---|---|---|
+| 1 | A downloaded variant fits fully on GPU with `f16` or `q8_0` | `quality` | `profile.recommend.qualityFits` |
+| 2 | The selected variant fits fully on GPU with some KV type the engine supports | `balanced` | `profile.recommend.balancedFits` |
+| 3 | Otherwise | `speed` | `profile.recommend.partialOffload` |
+
+**Variant hint (`variantHints`).** When a heavier quantization that is not downloaded would fit fully on GPU, the app says so. It never downloads anything.
+
+| Target (`HINT_TARGETS`) | Bits per weight |
+|---|---|
+| `Q8_0` | 8.5008 |
+| `Q6_K` | 6.5633 |
+| `Q5_K_M` | 5.7036 |
+
+For each target, starting from the selected variant:
+
+1. Skip it unless its bits per weight are at least 5% above the file on disk (`HINT_MIN_GAIN = 1.05`). Measured bits per weight are rounded and the targets come from another model, so without the margin the app could hint the quantization the file already is.
+2. Skip it if that quantization is already downloaded.
+3. Scale the layer, expert, output, embedding and file bytes by target bits / current bits.
+4. Hint it if the scaled model passes `fitsFullyOnGpu` with the KV types of `quality`.
+
+The size is **an estimate**: the targets are the bits per weight llama.cpp publishes in `tools/quantize/README.md` for Llama-3.1-8B, and other models differ. The interfaces word it as an estimate. There is no hint when the metadata has no bits per weight.
+
+**Conservative preview (`vramInUse`).** `profilePlan` plans with the VRAM that is free right now, while a real load unloads the engine's models first. `vramBusy` is true when any GPU has more than 20% of its VRAM in use (`VRAM_BUSY_FRACTION = 0.2`; a desktop compositor alone stays below it), and the interfaces then warn that the preview is conservative. On unified-memory hardware used VRAM is reported as 0, so the warning never shows.
+
+**Preselection.** `settings.json` holds `profile`, the last profile chosen interactively (`null` until one is chosen).
+
+| Interface | Preselected | Stored |
+|---|---|---|
+| CLI wizard | Stored profile, else the recommended one | The choice made in the prompt |
+| CLI with `--profile` | The flag | Nothing: the flag applies to that run only |
+| CLI without `--profile` and with `--yes`, `--json`, or engine, model and context all given | `balanced` | Nothing |
+| Web and desktop | Stored profile, else the recommended one of the current plan, else `balanced` | Every change, through `POST /api/settings` |
 
 ---
 
@@ -226,6 +364,23 @@ Validated: 32K with q8_0 on Qwen 32B = 4352 MiB, exactly what llama.cpp allocate
   - `--tensor-split` with the number of layers per GPU, in that same reversed order.
 - **LM Studio updates its own backend.** During development it went from 2.45.0 to 2.46.0. `backend()` reads the preferences and, if they don't exist, uses the most recent one.
 
+**Variants and load profiles (`variantSelect: false`).** LM Studio cannot load a specific variant by key, so the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one.
+
+Observed on 0.4.25 with `lms load <identifier> --estimate-only -y`, which loads nothing:
+
+| Identifier | Result |
+|---|---|
+| Family key (`qwen/qwen2.5-coder-14b`) | Accepted |
+| Family key + variant (`qwen/qwen2.5-coder-14b@q4_k_m`, the downloaded variant) | "Model not found" |
+| Concrete GGUF path | "Model not found" |
+| Concrete default identifier | "Model not found" |
+
+- `GET /api/v0/models` lists only the family id, with the quantization of the selected variant.
+- `model-index-cache.json` does hold one entry per variant (`defaultIdentifier` such as `model@q4_k_m`), so the GGUF of any downloaded variant can be resolved and read. Only loading through LM Studio is limited to the selected variant.
+- The per-model config is stored by family key, with no variant in the file name.
+- `listVariants` reads `variants` and `selectedVariant` from the model's entry in `lms ls --json` and resolves each file through the model index. The quantization is the text after the last `@`, upper-cased. An entry without `variants` is a single, selected variant. A variant whose file cannot be resolved is left out, unless it is the selected one.
+- What the user sees: `speed` and `quality` measure and load the selected variant. When another downloaded variant suits the profile better, the `variant-picked` event carries `recommendSwitch: true` and the interfaces say which variant to select in LM Studio. The app never switches it: the selected-variant state is another non-public internal file and the app does not write it.
+
 ### 5.2 Ollama (implemented, untested with Ollama installed)
 
 - **API:** `OLLAMA_HOST` or `127.0.0.1:11434`. Endpoints `/api/tags`, `/api/show` (`verbose: true` gives `model_info`; the `modelfile` field contains `FROM <blob path>`, which is read as GGUF), `/api/generate` and `/api/ps` (`size_vram` vs `size` to know how much actually ended up on GPU).
@@ -234,6 +389,22 @@ Validated: 32K with q8_0 on Qwen 32B = 4352 MiB, exactly what llama.cpp allocate
   - `ollama create <model>:<tag>-tuned-<N>k` with a Modelfile (`num_ctx`, `num_gpu`, `num_thread`, `num_batch`).
   - Server variables: systemd override on Linux (needs sudo; if there's no passwordless sudo, the commands are shown), `setx` on Windows and `launchctl setenv` on macOS.
 - **Load:** `generate` with `keep_alive: '30m'` on the tuned model.
+
+**Variants and load profiles (`variantSelect: true`).** Every Ollama tag is an independent model that loads by name, so the app picks the variant for the profile, measures it and loads it. The tuned model is created from the picked tag.
+
+`listVariants` reads `/api/tags` and groups tags with a deliberately conservative rule. Two tags are variants of the same model only when all of these match:
+
+| Must match | Source |
+|---|---|
+| Base name | The text before the `:` |
+| Parameter size | `details.parameter_size` |
+| Family | `details.family` |
+| Tag stem | `tagStem`: the tag in lower case without its quantization segment (`details.quantization_level`) |
+
+- Tuned copies (`-tuned-` in the tag) are never variants, and alias tags that share a digest are listed once.
+- A model without `details.parameter_size` has itself as its only variant.
+- **Why so strict:** a profile must never load a different model than the one chosen, and the names cannot prove that `14b` and `14b-instruct-q8_0` are the same model, so they are not grouped.
+- **The cost:** automatic variant selection applies in fewer cases. When tags are not grouped, the model has one variant and `speed` and `quality` differ only in the KV types and the winner rule.
 
 ### 5.3 Automatic installation (`installer.js`)
 
@@ -250,9 +421,27 @@ All URLs were verified on 2026-09-25. Plans that require sudo are not run from t
 ## 6. Presets (`presets.js`)
 
 - **Path:** `~/.config/llm-tuner/presets/` on Linux, `~/Library/Application Support/llm-tuner/presets/` on macOS and `%APPDATA%\llm-tuner\presets\` on Windows.
-- **File:** `<engine>__<model>__<ctx>.json` with `{version, engine, model, ctx, modelBytes, fingerprint, hardware, createdAt, candidate, bench, tried[]}`.
+- **Key:** engine + model + context + profile. The model is the key the user chose, also when a profile loads another variant.
+- **File:** one per key, with `{version, engine, model, ctx, profile, modelBytes, fingerprint, hardware, createdAt, candidate, bench, tried[]}`.
+
+  | Profile | File name |
+  |---|---|
+  | `balanced` | `<engine>__<model>__<ctx>.json` (the name used before profiles existed) |
+  | `speed`, `quality` | `<engine>__<model>__<ctx>__<profile>.json` |
+
+- **Presets saved before profiles existed** have no `profile` field and are found as `balanced`. An unknown profile value is treated as `balanced` and never becomes part of a file name.
+- **A `speed` or `quality` preset also stores** `variant` (`key`, `quant` and `sizeBytes` of the variant used) and `variants` (`key` and `sizeBytes` of every downloaded variant when it was measured).
 - **Hardware fingerprint:** sha256 of the CPU brand + (GPU name, VRAM in GB, generation and PCIe width) of each GPU.
-- **Invalidated if** the fingerprint changes or the model file size changes. `--force` or the "Re-measure" checkbox ignore it.
+- **Invalidated if:**
+
+  | Change | Applies to | Reason |
+  |---|---|---|
+  | The hardware fingerprint | Every profile | `hardware` |
+  | The model file size | `balanced`; also `speed` and `quality` when no variant list is available | `model` |
+  | The list of downloaded variants (keys and file sizes, `variantsSignature`) | `speed`, `quality` | `variants` |
+
+  Downloading or removing a variant therefore makes `speed` and `quality` measure again, and leaves `balanced` alone. `--force` or the "Re-measure" checkbox ignore the preset.
+- **Listing:** `listPresets` returns the profile and the variant key. `--presets` prints the profile, and the variant key when it differs from the model key.
 
 ---
 
@@ -296,6 +485,19 @@ App timings: the first load (measuring 3 candidates + preset + load) takes 2 min
 - **`pkill -f <pattern>` inside a bash script** kills itself if the pattern appears in the command line (exit code 144). Use `pgrep` and filter.
 - **`nvidia-smi`'s "free" VRAM already discounts the driver's reserve** (~450 MiB per GPU).
 - **To launch LM Studio's `llama-server` by hand** you need its libraries: on Linux, `LD_LIBRARY_PATH=<backend>:<vendor/*>`; on Windows, `PATH`; on macOS, `DYLD_LIBRARY_PATH`.
+- **The CLI crashes when `--lang` or `--theme` cannot be saved.** In `src/cli/index.js` the error handler uses the color helper `c` before its `const` is initialized, so a failed write ends in a `ReferenceError` and not in the intended warning. Not fixed yet.
+
+### Load profiles: limits that remain
+
+- **The profile preview plans with the VRAM free right now.** `profilePlan` unloads nothing, so a loaded model makes the recommended profile and the variant hints pessimistic, and the real load, which frees VRAM first, can pick differently. The `vramBusy` warning covers it, except on unified-memory hardware, where used VRAM is reported as 0. A preview that plans as if the engine's models were unloaded needs to know what is loaded; it belongs to the multi-model feature (§10).
+- **A model loaded in the other engine is not unloaded.** Each engine's `prepare` unloads only its own models, so a model loaded in Ollama reduces the free VRAM a LM Studio measurement sees, and the other way around.
+- **LM Studio with two or more variants of one model downloaded was only tested with fixtures** of `lms ls --json` and the model index. The reference machine has one variant per model.
+- **LM Studio profile presets do not follow the selected variant.** A `speed` or `quality` preset is validated by the list of downloaded variants, not by which one is selected. After selecting another variant in LM Studio, measure again with `--force` or "Re-measure".
+- **No switch advice on a preset hit.** `recommendSwitch` is always `false` there: the advice to select another variant only appears in the preview and when measuring.
+- **`loads` means two things on an engine without `variantSelect`.** In `profilePlan` it is the key of the selected variant; in the `variant-picked` event it is the key the user chose.
+- **The variant hint is an estimate** (§4.5): the real file of the hinted quantization can be larger or smaller.
+- **The web result panel does not show the profile or the variant,** and the status text for a missing preset (`status.searchNone`) only mentions the context.
+- **Variant listing trusts the engine's answer.** Ollama's `listVariants` does not check the HTTP status when the body still carries `models`, and LM Studio's `listModels` assumes that `lms ls --json` returns an array.
 
 ---
 
@@ -309,7 +511,10 @@ App timings: the first load (measuring 3 candidates + preset + load) takes 2 min
 - Presets.
 - apply/load on LM Studio.
 - CLI, web and Electron starting up.
-- 9 unit tests.
+- Unit tests (`npm test`).
+
+**Implemented, covered by unit tests only:**
+- Load profiles (`speed`, `balanced`, `quality`): rules, variant listing in both engines, presets per profile, the `--profile` flag and wizard step, and the selector in the web and desktop UI. The tests use fixtures and mock engines. No real load has been measured with `speed` or `quality` on real hardware yet, and the variant pick could not be exercised on the reference machine, where every model has a single downloaded variant.
 
 **Implemented but untested:**
 - Ollama end to end.
@@ -327,6 +532,9 @@ App timings: the first load (measuring 3 candidates + preset + load) takes 2 min
 7. Detect in the interface that a preset became stale and explain why (hardware or model) before measuring again.
 8. Move presets between identical machines (export/import).
 9. If LM Studio changes its internal formats: detect the version and warn instead of writing blindly.
+10. Load each profile on the real LM Studio and Ollama, and record the measurements in §8.
+11. **Next feature: keep more than one model loaded.** Today both engines unload every loaded model in `prepare()` and `load()`. Planning a second model against the remaining VRAM comes after load profiles. Owner requirement: LM Studio and Ollama stay separate engines but share the same VRAM, and one model may be loaded in each at the same time, so "what is loaded" must be checked across both engines, not only the one in use. This also lets the profile preview plan as if the engine's models were already unloaded (§9).
+12. Deferred: download a hinted variant from the app. Today the app only shows the hint and never downloads anything.
 
 **Current state of the reference machine:**
 - LM Studio has Qwen 32B configured with 16K, KV q8_0, everything on GPU and 4 threads.
