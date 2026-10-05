@@ -61,11 +61,32 @@ function metaFromModelInfo(info, sizeBytes) {
   };
 }
 
+/** Tags of the same model as `key` in an /api/tags list: [{ key, quant, sizeBytes, selected }]. */
+export function ollamaVariants(models, key) {
+  const self = models.find((m) => m.name === key);
+  if (!self) return [];
+  const [base] = key.split(':');
+  const size = self.details?.parameter_size;
+  if (!size) return [{ key: self.name, quant: self.details?.quantization_level ?? null, sizeBytes: self.size, selected: true }];
+  return models
+    .filter((m) => {
+      const [mBase, ...mRest] = m.name.split(':');
+      const mTag = mRest.length > 0 ? mRest.join(':') : '';
+      return mBase === base && m.details?.parameter_size === size && !mTag.includes('-tuned-');
+    })
+    .map((m) => ({
+      key: m.name,
+      quant: m.details?.quantization_level ?? null,
+      sizeBytes: m.size,
+      selected: m.name === key,
+    }));
+}
+
 export const ollama = {
   id: 'ollama',
   name: 'Ollama',
   // KV type and flash attention are server-wide settings in Ollama; GPU order via CUDA_VISIBLE_DEVICES.
-  capabilities: { kvTypes: ['f16', 'q8_0', 'q4_0'], perModelKv: false, gpuOrder: true, cpuMoe: false, exactBenchmark: true },
+  capabilities: { kvTypes: ['f16', 'q8_0', 'q4_0'], perModelKv: false, gpuOrder: true, cpuMoe: false, exactBenchmark: true, variantSelect: true },
 
   async detect() {
     const bin = await ollamaBin();
@@ -94,6 +115,13 @@ export const ollama = {
     return (r?.json?.models || [])
       .filter((m) => !/embed/i.test(m.name) && !/bert/i.test(m.details?.family || ''))
       .map((m) => ({ key: m.name, name: m.name, sizeBytes: m.size, arch: m.details?.family, quant: m.details?.quantization_level, maxContext: null }));
+  },
+
+  /** Downloaded variants (tags) of a model: [{ key, quant, sizeBytes, selected }]. */
+  async listVariants(ctx, key) {
+    await this.ensureServer(ctx);
+    const r = await fetchJson(`${ctx.detection.apiUrl}/api/tags`);
+    return ollamaVariants(r?.json?.models || [], key);
   },
 
   async modelMeta(ctx, key) {
