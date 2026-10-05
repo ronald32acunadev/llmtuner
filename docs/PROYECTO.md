@@ -430,7 +430,7 @@ All URLs were verified on 2026-09-25. Plans that require sudo are not run from t
   | `speed`, `quality` | `<engine>__<model>__<ctx>__<profile>.json` |
 
 - **Presets saved before profiles existed** have no `profile` field and are found as `balanced`. An unknown profile value is treated as `balanced` and never becomes part of a file name.
-- **A `speed` or `quality` preset also stores** `variant` (`key`, `quant` and `sizeBytes` of the variant used) and `variants` (`key` and `sizeBytes` of every downloaded variant when it was measured).
+- **A `speed` or `quality` preset also stores** `variant` (`key`, `quant` and `sizeBytes` of the variant used) and `variants` (`key` and `sizeBytes` of every downloaded variant when it was measured, with `selected: true` on the one that was selected in the engine).
 - **Hardware fingerprint:** sha256 of the CPU brand + (GPU name, VRAM in GB, generation and PCIe width) of each GPU.
 - **Invalidated if:**
 
@@ -438,9 +438,9 @@ All URLs were verified on 2026-09-25. Plans that require sudo are not run from t
   |---|---|---|
   | The hardware fingerprint | Every profile | `hardware` |
   | The model file size | `balanced`; also `speed` and `quality` when no variant list is available | `model` |
-  | The list of downloaded variants (keys and file sizes, `variantsSignature`) | `speed`, `quality` | `variants` |
+  | The list of downloaded variants or which one is selected (keys, file sizes and the selected entry, `variantsSignature`) | `speed`, `quality` | `variants` |
 
-  Downloading or removing a variant therefore makes `speed` and `quality` measure again, and leaves `balanced` alone. `--force` or the "Re-measure" checkbox ignore the preset.
+  Downloading or removing a variant, or selecting another one in LM Studio, therefore makes `speed` and `quality` measure again, and leaves `balanced` alone. A `speed` or `quality` preset saved before the selected entry was stored is measured once more. `--force` or the "Re-measure" checkbox ignore the preset.
 - **Listing:** `listPresets` returns the profile and the variant key. `--presets` prints the profile, and the variant key when it differs from the model key.
 
 ---
@@ -492,7 +492,6 @@ App timings: the first load (measuring 3 candidates + preset + load) takes 2 min
 - **The profile preview plans with the VRAM free right now.** `profilePlan` unloads nothing, so a loaded model makes the recommended profile and the variant hints pessimistic, and the real load, which frees VRAM first, can pick differently. The `vramBusy` warning covers it, except on unified-memory hardware, where used VRAM is reported as 0. A preview that plans as if the engine's models were unloaded needs to know what is loaded; it belongs to the multi-model feature (§10).
 - **A model loaded in the other engine is not unloaded.** Each engine's `prepare` unloads only its own models, so a model loaded in Ollama reduces the free VRAM a LM Studio measurement sees, and the other way around.
 - **LM Studio with two or more variants of one model downloaded was only tested with fixtures** of `lms ls --json` and the model index. The reference machine has one variant per model.
-- **LM Studio profile presets do not follow the selected variant.** A `speed` or `quality` preset is validated by the list of downloaded variants, not by which one is selected. After selecting another variant in LM Studio, measure again with `--force` or "Re-measure".
 - **No switch advice on a preset hit.** `recommendSwitch` is always `false` there: the advice to select another variant only appears in the preview and when measuring.
 - **`loads` means two things on an engine without `variantSelect`.** In `profilePlan` it is the key of the selected variant; in the `variant-picked` event it is the key the user chose.
 - **The variant hint is an estimate** (§4.5): the real file of the hinted quantization can be larger or smaller.
