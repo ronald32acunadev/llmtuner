@@ -177,10 +177,15 @@ Text and docs:
   - Checks: RED observed per fix, then `node --test test/presets.test.js` 14/14, `node --test test/engines.test.js` 22/22, `npm test` 105/105.
   - Left open: `lmstudio.listModels` has the same non-array JSON weakness (pre-existing, outside this feature); Ollama `listVariants` does not check the HTTP status when a body still carries `models`.
 
-- [ ] `T-6`: Tuner wiring
-  - Scope: `src/core/tuner.js`, `src/core/settings.js`, `test/core.test.js`, `test/settings.test.js`
-  - Route: delegated direct
-  - Checks: focused tests, then `npm test`
+- [x] `T-6`: Tuner wiring
+  - Scope: `src/core/tuner.js`, `src/core/settings.js`, `src/core/index.js`, `src/i18n/en.js`, `src/i18n/es.js` (`status.searchVariants`), `test/tuner.test.js` (new), `test/settings.test.js`, `test/server.test.js`
+  - Route: delegated direct; the three `profile: null` expectations in `test/server.test.js` were a mechanical inline edit by the parent
+  - Commits: `b119502` (tuner), `6199f6b` (settings), `d529d98` (fix below)
+  - Checks: a regression test pins the balanced path (engine call sequence, event sequence, status codes, preset file name) and passed on the unchanged `tuner.js` before the change and after it. RED 1 pass / 8 fail, then `node --test test/tuner.test.js` 11/11; `node --test test/settings.test.js` 13/13; `node --test test/i18n.test.js` 14/14; `npm test` 120/120. Parent spot check: `npm test` 118/118 before `d529d98`.
+  - Fix `d529d98`: `speed` and `quality` picked their variant with the hardware seen before the engine's models were unloaded, so a loaded model could make `quality` conclude that nothing fits. The pick now happens after freeing VRAM; a preset hit picks nothing, frees nothing and announces the stored variant with `profile.variant.preset`.
+  - API for the interfaces: `Tuner.load(key, ctx, { profile })` returns `profile` and `variant`; `Tuner.profilePlan(key, ctx)` returns `{ variants, variantSelect, recommended, profiles: { speed, balanced, quality }, hints }` without measuring or unloading; `readSettings()` returns `profile` (`null` when never chosen).
+  - Code authorship: `pumbastudio` generated the logic; tests 2 to 9 of `test/tuner.test.js` were written by the agent because LM Studio answered "No models loaded" twice.
+  - Known limits, to carry into `T-8`/`T-9` and the docs: `profilePlan` is a preview with the hardware as it is, so a loaded model makes the recommendation pessimistic; on a preset hit `recommendSwitch` is always false; a profile preset is validated by the variant list, not by which variant is selected in LM Studio; `profilePlan().profiles[p].loads` is the selected variant key while the `variant-picked` event reports the chosen key; reason codes `profile.variant.*`, `profile.recommend.*` and `profile.fallback.noFullGpuConfig` have no catalog entries yet; `POST /api/settings` does not accept `profile` yet.
 
 - [ ] `T-7`: i18n entries
   - Scope: `src/i18n/en.js`, `src/i18n/es.js`, `src/i18n/core.js`
@@ -215,4 +220,4 @@ Receipt-driven development is on (global). Reviewed boundary starts at the track
 - Range `fab0ab1`..`01ee498` (`T-3b`, `T-5`, `T-4`): assessed `medium`, due (`slice_budget_reached`, 559 lines). Consent granted by the owner. One lens (`review-reliability`): approved and acknowledged, lineage `review-b1259c14be70b663`. Four warnings and three suggestions, none blocking, addressed in `T-4b`.
 
 ## Progress
-Slice 1 complete: `T-1`, `T-2`, `T-3`, `T-3b` and `T-5` done. Slice 2 (`feat/load-profiles-02-engines`) in progress: `T-4` and `T-4b` done. Running authored changed lines: 1,171 (17 in `ae418ef`, 357 in `b3a84c1`, 41 in `e35358c`, 219 in `a703727`, 264 in `4eb7699`, 273 in `ac1c55d`), feature document excluded. The original forecast of 900 to 1,200 is already used with four tasks left; the review follow-ups account for 314 of those lines and the tests for most of the rest. Revised forecast: about 2,200 to 2,600 for the whole feature. Next step: `T-6` (tuner wiring and settings), which closes slice 2.
+Slices 1 and 2 complete: `T-1` to `T-6` done, including `T-3b` and `T-4b`. The core is finished; no interface exposes the profile yet. Running authored changed lines: 1,911 (17 in `ae418ef`, 357 in `b3a84c1`, 41 in `e35358c`, 219 in `a703727`, 264 in `4eb7699`, 273 in `ac1c55d`, 507 in `b119502`, 76 in `6199f6b`, 157 in `d529d98`), feature document excluded. Next step: slice 3 on `feat/load-profiles-03-cli` (`T-8`). The original forecast of 900 to 1,200 is already used with four tasks left; the review follow-ups account for 314 of those lines and the tests for most of the rest. Revised forecast: about 2,800 to 3,200 for the whole feature.
