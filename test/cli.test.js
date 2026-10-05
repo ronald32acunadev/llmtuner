@@ -214,9 +214,27 @@ test('--presets shows the profile and the variant of each preset', async () => {
   }
 });
 
-// The helpers are imported in-process: the CLI stays idle when it is not the entry script.
+test('--presets leaves the variant out when it is the model itself', async () => {
+  // LM Studio names a variant with the key of its model: repeating it adds nothing.
+  await writePreset('lmstudio__qwen_qwen3-coder-30b__8192__quality.json', { engine: 'lmstudio', model: 'qwen/qwen3-coder-30b', ctx: 8192, profile: 'quality', variant: { key: 'qwen/qwen3-coder-30b', quant: 'Q4_K_M', sizeBytes: 1 } });
+  await writePreset('lmstudio__qwen_qwen3-coder-30b__16384__quality.json', { engine: 'lmstudio', model: 'qwen/qwen3-coder-30b', profile: 'quality', variant: { key: 'qwen/qwen3-coder-30b@q8_0', quant: 'Q8_0', sizeBytes: 1 } });
+
+  try {
+    const r = cli('--presets');
+    assert.equal(r.status, 0);
+    const lines = r.stdout.trim().split('\n');
+    assert.equal(lines.length, 2);
+    assert.match(lines[0], /qwen\/qwen3-coder-30b {2}8K {2}quality {2}KV q8_0/);
+    assert.doesNotMatch(lines[0], /\(/);
+    assert.match(lines[1], /16K {2}quality \(qwen\/qwen3-coder-30b@q8_0\) {2}KV q8_0/);
+  } finally {
+    await fs.rm(path.join(dir, 'presets'), { recursive: true, force: true });
+  }
+});
+
+// The pure helpers live in their own module: importing it never starts the CLI.
 process.env.LLM_TUNER_CONFIG_DIR = dir;
-const { profileChoices, profileNotes, profileSwitchNote, profileEventLines } = await import('../src/cli/index.js');
+const { profileChoices, profileNotes, profileSwitchNote, profileEventLines, shouldAskProfile } = await import('../src/cli/profile.js');
 const { t: translate } = await import('../src/i18n/index.js');
 const tr = (lang) => (key, params) => translate(lang, key, params);
 
@@ -331,4 +349,51 @@ test('profileEventLines adds the switch advice when the event recommends another
   // No advice without an engine name: the wizard already gave it with the profile prompt.
   assert.equal(profileEventLines(picked, null, tr('en')).length, 1);
   assert.equal(profileEventLines(picked, null, tr('es'), null).length, 1);
+});
+
+test('profileEventLines prints nothing for an event without a variant', () => {
+  // The progress listener must never throw: that would reject the load in the middle of a run.
+  for (const type of ['variant-picked', 'profile-fallback']) {
+    for (const lang of ['en', 'es']) {
+      assert.deepEqual(profileEventLines({ type, reasonCode: 'profile.variant.noFullGpu', recommendSwitch: true }, null, tr(lang), 'LM Studio'), [], `${type} ${lang}`);
+      assert.deepEqual(profileEventLines({ type, reasonCode: 'profile.variant.selected', variant: null }, null, tr(lang)), [], `${type} ${lang} null`);
+    }
+  }
+});
+
+test('shouldAskProfile asks only in the wizard, never on a fully flagged or non-interactive run', () => {
+  const all = { engine: 'lmstudio', model: 'qwen/qwen3-coder-30b', ctx: '16384' };
+  const cases = [
+    // The bare wizard and every run that still has a question to ask.
+    [{}, true],
+    [{ engine: 'ollama' }, true],
+    [{ model: 'qwen2.5-coder:14b' }, true],
+    [{ ctx: '8192' }, true],
+    [{ engine: 'ollama', model: 'qwen2.5-coder:14b' }, true],
+    [{ engine: 'ollama', ctx: '8192' }, true],
+    [{ model: 'qwen2.5-coder:14b', ctx: '8192' }, true],
+    [{ engine: 'ollama', model: 'qwen2.5-coder:14b', force: true, 'dry-run': true }, true],
+    // A context that is not a number is asked again, so the run is still a wizard.
+    [{ ...all, ctx: 'abc' }, true],
+    [{ ...all, ctx: undefined }, true],
+    // Engine, model and context from flags: the run asked nothing before the profiles existed.
+    [all, false],
+    [{ ...all, 'dry-run': true }, false],
+    [{ ...all, force: true, candidates: '2' }, false],
+    // An explicit profile is never asked again.
+    [{ profile: 'speed' }, false],
+    [{ profile: 'quality', engine: 'ollama' }, false],
+    [{ ...all, profile: 'balanced' }, false],
+    // Non-interactive runs.
+    [{ yes: true }, false],
+    [{ json: true }, false],
+    [{ yes: true, engine: 'ollama' }, false],
+    [{ json: true, engine: 'ollama', model: 'qwen2.5-coder:14b' }, false],
+    [{ ...all, yes: true }, false],
+    [{ ...all, json: true }, false],
+    [{ yes: true, json: true, profile: 'speed' }, false],
+  ];
+  for (const [args, expected] of cases) {
+    assert.strictEqual(shouldAskProfile(args), expected, JSON.stringify(args));
+  }
 });

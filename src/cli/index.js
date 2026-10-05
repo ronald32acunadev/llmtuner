@@ -1,13 +1,10 @@
 #!/usr/bin/env node
-import { realpathSync, statSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { select, input, confirm, search } from '@inquirer/prompts';
 import { detectHardware, detectEngines, Tuner, installPlans, runInstall, listPresets, presetsDir, fmtBytes, readSettings, writeSettings, THEMES, PROFILES, DEFAULT_PROFILE, TunerError } from '../core/index.js';
 import { t as translate, LOCALES, errorText } from '../i18n/index.js';
+import { profileChoices, profileNotes, profileSwitchNote, profileEventLines, shouldAskProfile } from './profile.js';
 
-// Imported by another script (the tests): no flags are read and the wizard does not start.
-const imported = isImported();
-const args = parseArgs(imported ? [] : process.argv.slice(2));
+const args = parseArgs(process.argv.slice(2));
 let { lang, theme } = await readSettings();
 const t = (key, params) => translate(lang, key, params);
 if ('lang' in args) {
@@ -43,9 +40,6 @@ const c = {
   cyan: (s) => isLight() ? `\x1b[36m${s}\x1b[0m` : `\x1b[96m${s}\x1b[0m`,
 };
 
-// Reasons of a `variant-picked` event that mean the profile could not be honoured: the core flags them with a `profile-fallback` event right after.
-const FALLBACK_REASONS = new Set(['profile.variant.noFullGpu']);
-
 if (args.help) {
   console.log(t('cli.help', { presetsDir: presetsDir() }));
   process.exit(0);
@@ -65,8 +59,8 @@ if (args.settings) {
 } else if (args.presets) {
   const list = await listPresets({ engine: args.engine, modelKey: args.model });
   if (!list.length) console.log(t('cli.noPresets'));
-  for (const p of list) console.log(`${p.engine.padEnd(9)} ${p.model}  ${p.ctx / 1024}K${p.profile ? `  ${p.profile}${p.variant ? ` (${p.variant})` : ''}` : ''}  KV ${p.kvType}  ${p.fullOffload ? t('candidate.allGpu') : t('cli.partial')}  ${p.shortTps} t/s  ${c.dim(p.createdAt.slice(0, 16).replace('T', ' '))}`);
-} else if (!imported) {
+  for (const p of list) console.log(`${p.engine.padEnd(9)} ${p.model}  ${p.ctx / 1024}K${p.profile ? `  ${p.profile}${p.variant && p.variant !== p.model ? ` (${p.variant})` : ''}` : ''}  KV ${p.kvType}  ${p.fullOffload ? t('candidate.allGpu') : t('cli.partial')}  ${p.shortTps} t/s  ${c.dim(p.createdAt.slice(0, 16).replace('T', ' '))}`);
+} else {
   main().catch((e) => {
     if (e?.name === 'ExitPromptError') process.exit(130);
     console.error(c.r(`\n${t('common.error', { message: errorText(lang, e) })}`));
@@ -193,8 +187,8 @@ async function main() {
 
   // 4. Profile
   let profile = args.profile;
-  if (!profile && (args.yes || args.json)) {
-    profile = DEFAULT_PROFILE; // Non-interactive runs keep the behaviour scripts already rely on.
+  if (!profile && !shouldAskProfile(args)) {
+    profile = DEFAULT_PROFILE; // Non-interactive and fully flagged runs keep the behaviour scripts already rely on.
   }
   // The wizard gives the switch advice with its prompt; a profile that comes from a flag gets it with the load events.
   const advisedByWizard = !profile;
@@ -293,73 +287,6 @@ function benchErrorText(b) {
 function vramStr(peaks = {}) {
   const e = Object.entries(peaks || {});
   return e.length ? e.map(([i, b]) => `GPU${i} ${(b / 1024 ** 3).toFixed(1)} GB`).join(' / ') : t('common.na');
-}
-
-/** Choices and preselection for the profile prompt, from a `Tuner.profilePlan()` result. */
-export function profileChoices(plan, t, { stored = null, mark = (s) => s, dim = (s) => s } = {}) {
-  const choices = PROFILES.map((profile) => {
-    const info = plan.profiles[profile];
-    // What the engine will load: the selected variant when it cannot switch to the profile's pick.
-    const variant = plan.variants.find((v) => v.key === info.loads);
-    const quant = variant?.quant ?? null;
-    const uses = quant ? `${quant} · KV ${info.kvTypes.join(', ')}` : `KV ${info.kvTypes.join(', ')}`;
-    const name = `${t(`profile.name.${profile}`)}  ${dim(`${t(`profile.desc.${profile}`)} · ${uses}`)}`;
-    const isRecommended = profile === plan.recommended.profile;
-    return {
-      name: isRecommended ? `${name}${mark(`  ${t('cli.recommended')}`)}` : name,
-      value: profile,
-      short: t(`profile.name.${profile}`),
-    };
-  });
-  return { choices, default: stored ?? plan.recommended.profile };
-}
-
-/** Lines shown with the profile prompt: why a profile is recommended and which heavier variants would fit. */
-export function profileNotes(plan, t) {
-  const notes = [t(plan.recommended.reasonCode)];
-  for (const h of plan.hints) {
-    notes.push(t('cli.profileHint', { quant: h.quant, size: fmtBytes(h.estimatedBytes) }));
-  }
-  return notes;
-}
-
-/** Advice to select another variant in the engine, or null when the profile loads its own pick. */
-export function profileSwitchNote(plan, profile, t, engine) {
-  const info = plan.profiles[profile];
-  if (!info?.recommendSwitch) return null;
-  return t('cli.profileSwitch', { quant: info.quant ?? info.variant, engine });
-}
-
-/** Lines to print for a `variant-picked` or `profile-fallback` event, as `{ text, level }` with level `note` or `warn`; `previous` is the event before it and `engine` the engine name, or null to leave the switch advice out. */
-export function profileEventLines(event, previous, t, engine = null) {
-  const { variant } = event;
-  const isFallback = event.type === 'profile-fallback';
-  const lines = [];
-
-  // A fallback that repeats the reason of the line before it is not printed again.
-  if (!(isFallback && event.reasonCode === previous?.reasonCode)) {
-    const level = isFallback || FALLBACK_REASONS.has(event.reasonCode) ? 'warn' : 'note';
-    lines.push({ text: t(event.reasonCode, { quant: variant.quant ?? '?', key: variant.key }), level });
-  }
-
-  // The engine cannot load the pick itself: tell the user which variant to select there.
-  if (event.type === 'variant-picked' && event.recommendSwitch && engine) {
-    lines.push({ text: t('cli.profileSwitch', { quant: variant.quant ?? variant.key, engine }), level: 'note' });
-  }
-
-  return lines;
-}
-
-/** True when another script imports this file (the tests do, for the pure helpers): the CLI then stays idle. */
-function isImported() {
-  try {
-    const entry = realpathSync(process.argv[1]);
-    const self = fileURLToPath(import.meta.url);
-    const same = entry === self || (process.platform === 'win32' && entry.toLowerCase() === self.toLowerCase());
-    return !same && statSync(entry).isFile();
-  } catch {
-    return false;
-  }
 }
 
 function parseArgs(argv) {
