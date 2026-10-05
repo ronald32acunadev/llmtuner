@@ -44,7 +44,8 @@ Route for every task: direct inline. Each task touches one or two non-trivial fi
 - [x] T-3 Remove the web mode from the CLI (`src/cli/index.js`, help text, `test/cli.test.js`)
 - [x] T-4 Workflows (`.github/workflows/ci.yml`, `.github/workflows/release.yml`)
 - [x] T-5 Documentation (`README.md`, `README.es.md`, `docs/PROYECTO.md`, `CLAUDE.md`)
-- [ ] T-6 Install from the tarball (manual check, no file changes)
+- [x] T-6 Install from the tarball (manual check, no file changes)
+- [x] T-7 Final review fixes (`.github/workflows/release.yml`, `docs/PROYECTO.md`)
 
 ## Acceptance criteria
 
@@ -78,7 +79,31 @@ Route for every task: direct inline. Each task touches one or two non-trivial fi
 - T-4 done. No runnable test exists for a workflow. Observed: both files parse (PyYAML), `publish` needs `test`, the version check runs before `npm publish` and exits 1 when the version exists, and the same check against the registry answers `free to publish 0.1.0`. Not verified: a real run on GitHub (first pull request for `ci.yml`, first release for `release.yml`) and the suite on Node 22.
 - T-4 commit: `4ea5842`. Review: high tier (shell scripting in a workflow), declined by the owner; no review record.
 - T-5 done. Read-back: no `npm run web`, `--web`, `electron-builder` or `dist` mention is left in the READMEs, `CLAUDE.md` or `docs/PROYECTO.md`. The Development section sits before the existing Tests section instead of at the end of each README, and the Electron note in both READMEs was rewritten to match.
+- T-5 commit: `163e6b4`. Review assessment: medium, under budget, no review due.
+- T-6 done, no commits. Tarball installed into a temporary prefix: both commands created; `llm-tuner --help` exits 0 with no `--web` line; the Electron runtime is absent after install; a first launch with networking disabled (`unshare -rn`, empty cache) exits 1 with the localized message and no stack trace from `electron/launch.js`; `require('electron')` in the installed layout downloads the runtime (283 MB) and `electron --version` answers `v44.5.1`. Not run: opening the desktop window.
+- Final whole-branch review by a fresh reviewer (range `bfc0295..163e6b4`): no Critical findings, three Important, ten Minor. `npm test` 171/171 on Node 24.
+- T-7 done. Fixed from the review: the `publish` job no longer runs on the push that creates the `release` branch (it would have published 0.1.0 as a side effect of the setup); the release steps use `npm version --no-git-tag-version`; `docs/PROYECTO.md` no longer calls `electron` a devDependency and records the two decisions below. No runnable test exists for the workflow: the condition was checked structurally before and after the change.
+
+## Open decisions for the owner (before the first release)
+
+1. How CI publishes with two-factor authentication. `npm publish` with a granular token works from CI only when the token may bypass 2FA, which npm discourages. npm recommends `npm stage publish` plus `npm stage approve`, or a trust relationship; both need the package to exist, so the first version would be published by hand.
+2. Global installs made with `sudo`. Electron unpacks its runtime into its own package folder on first use; when root owns that folder the desktop app cannot start and the launcher shows the network message. The reviewer proposes a dedicated message with the exact repair command.
+
+## Deferred, non-blocking
+
+- A still-passed `--web` is silently ignored and swallows the next argument (decided by the spec).
+- The offline message embeds Electron's own "delete node_modules/electron" advice.
+- `engines` says Node >= 22 while Electron 44 needs 22.12 for the desktop.
+- No `.gitattributes`: the shebang test would fail on a Windows checkout with `core.autocrlf=true`.
+- `release.yml` has no `concurrency` group; README fallback for a failed runtime download is Linux-only.
+- Test quality: the pack probe has no timeout, the leak test is a denylist, the web-server test is a source-text guard, the negative help assertions do not check the exit status.
+
+## Not verified
+
+- A real run of either workflow, and the suite on Node 22 with npm 10.
+- Windows and macOS.
+- Opening the desktop window from the installed package.
 
 ## Next step
 
-T-6.
+Owner: decide the two open items, then push the branch and open the pull request.

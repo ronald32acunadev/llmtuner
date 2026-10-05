@@ -18,6 +18,8 @@ jobs:
 
   publish:
     needs: test
+    # The push that creates the branch must not publish: releases arrive through a pull request.
+    if: ${{ !github.event.created }}
     runs-on: ubuntu-latest
     environment: npm
     permissions:

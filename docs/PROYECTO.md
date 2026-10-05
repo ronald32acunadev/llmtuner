@@ -65,7 +65,7 @@ llm-tuner --presets
 
 The flow is engine → model → context → profile → **Load**. The wizard asks for the profile with the recommended one marked. Without `--profile`, a run with `--yes`, with `--json`, or with engine, model and context all given as flags uses `balanced`, so scripts written before profiles existed behave the same. An unknown `--profile` value is rejected with exit code 1.
 
-Requirements: Node ≥ 22. Dependencies: `systeminformation` and `@inquirer/prompts`; `electron` as a devDependency.
+Requirements: Node ≥ 22. Dependencies: `systeminformation` and `@inquirer/prompts`; `electron` is a regular dependency (the desktop needs Node 22.12 or later, which is what Electron 44 requires).
 
 ---
 
@@ -547,6 +547,7 @@ App timings: the first load (measuring 3 candidates + preset + load) takes 2 min
 4. Calibrate `readCost`/`PER_GPU_OVERHEAD` per GPU family. Today they're only calibrated on RTX 50xx.
 5. Parameter to choose the benchmark depth (today 50% of the context) and number of candidates from the interface.
 6. Tell the user when a newer version is on npm (notify only: version, changes and the install command).
+   Before the first release: decide how CI publishes with 2FA (§11), and make the desktop start after a global install made with `sudo` (Electron unpacks its runtime into its own package folder, which is then read-only for the user; today the launcher fails with the network message).
 7. Detect in the interface that a preset became stale and explain why (hardware or model) before measuring again.
 8. Move presets between identical machines (export/import).
 9. If LM Studio changes its internal formats: detect the version and warn instead of writing blindly.
@@ -571,20 +572,22 @@ npm is the only distribution channel. The package `llm-tuner` ships the CLI and 
 ### Workflows
 
 - `.github/workflows/ci.yml`: `npm test` on every pull request to `main` and on pushes to `main`, on Ubuntu with Node 22.
-- `.github/workflows/release.yml`: on every push to `release`, runs the tests, stops if the version in `package.json` is already on npm, publishes, and creates the tag `vX.Y.Z` and the GitHub Release.
+- `.github/workflows/release.yml`: on every push to `release`, runs the tests, stops if the version in `package.json` is already on npm, publishes, and creates the tag `vX.Y.Z` and the GitHub Release. The push that creates the `release` branch runs the tests but does not publish, so the first release also goes through a pull request.
 
 ### One-time setup (owner)
 
 1. Create an npm account and enable two-factor authentication.
-2. Create a granular access token with read and write permission on packages.
+2. Decide how CI authenticates to npm (pending, see below) and create the credential it needs.
 3. In the GitHub repository, create the environment `npm` and store the token there as the secret `NPM_TOKEN`. Required reviewers on that environment give a manual approval before publishing.
 4. Create the `release` branch from `main` and protect it so changes arrive only through pull requests.
 
 npm reserves the name `llm-tuner` only when the first version is published.
 
+**Pending before the first release: how CI publishes with two-factor authentication.** `release.yml` runs `npm publish` with a token. With 2FA enabled, npm accepts that from CI only when the granular token is allowed to bypass 2FA, and npm's documentation discourages such tokens. The alternatives npm recommends are `npm stage publish` from CI followed by `npm stage approve` by the owner with 2FA, or a trust relationship (OIDC). Both need the package to exist on the registry, so with either one the first version is published by hand from the owner's machine.
+
 ### Each release
 
-1. On `main`: `npm version patch|minor|major`.
+1. On `main`: `npm version patch|minor|major --no-git-tag-version`, then commit `package.json` and `package-lock.json`. Without that flag `npm version` creates a local tag `vX.Y.Z` that collides with the one the workflow creates on the merge commit.
 2. Open a pull request from `main` into `release` and merge it.
 3. The workflow publishes the version and creates the tag and the GitHub Release.
 
