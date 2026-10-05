@@ -41,7 +41,8 @@
       "target": [
         "AppImage"
       ],
-      "icon": "electron/icon.png"
+      "icon": "electron/icon.png",
+      "desktopName": "llm-tuner"
     },
     "win": {
       "target": [

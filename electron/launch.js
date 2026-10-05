@@ -7,9 +7,11 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
 
 const electron = createRequire(import.meta.url)('electron');
 const env = { ...process.env };
+
 if (process.platform === 'linux') {
   try {
     const st = fs.statSync(path.join(path.dirname(electron), 'chrome-sandbox'));
@@ -17,7 +19,49 @@ if (process.platform === 'linux') {
   } catch {
     env.ELECTRON_DISABLE_SANDBOX = '1';
   }
+
+  // Ensure Linux desktop entry exists
+  ensureLinuxDesktopEntry();
 }
+
 const main = path.join(path.dirname(fileURLToPath(import.meta.url)), 'main.js');
 const child = spawn(electron, [main], { stdio: 'inherit', env });
 child.on('exit', (code) => process.exit(code ?? 0));
+
+function ensureLinuxDesktopEntry() {
+  try {
+    const appsDir = process.env.XDG_DATA_HOME
+      ? path.join(process.env.XDG_DATA_HOME, 'applications')
+      : path.join(os.homedir(), '.local', 'share', 'applications');
+
+    fs.mkdirSync(appsDir, { recursive: true });
+
+    const desktopFilePath = path.join(appsDir, 'llm-tuner.desktop');
+    const iconPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'icon.png');
+
+    const desktopContent = `[Desktop Entry]
+Type=Application
+Name=LLM Tuner
+Comment=Find the fastest configuration to run local LLMs
+Exec=${process.execPath} ${fileURLToPath(import.meta.url)}
+Icon=${iconPath}
+Terminal=false
+StartupWMClass=llm-tuner
+Categories=Development;Utility;
+`;
+
+    // Only write if file doesn't exist or content differs
+    let currentContent = '';
+    try {
+      currentContent = fs.readFileSync(desktopFilePath, 'utf8');
+    } catch {
+      // File doesn't exist, so we'll write it
+    }
+
+    if (currentContent !== desktopContent) {
+      fs.writeFileSync(desktopFilePath, desktopContent);
+    }
+  } catch {
+    // Failures are ignored to avoid preventing app launch
+  }
+}
