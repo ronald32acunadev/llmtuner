@@ -88,3 +88,13 @@ export function presetsFor(presets, profile) {
 export function presetFor(presets, ctx, profile) {
   return presetsFor(presets, profile).find((p) => p.ctx === ctx) ?? null;
 }
+
+/** True when an answer requested for an engine and model still belongs to the selection; the context is ignored. */
+export function isCurrentModel(requested, current) {
+  return requested.engine === current.engine && requested.model === current.model;
+}
+
+/** True when a plan requested for an engine, model and context is still the plan of the selection. */
+export function isCurrentPlan(requested, current) {
+  return isCurrentModel(requested, current) && requested.ctx === current.ctx;
+}

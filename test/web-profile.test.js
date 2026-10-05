@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { t } from '../src/i18n/index.js';
-import { initialProfile, profileOptions, profileDetailLines, profileEventLines, presetsFor, presetFor } from '../src/web/public/profile.js';
+import { initialProfile, profileOptions, profileDetailLines, profileEventLines, presetsFor, presetFor, isCurrentModel, isCurrentPlan } from '../src/web/public/profile.js';
 
 // The browser builds its `t` from the catalog the server sends; here the real catalogs are used directly.
 const tr = (lang) => (key, params) => t(lang, key, params);
@@ -165,4 +165,26 @@ test('presetFor picks the preset of a context and profile; an entry without a pr
   assert.equal(presetFor([], 8192, 'balanced'), null);
   assert.deepEqual(presetsFor(presets, 'balanced'), [presets[0]]);
   assert.deepEqual(presetsFor(presets, 'speed'), [presets[2]]);
+});
+
+test('isCurrentModel accepts an answer only for the engine and model still selected', () => {
+  const requested = { engine: 'lmstudio', model: 'a', ctx: 8192 };
+  assert.equal(isCurrentModel(requested, { ...requested }), true);
+  // The context is not part of the model.
+  assert.equal(isCurrentModel(requested, { ...requested, ctx: 16384 }), true);
+  // The user switched to another model while the answer was on its way.
+  assert.equal(isCurrentModel(requested, { ...requested, model: 'b' }), false);
+  assert.equal(isCurrentModel(requested, { ...requested, engine: 'ollama' }), false);
+  // Nothing is selected any more.
+  assert.equal(isCurrentModel(requested, { engine: undefined, model: '', ctx: 8192 }), false);
+});
+
+test('isCurrentPlan also requires the context still selected', () => {
+  const requested = { engine: 'lmstudio', model: 'a', ctx: 8192 };
+  assert.equal(isCurrentPlan(requested, { ...requested }), true);
+  assert.equal(isCurrentPlan(requested, { ...requested, ctx: 16384 }), false);
+  assert.equal(isCurrentPlan(requested, { ...requested, model: 'b' }), false);
+  assert.equal(isCurrentPlan(requested, { ...requested, engine: 'ollama' }), false);
+  // A context read from an input as a string is not the requested number.
+  assert.equal(isCurrentPlan(requested, { ...requested, ctx: '8192' }), false);
 });

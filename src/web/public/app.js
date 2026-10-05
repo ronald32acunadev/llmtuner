@@ -1,5 +1,5 @@
 import { format } from '/i18n/core.js';
-import { initialProfile, profileOptions, profileDetailLines, profileEventLines, presetsFor, presetFor } from './profile.js';
+import { initialProfile, profileOptions, profileDetailLines, profileEventLines, presetsFor, presetFor, isCurrentModel, isCurrentPlan } from './profile.js';
 
 const $ = (s) => document.querySelector(s);
 const GiB = 1024 ** 3;
@@ -15,8 +15,8 @@ const benchErr = (b) => (b.errorCode ? t(b.errorCode, b.errorParams) : b.error);
 
 const state = { hw: null, engines: [], engine: null, presets: [], meta: null, loadedModel: null, chatMessages: [], chatBusy: false };
 // Load profile: the stored choice (null until the user picks one), the ids the server accepts, the per-profile
-// preview of the last plan (null while there is none) and what the chips were last drawn with.
-Object.assign(state, { storedProfile: null, profileIds: undefined, profilePlan: null, profileSaveError: null, maxContext: null, chipsProfile: null });
+// preview of the last plan (null while there is none), what the chips were last drawn with and the detail markup last written.
+Object.assign(state, { storedProfile: null, profileIds: undefined, profilePlan: null, profileSaveError: null, maxContext: null, chipsProfile: null, profileDetailHtml: null });
 
 async function api(path, body) {
   const res = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
@@ -238,8 +238,12 @@ async function showInstall(e) {
 }
 
 // ---------- Model + context ----------
+/** The engine, model and context selected right now: what an answer must still match to be shown. */
+const selection = () => ({ engine: state.engine?.id, model: $('#model').value, ctx: Number($('#ctx').value) });
+
 async function onModelChange() {
-  const model = $('#model').value;
+  const requested = selection();
+  const { model } = requested;
   if (!model) return;
   $('#load-btn').disabled = true;
   $('#model-meta').textContent = t('web.readingModel');
@@ -247,14 +251,19 @@ async function onModelChange() {
   state.profilePlan = null;
   renderProfile();
   const [{ presets }, plan] = await Promise.all([
-    api(`/api/presets?engine=${state.engine.id}&model=${encodeURIComponent(model)}`),
-    api('/api/plan', { engine: state.engine.id, model, ctx: Number($('#ctx').value) }).catch((err) => ({ error: err.message })),
+    api(`/api/presets?engine=${requested.engine}&model=${encodeURIComponent(model)}`),
+    api('/api/plan', requested).catch((err) => ({ error: err.message })),
   ]);
+  // An answer for a model that is no longer the chosen one is stale: the change that followed owns the view.
+  const current = selection();
+  if (!isCurrentModel(requested, current)) return;
+  // Only the context changed meanwhile: the model data still holds, and onCtxChange asks for the plan of that context.
+  const planIsCurrent = isCurrentPlan(requested, current);
   state.presets = presets;
   if (plan.error) { $('#model-meta').textContent = t('web.modelReadFailed', { error: plan.error }); return; }
   state.meta = plan.meta;
   state.maxContext = plan.maxContext;
-  state.profilePlan = plan.profiles ?? null;
+  if (planIsCurrent) state.profilePlan = plan.profiles ?? null;
   const m = plan.meta;
   $('#ctx').max = m.trainContext || 131072;
   $('#model-meta').textContent = [
@@ -265,7 +274,7 @@ async function onModelChange() {
   ].join(' · ');
   renderProfile();
   renderChips(plan.maxContext);
-  renderGpus(plan.candidates[0]);
+  if (planIsCurrent) renderGpus(plan.candidates[0]);
   updatePresetPill();
   $('#load-btn').disabled = false;
 }
@@ -292,7 +301,11 @@ function renderProfile() {
   }
   const lines = profileDetailLines(state.profilePlan, current, t, { engineName: state.engine?.name, formatBytes: gb });
   if (state.profileSaveError) lines.push({ level: 'warn', text: t('web.profileNotSaved', { error: state.profileSaveError }) });
-  $('#profile-detail').innerHTML = lines.map((l) => `<div${l.level === 'warn' ? ' class="warn"' : ''}>${esc(l.text)}</div>`).join('');
+  const html = lines.map((l) => `<div${l.level === 'warn' ? ' class="warn"' : ''}>${esc(l.text)}</div>`).join('');
+  // The detail is a polite live region: writing the same markup again would make a screen reader repeat it.
+  if (html === state.profileDetailHtml) return;
+  state.profileDetailHtml = html;
+  $('#profile-detail').innerHTML = html;
 }
 
 // The profile in use changed (a click, or a new recommendation while none is stored): redraw what depends on it.
@@ -362,11 +375,10 @@ function onCtxChange() {
   updatePresetPill();
   clearTimeout(timer);
   timer = setTimeout(async () => {
-    const model = $('#model').value;
-    const ctx = Number($('#ctx').value);
-    const plan = await api('/api/plan', { engine: state.engine.id, model, ctx }).catch(() => null);
-    // An answer for a model or context that is no longer the chosen one is stale.
-    if (!plan || model !== $('#model').value || ctx !== Number($('#ctx').value)) return;
+    const requested = selection();
+    const plan = await api('/api/plan', requested).catch(() => null);
+    // An answer for an engine, model or context that is no longer the chosen one is stale.
+    if (!plan || !isCurrentPlan(requested, selection())) return;
     renderGpus(plan.candidates[0]);
     state.profilePlan = plan.profiles ?? null;
     refreshProfileViews();
