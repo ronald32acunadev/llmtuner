@@ -173,3 +173,40 @@ test('listPresets reports profile and variant, ordered by context then profile',
   assert.equal(list[0].kvType, 'q8_0');
   assert.equal((await listPresets()).length, 6);
 });
+
+test('presetPath falls back to the balanced file for an invalid profile', () => {
+  const balanced = presetPath(ENGINE, MODEL, CTX);
+  for (const profile of [null, undefined, '../../x', 'SPEED']) {
+    const p = presetPath(ENGINE, MODEL, CTX, profile);
+    assert.equal(p, balanced, String(profile));
+    assert.equal(path.dirname(p), presetsDir(), String(profile));
+  }
+});
+
+test('savePreset with an invalid profile writes the balanced preset', async () => {
+  const { file, preset } = await save({ profile: '../evil' });
+  assert.equal(file, presetPath(ENGINE, MODEL, CTX));
+  assert.equal(preset.profile, 'balanced');
+  assert.deepEqual(await fs.readdir(presetsDir()), [path.basename(file)]);
+  assert.equal(JSON.parse(await fs.readFile(file, 'utf8')).profile, 'balanced');
+  assert.equal((await find({ profile: '../evil' })).reason, 'hit');
+});
+
+test('a quality preset stored without variants still checks the model file', async () => {
+  for (const stored of [null, []]) {
+    const label = JSON.stringify(stored);
+    await save({ profile: 'quality', variants: stored });
+    const changed = await find({ profile: 'quality', variants: [], modelBytes: MODEL_BYTES + 1 });
+    assert.equal(changed.reason, 'model', label);
+    assert.equal(changed.preset, null, label);
+    assert.equal(changed.stale.profile, 'quality', label);
+    assert.equal((await find({ profile: 'quality', variants: [] })).reason, 'hit', label);
+  }
+});
+
+test('a quality preset stored without variants goes stale when variants appear', async () => {
+  await save({ profile: 'quality', variants: null });
+  const found = await find({ profile: 'quality', variants: [Q4] });
+  assert.equal(found.reason, 'variants');
+  assert.equal(found.preset, null);
+});

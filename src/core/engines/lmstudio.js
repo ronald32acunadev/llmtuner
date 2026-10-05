@@ -37,11 +37,14 @@ export function lmsVariants(entry) {
   if (!entry.variants?.length) {
     return [{ key: entry.modelKey || entry.path, quant: entry.quantization?.name ?? null, selected: true }];
   }
-  const variants = entry.variants.map((id) => ({
-    key: id,
-    quant: id.slice(id.lastIndexOf('@') + 1).toUpperCase(),
-    selected: id === entry.selectedVariant
-  }));
+  const variants = entry.variants.map((id) => {
+    const at = id.lastIndexOf('@');
+    return {
+      key: id,
+      quant: at === -1 ? null : id.slice(at + 1).toUpperCase(),
+      selected: id === entry.selectedVariant
+    };
+  });
   if (!variants.some((v) => v.selected)) variants[0].selected = true;
   return variants;
 }
@@ -107,7 +110,9 @@ export const lmstudio = {
     if (r.code !== 0) return [];
     let list;
     try { list = JSON.parse(r.stdout); } catch { return []; }
-    const entry = list.find((m) => m.type === 'llm' && m.format === 'gguf' && (m.modelKey || m.path) === key);
+    // Valid JSON that is not a list of models (an object, null) means there is nothing to list.
+    if (!Array.isArray(list)) return [];
+    const entry = list.find((m) => m && typeof m === 'object' && m.type === 'llm' && m.format === 'gguf' && (m.modelKey || m.path) === key);
     if (!entry) return [];
     const results = [];
     for (const v of lmsVariants(entry)) {

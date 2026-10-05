@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { configDir, readJson, GiB } from './util.js';
+import { DEFAULT_PROFILE, normalizeProfile } from './profiles.js';
 
 // A preset stores the benchmark winner for (engine, model, context, hardware),
 // so the tuning scripts only run again when one of those changes.
@@ -22,8 +23,10 @@ export function hardwareFingerprint(hw) {
 const slug = (s) => s.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120);
 
 /** Returns the path to the preset file. */
-export function presetPath(engine, modelKey, ctx, profile = 'balanced') {
-  const suffix = profile === 'balanced' ? '' : `__${profile}`;
+export function presetPath(engine, modelKey, ctx, profile = DEFAULT_PROFILE) {
+  // The profile is part of the file name: anything that is not a known profile is balanced.
+  const safe = normalizeProfile(profile);
+  const suffix = safe === DEFAULT_PROFILE ? '' : `__${safe}`;
   return path.join(presetsDir(), `${engine}__${slug(modelKey)}__${ctx}${suffix}.json`);
 }
 
@@ -34,16 +37,19 @@ export function variantsSignature(variants) {
 }
 
 /** Return the preset if it exists and was measured on this hardware/model/variants file. */
-export async function findPreset({ engine, modelKey, ctx, hw, modelBytes, profile = 'balanced', variants }) {
+export async function findPreset({ engine, modelKey, ctx, hw, modelBytes, profile: rawProfile = DEFAULT_PROFILE, variants }) {
+  const profile = normalizeProfile(rawProfile);
   // A preset without a profile field is a balanced preset.
   const p = await readJson(presetPath(engine, modelKey, ctx, profile));
   if (!p) return { preset: null, reason: 'none' };
   if (p.fingerprint !== hardwareFingerprint(hw)) return { preset: null, stale: p, reason: 'hardware' };
-  if (profile !== 'balanced' && Array.isArray(variants)) {
-    if (variantsSignature(variants) !== variantsSignature(p.variants)) {
+  if (profile !== DEFAULT_PROFILE && Array.isArray(variants)) {
+    const signature = variantsSignature(variants);
+    if (signature !== variantsSignature(p.variants)) {
       return { preset: null, stale: p, reason: 'variants' };
     }
-    return { preset: p, reason: 'hit' };
+    // Engines report [] when listing fails: an empty signature proves nothing, so the model file size decides.
+    if (signature) return { preset: p, reason: 'hit' };
   }
   if (modelBytes && p.modelBytes && p.modelBytes !== modelBytes) {
     return { preset: null, stale: p, reason: 'model' };
@@ -52,7 +58,9 @@ export async function findPreset({ engine, modelKey, ctx, hw, modelBytes, profil
 }
 
 /** Save the winner of a measurement as the preset of its profile. */
-export async function savePreset({ engine, modelKey, ctx, hw, modelBytes, best, results, profile = 'balanced', variant = null, variants = null }) {
+export async function savePreset({ engine, modelKey, ctx, hw, modelBytes, best, results, profile: rawProfile = DEFAULT_PROFILE, variant = null, variants = null }) {
+  // An unknown profile is stored as balanced, never as part of a file name.
+  const profile = normalizeProfile(rawProfile);
   const { placement, score, ...candidate } = best.candidate;
   const preset = {
     version: 1,
@@ -68,7 +76,7 @@ export async function savePreset({ engine, modelKey, ctx, hw, modelBytes, best, 
     bench: best.bench,
     tried: (results || []).map((r) => ({ id: r.candidate.id, ok: r.bench.ok, error: r.bench.error || null, shortTps: r.bench.short?.genTps ?? null, deepTps: r.bench.deep?.genTps ?? null })),
   };
-  if (profile !== 'balanced') {
+  if (profile !== DEFAULT_PROFILE) {
     Object.assign(preset, { variant, variants: Array.isArray(variants) ? [...variants].map((v) => ({ key: v.key, sizeBytes: v.sizeBytes })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0) : null });
   }
   const file = presetPath(engine, modelKey, ctx, profile);

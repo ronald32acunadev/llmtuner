@@ -61,25 +61,60 @@ function metaFromModelInfo(info, sizeBytes) {
   };
 }
 
+/** Tag of an Ollama model name: the text after the first colon, `latest` when there is none. */
+const tagOf = (name) => {
+  const i = name.indexOf(':');
+  return i === -1 ? 'latest' : name.slice(i + 1);
+};
+
+/** Tag of a model name without its quantization level, lower-cased: what tells models apart. */
+export function tagStem(name, quant) {
+  const parts = tagOf(name).toLowerCase().split('-');
+  if (quant) {
+    const target = String(quant).toLowerCase();
+    const lastIdx = parts.lastIndexOf(target);
+    if (lastIdx !== -1) {
+      parts.splice(lastIdx, 1);
+    }
+  }
+  return parts.join('-');
+}
+
 /** Tags of the same model as `key` in an /api/tags list: [{ key, quant, sizeBytes, selected }]. */
 export function ollamaVariants(models, key) {
-  const self = models.find((m) => m.name === key);
+  const isTuned = (name) => tagOf(name).includes('-tuned-');
+  // A tuned copy is not a base model: callers must pass the base key.
+  if (isTuned(key)) return [];
+  const named = models.filter((m) => typeof m?.name === 'string');
+  const self = named.find((m) => m.name === key);
   if (!self) return [];
-  const [base] = key.split(':');
+  const toVariant = (m) => ({
+    key: m.name,
+    quant: m.details?.quantization_level ?? null,
+    sizeBytes: m.size,
+    selected: m.name === key,
+  });
   const size = self.details?.parameter_size;
-  if (!size) return [{ key: self.name, quant: self.details?.quantization_level ?? null, sizeBytes: self.size, selected: true }];
-  return models
-    .filter((m) => {
-      const [mBase, ...mRest] = m.name.split(':');
-      const mTag = mRest.length > 0 ? mRest.join(':') : '';
-      return mBase === base && m.details?.parameter_size === size && !mTag.includes('-tuned-');
-    })
-    .map((m) => ({
-      key: m.name,
-      quant: m.details?.quantization_level ?? null,
-      sizeBytes: m.size,
-      selected: m.name === key,
-    }));
+  if (!size) return [toVariant(self)];
+  const base = key.split(':')[0];
+  const family = self.details?.family;
+  const stem = tagStem(key, self.details?.quantization_level);
+  // Deliberately conservative: two tags are the same model only when base name, parameter size,
+  // family and tag stem all match. A default tag such as `14b` is not grouped with
+  // `14b-instruct-q8_0`, because the names cannot prove they are the same model.
+  const group = named.filter((m) =>
+    m.name.split(':')[0] === base &&
+    !isTuned(m.name) &&
+    m.details?.parameter_size === size &&
+    m.details?.family === family &&
+    tagStem(m.name, m.details?.quantization_level) === stem
+  );
+  // Alias tags share a digest: keep one of them, preferring the requested key.
+  return group.filter((m, i) =>
+    !m.digest ||
+    m.name === key ||
+    (m.digest !== self.digest && group.findIndex((x) => x.digest === m.digest) === i)
+  ).map(toVariant);
 }
 
 export const ollama = {
