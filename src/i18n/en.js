@@ -110,7 +110,6 @@ Usage: llm-tuner [options]
   --dry-run                    Measure and show the changes without applying anything or saving a preset
   --presets                    List saved presets
   --json                       Final output as JSON
-  --web                        Open the web interface
   --lang <en|es>               Interface language (saved for next time)
   --theme <system|light|dark>  Interface theme (saved for next time)
   /settings                    Interactive settings menu
