@@ -1,6 +1,6 @@
 # Feature: Load Profiles (speed / balanced / quality)
 
-Status: design and this document approved by the owner on 2026-10-04. `T-1` done; its outcome changed the LM Studio scope (see "Variant selection per engine"). Chain strategy pending before the first commit.
+Status: implemented on 2026-10-04 across five local slice branches; `npm test` 162/162. Open: the real-load check of `T-11` (needs the owner's go-ahead) and delivery (push and pull requests are the owner's). Where this document's design sections and the code differ, `docs/PROYECTO.md` and the code are the reference; the differences are listed under `T-10`.
 
 ## Objective
 Let the user choose, before pressing Load, what the tuner optimizes for: maximum speed, a balance, or the best answer quality the hardware can run fully on GPU. Each profile applies a deterministic rule to pick the model variant and the load configuration.
@@ -185,7 +185,7 @@ Text and docs:
   - Fix `d529d98`: `speed` and `quality` picked their variant with the hardware seen before the engine's models were unloaded, so a loaded model could make `quality` conclude that nothing fits. The pick now happens after freeing VRAM; a preset hit picks nothing, frees nothing and announces the stored variant with `profile.variant.preset`.
   - API for the interfaces: `Tuner.load(key, ctx, { profile })` returns `profile` and `variant`; `Tuner.profilePlan(key, ctx)` returns `{ variants, variantSelect, recommended, profiles: { speed, balanced, quality }, hints }` without measuring or unloading; `readSettings()` returns `profile` (`null` when never chosen).
   - Code authorship: `pumbastudio` generated the logic; tests 2 to 9 of `test/tuner.test.js` were written by the agent because LM Studio answered "No models loaded" twice.
-  - Known limits, to carry into `T-8`/`T-9` and the docs: `profilePlan` is a preview with the hardware as it is, so a loaded model makes the recommendation pessimistic; on a preset hit `recommendSwitch` is always false; a profile preset is validated by the variant list, not by which variant is selected in LM Studio; `profilePlan().profiles[p].loads` is the selected variant key while the `variant-picked` event reports the chosen key; reason codes `profile.variant.*`, `profile.recommend.*` and `profile.fallback.noFullGpuConfig` have no catalog entries yet; `POST /api/settings` does not accept `profile` yet.
+  - Known limits, to carry into `T-8`/`T-9` and the docs: `profilePlan` is a preview with the hardware as it is, so a loaded model makes the recommendation pessimistic; on a preset hit `recommendSwitch` is always false; a profile preset was validated by the variant list only, not by which variant is selected in LM Studio (fixed in `T-9c`); `profilePlan().profiles[p].loads` is the selected variant key while the `variant-picked` event reports the chosen key; reason codes `profile.variant.*`, `profile.recommend.*` and `profile.fallback.noFullGpuConfig` have no catalog entries yet; `POST /api/settings` does not accept `profile` yet.
 
 - [ ] `T-7`: i18n entries
   - Scope: `src/i18n/en.js`, `src/i18n/es.js`, `src/i18n/core.js`
@@ -216,15 +216,26 @@ Text and docs:
   - Not covered by a test: DOM wiring and CSS in `app.js`/`style.css`; hint and switch lines and the progress events were not observed live, only through `test/web-profile.test.js`.
   - Open points: the Load button moved to the bottom of the card to keep the order context -> profile -> Load; while no profile is stored the selection follows the recommendation of each new plan; the result panel does not show the profile or variant; `status.searchNone` still says "for this context" only; the warning never shows on unified-memory hardware, where used VRAM is reported as 0.
 
-- [ ] `T-10`: Documentation
+- [x] `T-9c`: Fixes from the independent verification of the desktop slice and from the documentation pass
+  - Scope: `src/core/presets.js`, `src/core/tuner.js`, `src/web/public/app.js`, `src/web/public/profile.js`, `src/i18n/en.js`, `src/i18n/es.js`, `test/presets.test.js`, `test/tuner.test.js`, `test/web-profile.test.js`
+  - Route: delegated direct; the catalog typo was a mechanical inline edit by the parent
+  - Commits: `51daba4` (missing space after the colon in `web.benchIntro`), `b8010c6`, `ae5bf62`
+  - Fixed: on an engine that cannot select variants, a `speed` or `quality` preset stayed valid after the user selected another downloaded variant, so a configuration measured on one file was applied to another; the variant signature now includes the selected entry (`key:sizeBytes:selected`), and a preset saved before that is measured once more. In the UI, a plan answer for a model that is no longer selected is ignored, and the `aria-live` detail region is only rewritten when its content changes.
+  - Checks: RED reproduced the preset defect (`expected: 'benchmark'`, `actual: 'preset'`), then `node --test test/presets.test.js` 17/17, `node --test test/tuner.test.js` 13/13, `node --test test/web-profile.test.js` 15/15; `npm test` 162/162 (parent re-run: 162/162). Code generated by `pumbastudio`.
+  - Left open from that verification: `POST /api/load` checks `busy` before two awaits and sets it after them, so two simultaneous requests are both accepted (pre-existing); `POST /api/plan` now lists variants on every call, which runs `lms ls --json` on each model or context change; the light-theme warning colour has a contrast of about 3.2:1 on white; the VRAM warning also shows when the memory is held by something the load will not free; a stored profile cannot be cleared through the API.
+
+- [x] `T-10`: Documentation
   - Scope: `docs/PROYECTO.md`, `README.md`, `README.es.md`
-  - Route: direct inline
-  - Checks: structural readback
+  - Route: delegated direct (three non-trivial files)
+  - Commits: `38479fb`, plus the parent's follow-up edit recording the selected-variant fix
+  - Checks: structural readback by the writer (consistent outline, every table with equal column counts, no placeholders, every identifier found in `src/` with `rg`).
+  - Corrections the documentation pass made to this document's earlier wording, where the code is the reference: the quality fallback only changes the winner rule, so `q4_0` is still never measured under `quality`; there are two fallback points, `profile.variant.noFullGpu` before measuring and `profile.fallback.noFullGpuConfig` after it; Ollama tags are grouped by base name, parameter size, family and `tagStem`; `kvTypesFor('quality')` returns the engine's full list when the engine has neither `f16` nor `q8_0`; on a `speed`/`quality` miss VRAM is freed twice (in `load`, then in `run`).
 
 - [ ] `T-11`: Full verification
   - Scope: `npm test`, CLI smoke in `en` and `es`, manual load of each profile on the real LM Studio and Ollama
   - Route: direct inline
-  - Checks: all suites passing; manual results recorded here.
+  - Done: `npm test` 162/162 by the parent; CLI smoke (`--help`, `--profile bogus`, `--presets`) in `en` and `es` in a temp config dir by two independent verifiers; desktop UI opened on the owner's machine against the real engines, preview only.
+  - Pending, needs the owner's go-ahead: a real load with each profile. It unloads whatever model the engine has loaded (the one `pumbastudio` serves, in LM Studio) and measures for several minutes per profile. No real load has been run with `speed` or `quality` yet.
 
 ## Review record
 Receipt-driven development is on (global). Reviewed boundary starts at the tracker branch point.
@@ -237,5 +248,7 @@ Receipt-driven development is on (global). Reviewed boundary starts at the track
 
 - Range `cf91f6e`..`368b047` (`T-8`, `T-8b`, CLI slice): assessed `high` (`process_boundary` in `src/cli/index.js`), due. Declined by the owner for that candidate; no review record. Because the tier is high, an independent read-only verifier ran instead: verdict "pass with findings", `npm test` 132/132, CLI smoke runs in a temp config dir, real settings file untouched. Its findings were fixed in `T-8c`. Left open: a pre-existing crash when `--lang`/`--theme` cannot be saved (`c` is used before its `const` is initialised in `src/cli/index.js`), outside this feature. The verifier's own probe started the wizard once by mistake; it ran only read-only hardware and engine detection in a temp config dir, and the owner's loaded model was confirmed still loaded afterwards.
 
+- Range `e37cf1d`..`9483356` (`T-8c`, `T-9`, `T-9b`, desktop slice): assessed `high` (`process_boundary` in `src/cli/index.js`), due. Declined by the owner for that candidate; no review record. An independent read-only verifier ran instead: verdict "pass with findings", `npm test` 156/156, live endpoint checks against a mock with a temp config dir, real settings file untouched. Its findings that were defects are fixed in `T-9c`; the rest are listed there as left open.
+
 ## Progress
-Slices 1 to 4 complete: `T-1` to `T-6`, `T-8` and `T-9` done, with their follow-ups `T-3b`, `T-4b`, `T-8b`, `T-8c` and `T-9b`. The profile can be chosen from the CLI and from the desktop UI. Running authored changed lines: about 3,260 (2,345 through `47666d4`, 228 in `74ff80e` and `655dae2`, 691 in slice 4), feature document excluded; tests are more than half of that. The original forecast of 900 to 1,200 was low by a factor of about three: it did not count the tests each task needed nor the five follow-up units that reviews and verification added. Next step: slice 5 on `feat/load-profiles-05-docs` (`T-10`, `T-11`).
+Slices 1 to 4 complete: `T-1` to `T-6`, `T-8` and `T-9` done, with their follow-ups `T-3b`, `T-4b`, `T-8b`, `T-8c` and `T-9b`. The profile can be chosen from the CLI and from the desktop UI. Running authored changed lines: about 3,260 (2,345 through `47666d4`, 228 in `74ff80e` and `655dae2`, 691 in slice 4), feature document excluded; tests are more than half of that. The original forecast of 900 to 1,200 was low by a factor of about three: it did not count the tests each task needed nor the five follow-up units that reviews and verification added. Slice 5 (`feat/load-profiles-05-docs`) adds the documentation and the `T-9c` fixes, 499 more lines (327 documentation, 172 code and tests). Every task is done except the real-load part of `T-11`, which waits for the owner. Nothing has been pushed and no pull request has been opened.
