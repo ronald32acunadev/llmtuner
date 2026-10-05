@@ -127,27 +127,26 @@ export class Tuner extends EventEmitter {
     // An engine that cannot select variants always loads the one selected in the engine, under the chosen key.
     const targetKey = canSelect ? pick.variant.key : key;
     const loaded = canSelect ? pick.variant : (selected ?? { quant: null, sizeBytes: model.meta.fileBytes });
+    // The announced variant travels in every profile event, so an interface never has to remember an earlier one.
+    const picked = { key: pick.variant.key, quant: pick.variant.quant, sizeBytes: pick.variant.sizeBytes };
 
     this.log('variant-picked', {
       profile,
-      variant: {
-        key: pick.variant.key,
-        quant: pick.variant.quant,
-        sizeBytes: pick.variant.sizeBytes,
-      },
+      variant: picked,
       reasonCode: pick.reasonCode,
       loads: targetKey,
       recommendSwitch: !canSelect && pick.variant.key !== (selected?.key ?? key),
     });
 
     if (pick.fallback) {
-      this.log('profile-fallback', { profile, reasonCode: pick.reasonCode });
+      this.log('profile-fallback', { profile, reasonCode: pick.reasonCode, variant: picked });
     }
 
     return {
       key: targetKey,
       fallback: pick.fallback,
       variant: { key: targetKey, quant: loaded.quant, sizeBytes: loaded.sizeBytes },
+      picked,
     };
   }
 
@@ -269,7 +268,7 @@ export class Tuner extends EventEmitter {
       if (!report.best) throw new TunerError('errors.noConfigWorked');
       candidate = report.best.candidate;
       // Quality found no configuration that keeps its promise: say so once.
-      if (profile === 'quality' && !target.fallback && !meetsQuality(candidate)) this.log('profile-fallback', { profile, reasonCode: 'profile.fallback.noFullGpuConfig' });
+      if (profile === 'quality' && !target.fallback && !meetsQuality(candidate)) this.log('profile-fallback', { profile, reasonCode: 'profile.fallback.noFullGpuConfig', variant: target.picked });
       if (!dryRun) {
         const saved = await savePreset({ engine: this.engine.id, modelKey: key, ctx, hw: this.hw, modelBytes, best: report.best, results: this.lastReport.results, ...(target ? { profile, variant: target.variant, variants: listed } : {}) });
         this.log('preset-saved', { file: saved.file, preset: saved.preset });

@@ -279,18 +279,22 @@ test('quality never measures a q4_0 KV cache and keeps a full GPU offload', asyn
 });
 
 test('quality falls back and says why when nothing stays fully on GPU', async () => {
-  const fallbacks = () => events.filter((e) => e.type === 'profile-fallback').map(({ profile, reasonCode }) => ({ profile, reasonCode }));
+  const fallbacks = () => events.filter((e) => e.type === 'profile-fallback').map(({ profile, reasonCode, variant }) => ({ profile, reasonCode, variant }));
+  const pickedVariant = () => events.find((e) => e.type === 'variant-picked')?.variant;
   // No downloaded variant fits: the fallback is known before measuring and is reported once.
   let tuner = setup({ variants: [variant('m:q6', 'Q6_K', true)] });
   let result = await tuner.load('m:q6', CTX, { profile: 'quality' });
-  assert.deepEqual(fallbacks(), [{ profile: 'quality', reasonCode: 'profile.variant.noFullGpu' }]);
+  assert.deepEqual(fallbacks(), [{ profile: 'quality', reasonCode: 'profile.variant.noFullGpu', variant: { key: 'm:q6', quant: 'Q6_K', sizeBytes: q6.fileBytes } }]);
+  // A fallback event is self-contained: it carries the variant the variant line announced.
+  assert.deepEqual(fallbacks()[0].variant, pickedVariant());
   assert.equal(result.variant, 'm:q6');
   assert.equal(result.candidate.id, 'q8_0-52');
 
   // The variant fits on paper but its full offload fails for real: the fallback is known after measuring.
   tuner = setup({ variants: [variant('m:q4', 'Q4_K_M', true)], failFullOffload: true });
   result = await tuner.load('m:q4', CTX, { profile: 'quality' });
-  assert.deepEqual(fallbacks(), [{ profile: 'quality', reasonCode: 'profile.fallback.noFullGpuConfig' }]);
+  assert.deepEqual(fallbacks(), [{ profile: 'quality', reasonCode: 'profile.fallback.noFullGpuConfig', variant: { key: 'm:q4', quant: 'Q4_K_M', sizeBytes: q4.fileBytes } }]);
+  assert.deepEqual(fallbacks()[0].variant, pickedVariant());
   assert.equal(result.candidate.id, 'f16-62');
 });
 
