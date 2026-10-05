@@ -1,6 +1,7 @@
+#!/usr/bin/env node
 // Starts the desktop app. On Linux, Chromium's SUID sandbox helper must be
 // root-owned with mode 4755; that's impossible on NTFS/exFAT drives or in an
-// unpacked dev install, so the sandbox is disabled only in that case. The
+// npm install, so the sandbox is disabled only in that case. The
 // window only loads this app's own local server.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,7 +10,23 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 
-const electron = createRequire(import.meta.url)('electron');
+// Says why the desktop app could not start, in the saved UI language, and exits.
+async function fail(error) {
+  const { readSettings } = await import('../src/core/settings.js');
+  const { t } = await import('../src/i18n/index.js');
+  const { lang } = await readSettings();
+  console.error(t(lang, 'cli.desktopStartFailed', { error: error?.message ?? String(error) }));
+  process.exit(1);
+}
+
+// Requiring `electron` returns the path of its executable. It downloads the
+// runtime first when it is missing, which happens on the first launch.
+let electron;
+try {
+  electron = createRequire(import.meta.url)('electron');
+} catch (error) {
+  await fail(error);
+}
 const env = { ...process.env };
 
 if (process.platform === 'linux') {
@@ -26,6 +43,7 @@ if (process.platform === 'linux') {
 
 const main = path.join(path.dirname(fileURLToPath(import.meta.url)), 'main.js');
 const child = spawn(electron, [main], { stdio: 'inherit', env });
+child.on('error', fail);
 child.on('exit', (code) => process.exit(code ?? 0));
 
 function ensureLinuxDesktopEntry() {
