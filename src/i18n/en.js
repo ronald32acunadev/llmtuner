@@ -13,6 +13,7 @@ export default {
   'status.searchHardware': 'The hardware changed since the last preset: looking for the best configuration…',
   'status.searchModel': 'The model file changed: looking for the best configuration…',
   'status.searchForced': 'New measurement requested: looking for the best configuration…',
+  'status.searchVariants': 'The downloaded variants of this model changed: looking for the best configuration…',
   'status.applying': 'Applying configuration…',
   'status.loading': 'Loading the model…',
 
