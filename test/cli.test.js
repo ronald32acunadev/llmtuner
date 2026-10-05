@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli', 'index.js');
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-tuner-cli-'));
 const settings = path.join(dir, 'settings.json');
+// Disable colors so stdout matches plain strings on every platform
+const env = { ...process.env, LLM_TUNER_CONFIG_DIR: dir, NO_COLOR: '1' };
 const cli = (...args) => {
   let input;
   let cmdArgs = args;
@@ -16,7 +18,7 @@ const cli = (...args) => {
     input = args.at(-1).input;
     cmdArgs = args.slice(0, -1);
   }
-  return spawnSync(process.execPath, [CLI, ...cmdArgs], { input, env: { ...process.env, LLM_TUNER_CONFIG_DIR: dir }, encoding: 'utf8' });
+  return spawnSync(process.execPath, [CLI, ...cmdArgs], { input, env, encoding: 'utf8' });
 };
 
 beforeEach(async () => { await fs.rm(settings, { force: true }); });
@@ -97,7 +99,7 @@ test('/setting and --settings also trigger interactive settings', () => {
 test('/settings allows changing language and updates settings.json', async () => {
   await new Promise((resolve, reject) => {
     const p = spawn(process.execPath, [CLI, '/settings'], {
-      env: { ...process.env, LLM_TUNER_CONFIG_DIR: dir },
+      env,
     });
     let step = 0;
     p.stdout.on('data', (d) => {
@@ -131,7 +133,7 @@ test('/settings allows changing language and updates settings.json', async () =>
 test('/settings allows changing theme and updates settings.json', async () => {
   await new Promise((resolve, reject) => {
     const p = spawn(process.execPath, [CLI, '/settings'], {
-      env: { ...process.env, LLM_TUNER_CONFIG_DIR: dir },
+      env,
     });
     let step = 0;
     p.stdout.on('data', (d) => {

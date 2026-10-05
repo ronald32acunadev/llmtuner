@@ -571,7 +571,7 @@ npm is the only distribution channel. The package `llm-tuner` ships the CLI and 
 
 ### Workflows
 
-- `.github/workflows/ci.yml`: `npm test` on every pull request to `main` and on pushes to `main`, on Ubuntu with Node 22.
+- `.github/workflows/ci.yml`: `npm test` on every pull request to `main` and on pushes to `main`, on Ubuntu, Windows and macOS with Node 22. `.gitattributes` checks text files out with LF everywhere, so the shebang of the two commands stays valid on a Windows checkout.
 - `.github/workflows/release.yml`: on every push to `release`, runs the tests, stops if the version in `package.json` is already on npm, publishes, and creates the tag `vX.Y.Z` and the GitHub Release. The push that creates the `release` branch runs the tests but does not publish, so the first release also goes through a pull request.
 
 ### One-time setup (owner)
