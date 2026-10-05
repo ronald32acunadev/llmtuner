@@ -37,28 +37,31 @@ Before you load, the app also tells you:
 
 The engines differ in one thing. **Ollama** lets the app pick the variant (tag) for the profile and load it, among the tags it can tell are the same model. **LM Studio** cannot load a specific variant on request, so there the profile applies to the variant selected in LM Studio, and the app tells you which one to select when another suits the profile better.
 
-## Usage
+## Install
 
 ```bash
-npm install
-npm start               # terminal wizard
-npm run web             # web interface at http://127.0.0.1:7860
-npm run desktop         # desktop app (Electron)
+npm install -g llm-tuner
+llm-tuner               # terminal wizard
+llm-tuner-desktop       # desktop app
 ```
+
+It needs Node.js 22 or later. The desktop app downloads its runtime (Electron) the first time you run `llm-tuner-desktop`, so that first run needs a network connection and takes longer. The terminal wizard works without it.
+
+## Usage
 
 Non-interactive mode:
 
 ```bash
-node src/cli/index.js --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --yes
-node src/cli/index.js --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --profile quality --yes
-node src/cli/index.js --presets          # lists the saved presets
-node src/cli/index.js --help
-node src/cli/index.js --lang <en|es>     # UI language; saved for next time
+llm-tuner --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --yes
+llm-tuner --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --profile quality --yes
+llm-tuner --presets          # lists the saved presets
+llm-tuner --help
+llm-tuner --lang <en|es>     # UI language; saved for next time
 ```
 
 `--profile <speed|balanced|quality>` sets the load profile for that run. The wizard asks for it and remembers your choice. Without the flag, a run with `--yes`, with `--json`, or with engine, model and context all given uses `balanced`.
 
-The web and desktop app have an EN/ES selector in the side rail, and the choice is saved in `llm-tuner/settings.json`, next to the presets. The profile you choose in the wizard or in the app is saved there too.
+The desktop app has an EN/ES selector in the side rail, and the choice is saved in `llm-tuner/settings.json`, next to the presets. The profile you choose in the wizard or in the app is saved there too.
 
 ## What gets tried
 
@@ -96,6 +99,16 @@ There is one preset per engine, model, context and profile.
 
 Load profiles are covered by unit tests and were checked with one real load per profile on LM Studio (Linux, 2× RTX 5070). Choosing between several downloaded variants of a model, and the profiles on Ollama, have not been exercised on real hardware yet.
 
+## Development
+
+```bash
+git clone https://github.com/ronald32acunadev/llmtuner.git
+cd llmtuner
+npm install
+npm start               # terminal wizard
+npm run desktop         # desktop app
+```
+
 ## Tests
 
 ```bash
@@ -106,5 +119,5 @@ Includes as regression the real results of 2× RTX 5070 with Qwen2.5-Coder-32B: 
 
 ## Notes
 
-- With npm 11 and Node 26, installing Electron can end up without extracting the binary (only `locales` is left in `node_modules/electron/dist`). If so, extract `~/.cache/electron/*/electron-*.zip` into `node_modules/electron/dist` and create `node_modules/electron/path.txt` with the text `electron`. `npm run desktop` disables the Chromium sandbox only when it can't work (no `chrome-sandbox` with root setuid).
+- Electron is not downloaded when the package is installed: the first run of the desktop app downloads it. If that download fails, extract `~/.cache/electron/*/electron-*.zip` into the `dist` folder of the installed `electron` package and create `path.txt` next to it with the text `electron`. The desktop app disables the Chromium sandbox only when it can't work (no `chrome-sandbox` with root setuid).
 - LM Studio's internal files are not a public API. This version is verified with LM Studio 0.4.25.

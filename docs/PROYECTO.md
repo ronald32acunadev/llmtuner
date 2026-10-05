@@ -21,7 +21,7 @@ The project came out of a real case. Qwen2.5-Coder-32B (Q4_K_M) on LM Studio ove
 1. **No LLM decides the configuration.** Everything is deterministic: hardware detection, reading the model's metadata, memory formulas and real measurements. The only model that runs is the one being configured, and only to measure its speed.
 2. **Cross-platform:** Windows, macOS and Linux, in Node.js.
 3. **Two engines:** LM Studio and Ollama. If they're already installed, they're detected; if not, they're installed automatically.
-4. **Three interfaces** over the same core: CLI, local web and desktop (Electron).
+4. **Two interfaces** over the same core: CLI and desktop (Electron). The local web interface was a third one until the npm distribution; it is now the content of the desktop window.
 5. **User flow** (defined by the user, must be respected):
    1. Choose engine (Ollama or LM Studio).
    2. The app lists the models already downloaded for that engine.
@@ -37,21 +37,30 @@ The project came out of a real case. Qwen2.5-Coder-32B (Q4_K_M) on LM Studio ove
 
 ## 2. How it's used
 
+Installed from npm:
+
+```bash
+npm install -g llm-tuner
+llm-tuner            # CLI wizard (src/cli/index.js)
+llm-tuner-desktop    # desktop app (electron/launch.js → electron/main.js)
+```
+
+From a clone of the repository:
+
 ```bash
 npm install
-npm start          # CLI wizard (src/cli/index.js)
-npm run web        # web interface at http://127.0.0.1:7860
-npm run desktop    # desktop app (electron/launch.js → electron/main.js)
+npm start          # CLI wizard
+npm run desktop    # desktop app
 npm test           # node --test test/
 ```
 
 Non-interactive CLI:
 
 ```bash
-node src/cli/index.js --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --yes
-node src/cli/index.js --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --profile quality --yes
-node src/cli/index.js --presets
-# other options: --profile <speed|balanced|quality>, --force (re-measure), --dry-run, --candidates N, --json, --web, --lang <en|es>
+llm-tuner --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --yes
+llm-tuner --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --profile quality --yes
+llm-tuner --presets
+# other options: --profile <speed|balanced|quality>, --force (re-measure), --dry-run, --candidates N, --json, --lang <en|es>
 ```
 
 The flow is engine → model → context → profile → **Load**. The wizard asks for the profile with the recommended one marked. Without `--profile`, a run with `--yes`, with `--json`, or with engine, model and context all given as flags uses `balanced`, so scripts written before profiles existed behave the same. An unknown `--profile` value is rejected with exit code 1.
@@ -64,7 +73,7 @@ Requirements: Node ≥ 22. Dependencies: `systeminformation` and `@inquirer/prom
 
 ```
 src/
-  core/                 core shared by the three interfaces
+  core/                 core shared by the interfaces
     util.js             exec, which, JSON with backup, fetch with timeout, CPU sampling
     hardware.js         CPU/RAM/GPU: nvidia-smi, rocm-smi, Apple Silicon, fallback with systeminformation
     gguf.js             own GGUF reader (metadata + size of each tensor) and summary for the estimator
@@ -509,7 +518,7 @@ App timings: the first load (measuring 3 candidates + preset + load) takes 2 min
 - Benchmark with llama-server.
 - Presets.
 - apply/load on LM Studio.
-- CLI, web and Electron starting up.
+- CLI and desktop app (Electron) starting up.
 - Unit tests (`npm test`).
 
 **Implemented, verified with one real load on LM Studio:**
@@ -537,7 +546,7 @@ App timings: the first load (measuring 3 candidates + preset + load) takes 2 min
 3. Measure with a MoE model (Qwen3-Coder-30B-A3B is already downloaded) to validate `--n-cpu-moe` and the predictions for MoE models.
 4. Calibrate `readCost`/`PER_GPU_OVERHEAD` per GPU family. Today they're only calibrated on RTX 50xx.
 5. Parameter to choose the benchmark depth (today 50% of the context) and number of candidates from the interface.
-6. Package with electron-builder (the config is already in `package.json`, `npm run dist`) and check the sandbox in AppImage.
+6. Tell the user when a newer version is on npm (notify only: version, changes and the install command).
 7. Detect in the interface that a preset became stale and explain why (hardware or model) before measuring again.
 8. Move presets between identical machines (export/import).
 9. If LM Studio changes its internal formats: detect the version and warn instead of writing blindly.
@@ -550,3 +559,33 @@ App timings: the first load (measuring 3 candidates + preset + load) takes 2 min
 - In the hardware config: `gpuStrictVramCap=false` and priority [1,0].
 - There's a saved preset for `lmstudio / qwen/qwen2.5-coder-32b / 16384`.
 - Backups of the original configs are next to each file (`*.bak-20260925`, `*.bak-llm-tuner-*`).
+
+## 11. Distribution and releases
+
+npm is the only distribution channel. The package `llm-tuner` ships the CLI and the desktop app; there are no installers.
+
+- `package.json` publishes only `src/`, `electron/` and the READMEs (`files`), and declares two commands: `llm-tuner` and `llm-tuner-desktop`.
+- Electron is a regular dependency. Electron 44 has no install script: `require('electron')` downloads the runtime the first time the desktop starts. `electron/launch.js` adds no download code; it only reports a start failure in the saved language.
+- The web UI in `src/web` is not a user-facing mode. It is the content of the desktop window: `electron/main.js` starts `startServer` on a random local port.
+
+### Workflows
+
+- `.github/workflows/ci.yml`: `npm test` on every pull request to `main` and on pushes to `main`, on Ubuntu with Node 22.
+- `.github/workflows/release.yml`: on every push to `release`, runs the tests, stops if the version in `package.json` is already on npm, publishes, and creates the tag `vX.Y.Z` and the GitHub Release.
+
+### One-time setup (owner)
+
+1. Create an npm account and enable two-factor authentication.
+2. Create a granular access token with read and write permission on packages.
+3. In the GitHub repository, create the environment `npm` and store the token there as the secret `NPM_TOKEN`. Required reviewers on that environment give a manual approval before publishing.
+4. Create the `release` branch from `main` and protect it so changes arrive only through pull requests.
+
+npm reserves the name `llm-tuner` only when the first version is published.
+
+### Each release
+
+1. On `main`: `npm version patch|minor|major`.
+2. Open a pull request from `main` into `release` and merge it.
+3. The workflow publishes the version and creates the tag and the GitHub Release.
+
+If the publish succeeds and the release creation fails, create it by hand with `gh release create vX.Y.Z --target <sha> --generate-notes`. Re-running the job would stop at the version check.

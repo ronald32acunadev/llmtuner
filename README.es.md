@@ -37,28 +37,31 @@ Antes de cargar, la app también te indica:
 
 Los motores se diferencian en una cosa. **Ollama** permite que la app elija la variante (etiqueta) para el perfil y la cargue, entre las etiquetas que puede identificar como el mismo modelo. **LM Studio** no puede cargar una variante concreta a petición, así que ahí el perfil se aplica a la variante seleccionada en LM Studio, y la app te indica cuál seleccionar cuando otra se ajusta mejor al perfil.
 
-## Uso
+## Instalación
 
 ```bash
-npm install
-npm start               # asistente en la terminal
-npm run web             # interfaz web en http://127.0.0.1:7860
-npm run desktop         # app de escritorio (Electron)
+npm install -g llm-tuner
+llm-tuner               # asistente en la terminal
+llm-tuner-desktop       # app de escritorio
 ```
+
+Necesita Node.js 22 o posterior. La app de escritorio descarga su entorno de ejecución (Electron) la primera vez que ejecutas `llm-tuner-desktop`, así que esa primera ejecución necesita conexión a la red y tarda más. El asistente de terminal funciona sin él.
+
+## Uso
 
 Modo no interactivo:
 
 ```bash
-node src/cli/index.js --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --yes
-node src/cli/index.js --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --profile quality --yes
-node src/cli/index.js --presets          # lista los presets guardados
-node src/cli/index.js --help
-node src/cli/index.js --lang <en|es>     # idioma de la interfaz; se guarda para la próxima vez
+llm-tuner --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --yes
+llm-tuner --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --profile quality --yes
+llm-tuner --presets          # lista los presets guardados
+llm-tuner --help
+llm-tuner --lang <en|es>     # idioma de la interfaz; se guarda para la próxima vez
 ```
 
 `--profile <speed|balanced|quality>` establece el perfil de carga para esa ejecución. El asistente lo pregunta y recuerda tu elección. Sin la opción, una ejecución con `--yes`, con `--json` o con motor, modelo y contexto indicados usa `balanced`.
 
-La web y la app de escritorio tienen un selector EN/ES en la barra lateral, y la elección se guarda en `llm-tuner/settings.json`, junto a los presets. El perfil que eliges en el asistente o en la app también se guarda ahí.
+La app de escritorio tiene un selector EN/ES en la barra lateral, y la elección se guarda en `llm-tuner/settings.json`, junto a los presets. El perfil que eliges en el asistente o en la app también se guarda ahí.
 
 ## Qué se prueba
 
@@ -96,6 +99,16 @@ Hay un preset por motor, modelo, contexto y perfil.
 
 Los perfiles de carga están cubiertos por pruebas unitarias y se comprobaron con una carga real por perfil en LM Studio (Linux, 2× RTX 5070). La elección entre varias variantes descargadas de un modelo, y los perfiles en Ollama, aún no se han probado en hardware real.
 
+## Desarrollo
+
+```bash
+git clone https://github.com/ronald32acunadev/llmtuner.git
+cd llmtuner
+npm install
+npm start               # asistente en la terminal
+npm run desktop         # app de escritorio
+```
+
 ## Pruebas
 
 ```bash
@@ -106,5 +119,5 @@ Incluye como regresión los resultados reales de 2× RTX 5070 con Qwen2.5-Coder-
 
 ## Notas
 
-- Con npm 11 y Node 26, la instalación de Electron puede terminar sin extraer el binario (en `node_modules/electron/dist` solo queda `locales`). En ese caso, extrae `~/.cache/electron/*/electron-*.zip` en `node_modules/electron/dist` y crea `node_modules/electron/path.txt` con el texto `electron`. `npm run desktop` desactiva el sandbox de Chromium solo cuando no puede funcionar (no hay `chrome-sandbox` con setuid de root).
+- Electron no se descarga al instalar el paquete: lo descarga la primera ejecución de la app de escritorio. Si esa descarga falla, extrae `~/.cache/electron/*/electron-*.zip` en la carpeta `dist` del paquete `electron` instalado y crea `path.txt` junto a ella con el texto `electron`. La app de escritorio desactiva el sandbox de Chromium solo cuando no puede funcionar (no hay `chrome-sandbox` con setuid de root).
 - Los archivos internos de LM Studio no son una API pública. Esta versión está verificada con LM Studio 0.4.25.

@@ -43,7 +43,7 @@ Route for every task: direct inline. Each task touches one or two non-trivial fi
 - [x] T-2 Desktop launcher command (`electron/launch.js`, `cli.desktopStartFailed`, `test/launcher.test.js`)
 - [x] T-3 Remove the web mode from the CLI (`src/cli/index.js`, help text, `test/cli.test.js`)
 - [x] T-4 Workflows (`.github/workflows/ci.yml`, `.github/workflows/release.yml`)
-- [ ] T-5 Documentation (`README.md`, `README.es.md`, `docs/PROYECTO.md`, `CLAUDE.md`)
+- [x] T-5 Documentation (`README.md`, `README.es.md`, `docs/PROYECTO.md`, `CLAUDE.md`)
 - [ ] T-6 Install from the tarball (manual check, no file changes)
 
 ## Acceptance criteria
@@ -76,7 +76,9 @@ Route for every task: direct inline. Each task touches one or two non-trivial fi
 - T-3 done. RED observed first (help listed `--web`; the CLI imported `../web/server.js`). GREEN: `node --test test/cli.test.js test/i18n.test.js`, `npm test` 171/171. Written by the agent: `pumbastudio` answered "No models loaded".
 - T-3 commit: `5e84c6e`. Review: high tier, granted, four lenses, approved and acknowledged. Non-blocking findings: a still-passed `--web` is silently ignored and can swallow the next argument (decided by the spec; top follow-up), and two test-quality suggestions.
 - T-4 done. No runnable test exists for a workflow. Observed: both files parse (PyYAML), `publish` needs `test`, the version check runs before `npm publish` and exits 1 when the version exists, and the same check against the registry answers `free to publish 0.1.0`. Not verified: a real run on GitHub (first pull request for `ci.yml`, first release for `release.yml`) and the suite on Node 22.
+- T-4 commit: `4ea5842`. Review: high tier (shell scripting in a workflow), declined by the owner; no review record.
+- T-5 done. Read-back: no `npm run web`, `--web`, `electron-builder` or `dist` mention is left in the READMEs, `CLAUDE.md` or `docs/PROYECTO.md`. The Development section sits before the existing Tests section instead of at the end of each README, and the Electron note in both READMEs was rewritten to match.
 
 ## Next step
 
-T-5.
+T-6.
