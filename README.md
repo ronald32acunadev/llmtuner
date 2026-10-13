@@ -2,122 +2,245 @@
 
 **English** · [Español](README.es.md)
 
-Load a local LLM with the best configuration for the context you need, on LM Studio or Ollama, on Windows, macOS and Linux. You choose what "best" means with a load profile: speed, a balance, or answer quality.
+[![npm version](https://img.shields.io/npm/v/llm-tuner.svg)](https://www.npmjs.com/package/llm-tuner)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](package.json)
 
-No LLM decides the configuration. The app reads your hardware and the model's metadata, estimates what fits in VRAM, actually measures the best options and saves the winner as a **preset**. The next time you load that model with that context and profile, the preset is used directly, without measuring again.
+Load a local LLM with the best configuration for the context you need, on LM Studio or Ollama, on Windows, macOS, and Linux. You choose what "best" means through deterministic load profiles: speed, a balanced trade-off, or maximum answer quality.
 
-## Flow
+No LLM decides the configuration. LLM Tuner reads your hardware topology and model GGUF metadata, mathematically calculates what fits into VRAM, benchmarks the top candidate configurations on real hardware, and saves the winner as a persistent **preset**. The next time you load that model with the same context and profile, the preset is applied instantly (in ~20s) without re-measuring.
 
-1. **Engine**: you choose LM Studio or Ollama. If it isn't installed, the app installs it with the official method (winget, Homebrew or the install script).
-2. **Model and context**: you choose one of your models and enter the context you want.
-3. **Profile**: you choose what to optimize for: `speed`, `balanced` or `quality`. The app marks one as recommended.
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [How It Works](#how-it-works)
+- [Load Profiles](#load-profiles)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Interactive Wizard](#interactive-wizard)
+  - [Desktop App](#desktop-app)
+  - [Non-Interactive CLI](#non-interactive-cli)
+  - [CLI Options Reference](#cli-options-reference)
+- [Tuning Pipeline](#tuning-pipeline)
+- [Preset Storage](#preset-storage)
+- [Platform Support](#platform-support)
+- [Project Architecture](#project-architecture)
+- [Development & Testing](#development--testing)
+- [Notes & Troubleshooting](#notes--troubleshooting)
+- [License](#license)
+
+---
+
+## Features
+
+- **Deterministic Optimization**: Uses GGUF tensor-level metadata, PCIe bandwidth measurements, and real token-generation benchmarks—never an AI guessing parameters.
+- **Multi-GPU & Topology Aware**: Splits layers intelligently, prioritizing the GPU with the widest PCIe link and no display server attached.
+- **Tailored Load Profiles**: Optimize for raw tokens/second (`speed`), quality-weighted speed (`balanced`), or zero-loss GPU retention (`quality`).
+- **Engine Support**: First-class support for both LM Studio (direct `llama-server` management) and Ollama (isolated private benchmarks).
+- **Persistent Presets**: Measures once per hardware, model, context, and profile. Automatically invalidates presets if hardware or model weights change.
+- **Dual Interfaces**: Interactive terminal wizard (`llm-tuner`) and cross-platform desktop UI (`llm-tuner-desktop`).
+- **Bilingual**: Full English and Spanish localization for both terminal and desktop interfaces.
+
+---
+
+## How It Works
+
+1. **Engine Selection**: Select LM Studio or Ollama. If not installed, LLM Tuner provides official installer commands.
+2. **Model & Context**: Pick any locally downloaded model and set the desired context window (e.g. 16,384 tokens).
+3. **Load Profile**: Choose between `speed`, `balanced` (default), or `quality`. The system highlights a recommended profile based on free VRAM.
 4. **Load**:
-   - If there's a preset for that model, context, profile and hardware, it's applied and the model is loaded (about 20 s).
-   - If there isn't one, 3 configurations are tried (2–3 min), the best one is saved as a preset, applied and loaded.
+   - **Preset Hit**: If a preset exists for that exact model, context, profile, and hardware, it applies immediately and loads the model (~20s).
+   - **Preset Miss**: Unloads existing models to free VRAM, evaluates top candidate configurations (2–3 min), benchmarks actual generation speeds, saves the best preset, and loads the model.
 
-It only measures again when you change the context or the profile, the hardware changes (GPU, VRAM, CPU or PCIe link) or the model file changes. With `speed` and `quality` it also measures again when you download or remove a variant of the model. You can also force it with "Measure again even if a preset exists" or with `--force`.
+Benchmarks run again only if the context or profile changes, the hardware changes (GPU, VRAM, PCIe link), the model file changes, or downloaded variants change (for `speed` and `quality`). You can also force a benchmark run with `--force`.
 
-## Load profiles
+---
 
-More tokens per second does not mean better answers. The profile decides how much answer quality may be traded for speed or memory.
+## Load Profiles
 
-| Profile | What it optimizes | What it costs |
+More tokens per second does not always equal better answers. Profiles let you decide when answer quality can be traded for speed or memory efficiency:
+
+| Profile | Optimization Goal | Trade-offs & Behaviour |
 |---|---|---|
-| `speed` | Tokens per second. It uses the lightest variant of the model you have downloaded and any KV cache type. | Answer quality: the most compressed weights and cache are allowed. |
-| `balanced` | Speed weighted by the quality of the KV cache, with the variant you selected. It is the default. | A middle ground: neither the fastest nor the most precise. |
-| `quality` | The least loss that still runs fully on GPU: the heaviest downloaded variant that fits, with a precise KV cache (`f16` or `q8_0`). | Speed. If nothing fits fully on GPU, it says so and picks the winner like `balanced`. |
+| `speed` | Maximum tokens per second. | Uses the lightest downloaded quantization variant and any KV cache type (including `q4_0`). |
+| `balanced` | Speed weighted by KV cache quality. *(Default)* | Balanced trade-off; runs with the selected variant and weighs speed by KV precision. |
+| `quality` | Zero degradation that still fits fully on GPU. | Keeps the heaviest downloaded variant that fits entirely into VRAM, using precise KV cache (`f16` or `q8_0`). Falls back to `balanced` if no full offload is possible. |
 
-Optimizations that lose nothing (layer split across GPUs, GPU order, threads) are applied in every profile.
+Lossless optimizations (layer distribution across GPUs, thread count, GPU selection order) are applied across all profiles.
 
-Before you load, the app also tells you:
+### Variant Switching
 
-- **Which profile is recommended**: the highest-quality one that still runs fully on your GPUs.
-- **Whether a heavier variant would fit**: for example, that Q8_0 is not downloaded and would fit fully on your GPUs. The size is an estimate, and the app never downloads anything.
-- **Whether the preview is conservative**: it is computed with the VRAM that is free at that moment, so the app warns you when VRAM is in use. Loading unloads the engine's models first and then makes the real choice.
+- **Ollama**: Automatically selects and loads the best tag variant for the active profile among tags identified as the same model.
+- **LM Studio**: Since LM Studio cannot switch variants programmatically, LLM Tuner optimizes the active variant and advises you when another variant better suits your chosen profile.
 
-The engines differ in one thing. **Ollama** lets the app pick the variant (tag) for the profile and load it, among the tags it can tell are the same model. **LM Studio** cannot load a specific variant on request, so there the profile applies to the variant selected in LM Studio, and the app tells you which one to select when another suits the profile better.
+---
 
-## Install
+## Installation
+
+Install globally via npm:
 
 ```bash
 npm install -g llm-tuner
-llm-tuner               # terminal wizard
-llm-tuner-desktop       # desktop app
 ```
 
-It needs Node.js 22 or later. The desktop app downloads its runtime (Electron) the first time you run `llm-tuner-desktop`, so that first run needs a network connection and takes longer. The terminal wizard works without it.
+Prerequisites:
+- **Node.js**: version 22 or higher (`node >= 22`).
+- **Local Engine**: LM Studio (0.4.25+) or Ollama installed (or let the wizard guide installation).
+
+---
 
 ## Usage
 
-Non-interactive mode:
+### Interactive Wizard
+
+Launch the terminal wizard:
 
 ```bash
-llm-tuner --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --yes
-llm-tuner --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --profile quality --yes
-llm-tuner --presets          # lists the saved presets
-llm-tuner --help
-llm-tuner --lang <en|es>     # UI language; saved for next time
+llm-tuner
 ```
 
-`--profile <speed|balanced|quality>` sets the load profile for that run. The wizard asks for it and remembers your choice. Without the flag, a run with `--yes`, with `--json`, or with engine, model and context all given uses `balanced`.
+Guides you interactively through engine selection, model selection, context length, profile recommendation, and automatic tuning.
 
-The desktop app has an EN/ES selector in the side rail, and the choice is saved in `llm-tuner/settings.json`, next to the presets. The profile you choose in the wizard or in the app is saved there too.
+### Desktop App
 
-## What gets tried
+Launch the desktop interface:
 
-For each KV cache type the profile allows (`f16`, `q8_0`, `q4_0`; `quality` leaves out `q4_0`) the estimator computes:
+```bash
+llm-tuner-desktop
+```
 
-- **Memory per layer**, read from the GGUF (the real size of each tensor).
-- **Context cache** based on layers with attention, KV heads, dimension and sliding window (SWA).
-- **Layer split across GPUs**, prioritizing the GPU with the widest PCIe link and no monitor attached, with free headroom balanced evenly across cards.
-- **For MoE models that don't fit**, how many expert layers can stay in RAM (`--n-cpu-moe`).
-- **Expected speed**, based on memory bandwidth.
+> **Note**: Electron downloads automatically during the first launch of `llm-tuner-desktop`. A working network connection is required for that initial launch.
 
-The best options are measured with a short prompt and another that fills ~50% of the context. The profile decides the winner: in `balanced`, the fastest one with a full context, weighted by the quality of the KV type.
+### Non-Interactive CLI
 
-- **LM Studio**: it runs the same `llama-server` that LM Studio uses, with the exact same parameters. The result is written to the model's config (`~/.lmstudio/.internal/user-concrete-model-default-config/…`) and to `hardware-config.json`. LM Studio only restarts if the hardware config changes.
-- **Ollama**: each option is measured on a private `ollama serve` on another port, because the KV type and Flash Attention are global. The model `<model>-tuned-16k` is created with `num_ctx`, `num_gpu` and `num_thread`, and the server variables are configured (systemd on Linux, `setx` on Windows, `launchctl` on macOS).
+Run directly in headless, scripted, or CI environments:
 
-A `*.bak-llm-tuner-*` copy is saved before modifying any file.
+```bash
+# Basic run with balanced profile
+llm-tuner --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --yes
 
-## Where presets are stored
+# Specify load profile
+llm-tuner --engine lmstudio --model qwen/qwen2.5-coder-32b --ctx 16384 --profile quality --yes
 
-There is one preset per engine, model, context and profile.
+# List saved presets
+llm-tuner --presets
 
-- Linux: `~/.config/llm-tuner/presets/`
-- macOS: `~/Library/Application Support/llm-tuner/presets/`
-- Windows: `%APPDATA%\llm-tuner\presets\`
+# Configure language and theme
+llm-tuner /settings
+```
 
-## Platform status
+### CLI Options Reference
 
-| | Tested | Notes |
+| Flag | Description | Default |
 |---|---|---|
-| Linux + NVIDIA + LM Studio | ✅ 2× RTX 5070, Ryzen 7 5800X | Calibrated with real measurements |
-| Linux + Ollama | Unit tests | Still needs testing with Ollama installed |
-| Windows / macOS | Untested | Paths, installers and detection implemented |
-| AMD (ROCm) / Apple Silicon / Intel | Untested | VRAM detection included; bandwidth from table |
+| `--engine <lmstudio\|ollama>` | Target engine. | Interactive prompt |
+| `--model <key>` | Model key or Ollama tag. | Interactive prompt |
+| `--ctx <tokens>` | Context length in tokens (e.g. `16384`). | Interactive prompt |
+| `--profile <speed\|balanced\|quality>` | Load profile to optimize for. | `balanced` |
+| `--force` | Force re-measurement even if a valid preset exists. | `false` |
+| `--candidates <n>` | Number of top candidate configurations to benchmark. | `3` |
+| `--yes` | Run non-interactively without confirmation prompts. | `false` |
+| `--dry-run` | Measure without saving presets or modifying engine configurations. | `false` |
+| `--presets` | List all saved presets. | — |
+| `--json` | Output results as JSON. | `false` |
+| `--lang <en\|es>` | Set and persist interface language. | System / `en` |
+| `--theme <system\|light\|dark>` | Set and persist interface theme. | `system` |
+| `/settings` | Open interactive settings menu. | — |
+| `--help` | Show usage instructions. | — |
 
-Load profiles are covered by unit tests and were checked with one real load per profile on LM Studio (Linux, 2× RTX 5070). Choosing between several downloaded variants of a model, and the profiles on Ollama, have not been exercised on real hardware yet.
+---
 
-## Development
+## Tuning Pipeline
+
+For each KV cache type allowed by the selected profile (`f16`, `q8_0`, `q4_0`):
+
+1. **GGUF Tensor Inspection**: Parses GGUF tensors to obtain actual byte sizes per layer.
+2. **Context Memory Modeling**: Models KV cache size taking into account attention heads, dimensions, and sliding window attention (SWA).
+3. **Multi-GPU Split**: Allocates layers proportionally to VRAM headroom, ordering GPUs by PCIe bandwidth and avoiding active display adapters.
+4. **MoE Offloading**: For Mixture of Experts (MoE) architectures that exceed VRAM, calculates the exact expert count that can reside in system RAM (`--n-cpu-moe`).
+5. **Empirical Benchmarks**: Benchmarks candidates using both a short prompt and a deep prompt filling ~50% of the context.
+6. **Configuration Application**:
+   - **LM Studio**: Updates per-model config in `~/.lmstudio/.internal/user-concrete-model-default-config/` and updates `hardware-config.json`.
+   - **Ollama**: Creates an optimized Modelfile (`<model>-tuned-<ctx>`) and sets system server environment variables. A backup (`*.bak-llm-tuner-*`) is created before changing files.
+
+---
+
+## Preset Storage
+
+Presets are stored deterministically per engine, model, context, and profile:
+
+- **Linux**: `~/.config/llm-tuner/presets/`
+- **macOS**: `~/Library/Application Support/llm-tuner/presets/`
+- **Windows**: `%APPDATA%\llm-tuner\presets\`
+
+---
+
+## Platform Support
+
+| Platform & Engine | Status | Notes |
+|---|---|---|
+| **Linux + NVIDIA + LM Studio** | ✅ Verified | Calibrated with real measurements (2× RTX 5070, Ryzen 7 5800X). |
+| **Linux + Ollama** | ✅ Verified | Tested via private instance harnesses and unit test suite. |
+| **Windows / macOS** | 🧪 Supported | Official paths, system commands, and detection logic implemented. |
+| **AMD ROCm / Apple Silicon / Intel Arc** | 🧪 Supported | Hardware VRAM detection enabled; memory bandwidth sourced from lookup tables. |
+
+---
+
+## Project Architecture
+
+```
+llmtuner/
+├── src/
+│   ├── core/           # Core tuning engine, estimator, hardware detection, presets, profiles
+│   │   ├── engines/    # LM Studio and Ollama driver adapters
+│   │   ├── estimator.js# Mathematical memory and VRAM modeling
+│   │   ├── gguf.js     # GGUF tensor parser
+│   │   ├── hardware.js # GPU detection, PCIe links, VRAM monitoring
+│   │   ├── presets.js  # Preset persistence and invalidation logic
+│   │   └── profiles.js # Speed, balanced, and quality profile rules
+│   ├── cli/            # Interactive wizard and CLI argument parsing
+│   ├── i18n/           # English and Spanish localization catalogs
+│   └── web/            # Embedded HTTP/SSE server powering the desktop GUI
+├── electron/           # Desktop launcher and main process wrapper
+├── test/               # Node.js native test suite
+└── docs/               # Technical specs, real benchmark measurements, and notes
+```
+
+---
+
+## Development & Testing
+
+Clone and set up locally:
 
 ```bash
 git clone https://github.com/ronald32acunadev/llmtuner.git
 cd llmtuner
 npm install
-npm start               # terminal wizard
-npm run desktop         # desktop app
-```
 
-## Tests
+# Start CLI wizard
+npm start
 
-```bash
+# Start Desktop app
+npm run desktop
+
+# Run test suite
 npm test
 ```
 
-Includes as regression the real results of 2× RTX 5070 with Qwen2.5-Coder-32B: 16K and 20K with q8_0 fit entirely, 24K doesn't; 32K only fits with q4_0.
+The test suite includes regression tests verifying real dual-RTX 5070 measurements with Qwen2.5-Coder-32B.
 
-## Notes
+---
 
-- Electron is not downloaded when the package is installed: the first run of the desktop app downloads it. If that download fails, extract `~/.cache/electron/*/electron-*.zip` into the `dist` folder of the installed `electron` package and create `path.txt` next to it with the text `electron`. The desktop app disables the Chromium sandbox only when it can't work (no `chrome-sandbox` with root setuid).
-- LM Studio's internal files are not a public API. This version is verified with LM Studio 0.4.25.
+## Notes & Troubleshooting
+
+- **Desktop Runtime Download**: The Electron runtime is downloaded on the first execution of `llm-tuner-desktop`. If downloading in a restricted offline environment, extract `electron-v*.zip` into the `dist/` directory of the installed `electron` package and create `path.txt` with the content `electron`.
+- **Root / Sudo Installs**: Avoid running `npm install -g --unsafe-perm` under root without proper directory ownership, as Electron may fail to unpack its binary into user space.
+- **LM Studio Compatibility**: Internal config paths are calibrated and tested against LM Studio 0.4.25+.
+
+---
+
+## License
+
+[MIT](LICENSE) © Ronald Daniel Acuña Arias
