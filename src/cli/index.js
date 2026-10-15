@@ -2,7 +2,7 @@
 import { select, input, confirm, search } from '@inquirer/prompts';
 import { detectHardware, detectEngines, Tuner, installPlans, runInstall, listPresets, presetsDir, fmtBytes, readSettings, writeSettings, THEMES, PROFILES, DEFAULT_PROFILE, TunerError } from '../core/index.js';
 import { t as translate, LOCALES, errorText } from '../i18n/index.js';
-import { profileChoices, profileNotes, profileSwitchNote, profileEventLines, shouldAskProfile } from './profile.js';
+import { profileChoices, profileNotes, profileSwitchNote, profileEventLines, shouldAskProfile, parseContext } from './profile.js';
 
 const args = parseArgs(process.argv.slice(2));
 let { lang, theme } = await readSettings();
@@ -168,7 +168,7 @@ async function main() {
   });
 
   // 3. Context
-  let ctx = Number(args.ctx) || null;
+  let ctx = parseContext(args.ctx);
   if (!ctx) {
     const presets = await listPresets({ engine: engineId, modelKey });
     const preview = await tuner.plan(modelKey, 8192);
@@ -176,11 +176,12 @@ async function main() {
     const list = Object.entries(preview.maxContext).map(([k, v]) => `KV ${k} ${v ? Math.floor(v / 1024) + 'K' : '—'}`).join(' · ');
     out(c.dim(`  ${t('cli.maxFullGpu', { list, train: Math.floor(limit / 1024) })}`));
     if (presets.length) out(c.dim(`  ${t('cli.tunedContexts', { list: presets.map((p) => `${p.ctx / 1024}K (${p.shortTps} t/s)`).join(', ') })}`));
-    ctx = Number(await input({
+    const answer = await input({
       message: t('cli.context'),
       default: String(presets.at(-1)?.ctx || Math.min(16384, limit)),
-      validate: (v) => (Number(v) >= 512 && Number(v) <= limit) || t('cli.contextRange', { limit }),
-    }));
+      validate: (v) => parseContext(v, limit) !== null || t('cli.contextRange', { limit }),
+    });
+    ctx = parseContext(answer, limit);
   }
 
   // 4. Profile

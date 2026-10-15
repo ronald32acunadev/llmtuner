@@ -244,7 +244,7 @@ test('--presets leaves the variant out when it is the model itself', async () =>
 
 // The pure helpers live in their own module: importing it never starts the CLI.
 process.env.LLM_TUNER_CONFIG_DIR = dir;
-const { profileChoices, profileNotes, profileSwitchNote, profileEventLines, shouldAskProfile } = await import('../src/cli/profile.js');
+const { profileChoices, profileNotes, profileSwitchNote, profileEventLines, shouldAskProfile, parseContext } = await import('../src/cli/profile.js');
 const { t: translate } = await import('../src/i18n/index.js');
 const tr = (lang) => (key, params) => translate(lang, key, params);
 
@@ -422,3 +422,35 @@ test('shouldAskProfile asks only in the wizard, never on a fully flagged or non-
     assert.strictEqual(shouldAskProfile(args), expected, JSON.stringify(args));
   }
 });
+
+test('parseContext handles numbers and k/m suffixes, enforcing boundaries', () => {
+  assert.equal(parseContext(8192), 8192);
+  assert.equal(parseContext('8192'), 8192);
+  assert.equal(parseContext('8k'), 8192);
+  assert.equal(parseContext('8K'), 8192);
+  assert.equal(parseContext('16k'), 16384);
+  assert.equal(parseContext('32k'), 32768);
+  assert.equal(parseContext('32768'), 32768);
+  assert.equal(parseContext(' 16k '), 16384);
+  assert.equal(parseContext('1m'), 1024 * 1024);
+  // Boundary checks: minimum 512
+  assert.equal(parseContext('512'), 512);
+  assert.equal(parseContext('511'), null);
+  assert.equal(parseContext('0'), null);
+  assert.equal(parseContext('-16k'), null);
+  // Limit checking
+  assert.equal(parseContext('32k', 16384), null);
+  assert.equal(parseContext('16k', 16384), 16384);
+  // Invalid inputs
+  assert.equal(parseContext('abc'), null);
+  assert.equal(parseContext(''), null);
+  assert.equal(parseContext(null), null);
+  assert.equal(parseContext(undefined), null);
+});
+
+test('shouldAskProfile accepts context shorthand without prompting', () => {
+  const all = { engine: 'lmstudio', model: 'qwen/qwen3-coder-30b', ctx: '16k' };
+  assert.equal(shouldAskProfile(all), false);
+  assert.equal(shouldAskProfile({ ...all, ctx: '32K' }), false);
+});
+

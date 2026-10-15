@@ -4,11 +4,24 @@ import { PROFILES, fmtBytes } from '../core/index.js';
 // Reasons of a `variant-picked` event that mean the profile could not be honoured: the core flags them with a `profile-fallback` event right after.
 export const FALLBACK_REASONS = new Set(['profile.variant.noFullGpu']);
 
+/** Parses a context string (e.g. "8192", "8k", "16K") into tokens, or null if invalid or outside [512, limit]. */
+export function parseContext(v, limit = Infinity) {
+  if (v == null) return null;
+  const str = String(v).trim().toLowerCase();
+  const m = str.match(/^(\d+(?:\.\d+)?)\s*(k|m)?$/);
+  if (!m) return null;
+  const num = Number(m[1]);
+  if (!Number.isFinite(num)) return null;
+  const multiplier = m[2] === 'k' ? 1024 : m[2] === 'm' ? 1024 * 1024 : 1;
+  const val = Math.round(num * multiplier);
+  return val >= 512 && val <= limit ? val : null;
+}
+
 /** True when the CLI has to ask for the load profile; `args` are the parsed flags. */
 export function shouldAskProfile(args) {
   if (args.profile || args.yes || args.json) return false;
   // Engine, model and context all from flags: a scripted run that asked nothing before the profiles existed, so it stays prompt-free.
-  const flagged = Boolean(args.engine && args.model && Number(args.ctx));
+  const flagged = Boolean(args.engine && args.model && parseContext(args.ctx ?? args.context));
   return !flagged;
 }
 

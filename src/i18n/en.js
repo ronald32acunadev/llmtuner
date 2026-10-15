@@ -92,7 +92,7 @@ export default {
   // Shared by CLI and web
   'common.error': 'Error: {message}',
   'common.na': 'n/a',
-  'common.longPrompt': 'long prompt (~{tokens} tokens)…',
+  'common.longPrompt': 'long prompt (~{tokens} tokens, 50% context)…',
   'common.presetSaved': 'Preset saved: {file}',
   'common.backups': 'Backups: {list}',
 
@@ -154,7 +154,8 @@ Presets are saved in {presetsDir}`,
   'cli.confirmApply': 'Apply and load the model?',
   'cli.dryRun': '--dry-run: nothing was applied and no preset was saved.',
   'cli.pending': 'To finish, run (asks for the administrator password):',
-  'cli.loaded': 'Model loaded in {engine}: {tps}',
+  'cli.tuningModel': 'Tuning {model} with {ctx} context ({profile})…',
+  'cli.loaded': 'Model loaded in {engine} with {ctx} context: {tps}',
   'cli.usesModel': ' (uses the model {model})',
   'cli.loadFailed': 'Could not load: {error}',
   'cli.installMethod': 'Install method:',

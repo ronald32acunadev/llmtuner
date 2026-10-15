@@ -92,7 +92,7 @@ export default {
   // Shared by CLI and web
   'common.error': 'Error: {message}',
   'common.na': 'n/d',
-  'common.longPrompt': 'prompt largo (~{tokens} tokens)…',
+  'common.longPrompt': 'prompt largo (~{tokens} tokens, 50% del contexto)…',
   'common.presetSaved': 'Preset guardado: {file}',
   'common.backups': 'Copias de seguridad: {list}',
 
@@ -154,7 +154,8 @@ Los presets se guardan en {presetsDir}`,
   'cli.confirmApply': '¿Aplicar y cargar el modelo?',
   'cli.dryRun': '--dry-run: no se aplicó nada ni se guardó preset.',
   'cli.pending': 'Para terminar ejecuta (pide contraseña de administrador):',
-  'cli.loaded': 'Modelo cargado en {engine}: {tps}',
+  'cli.tuningModel': 'Ajustando {model} con {ctx} de contexto ({profile})…',
+  'cli.loaded': 'Modelo cargado en {engine} con {ctx} de contexto: {tps}',
   'cli.usesModel': ' (usa el modelo {model})',
   'cli.loadFailed': 'No se pudo cargar: {error}',
   'cli.installMethod': 'Método de instalación:',
