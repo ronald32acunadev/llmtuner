@@ -311,4 +311,41 @@ test('web UI offers the load profile between the context and the Load button', a
   assert.match(css, /\.profile-option\.selected/);
 });
 
+test('GET /api/models returns models sorted from smallest to largest by size', async () => {
+  const mockServer = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    if (req.url === '/api/version') {
+      res.end(JSON.stringify({ version: '0.1.0' }));
+    } else if (req.url === '/api/tags') {
+      res.end(JSON.stringify({
+        models: [
+          { name: 'large:latest', size: 8000000000, details: { family: 'llama' } },
+          { name: 'small:latest', size: 1000000000, details: { family: 'llama' } },
+          { name: 'medium:latest', size: 4000000000, details: { family: 'llama' } },
+        ],
+      }));
+    } else {
+      res.end('{}');
+    }
+  });
+  await new Promise((r) => mockServer.listen(0, '127.0.0.1', r));
+  const mockPort = mockServer.address().port;
+  const prevHost = process.env.OLLAMA_HOST;
+  process.env.OLLAMA_HOST = `127.0.0.1:${mockPort}`;
+  try {
+    const r = await get('/api/models?engine=ollama');
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.deepEqual(data.models.map((m) => m.name), ['small:latest', 'medium:latest', 'large:latest']);
+  } finally {
+    mockServer.close();
+    if (prevHost === undefined) {
+      delete process.env.OLLAMA_HOST;
+    } else {
+      process.env.OLLAMA_HOST = prevHost;
+    }
+  }
+});
+
+
 

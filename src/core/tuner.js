@@ -57,7 +57,10 @@ export class Tuner extends EventEmitter {
 
   log(type, data = {}) { this.emit('progress', { type, ...data, at: Date.now() }); }
 
-  listModels() { return this.engine.listModels(this.ctx); }
+  async listModels() {
+    const list = (await this.engine.listModels?.(this.ctx)) || [];
+    return list.slice().sort((a, b) => (a.sizeBytes ?? 0) - (b.sizeBytes ?? 0) || (a.name || '').localeCompare(b.name || ''));
+  }
 
   async modelInfo(key) {
     const meta = await this.engine.modelMeta(this.ctx, key);

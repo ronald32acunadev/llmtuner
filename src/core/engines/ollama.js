@@ -149,7 +149,8 @@ export const ollama = {
     const r = await fetchJson(`${ctx.detection.apiUrl}/api/tags`);
     return (r?.json?.models || [])
       .filter((m) => !/embed/i.test(m.name) && !/bert/i.test(m.details?.family || ''))
-      .map((m) => ({ key: m.name, name: m.name, sizeBytes: m.size, arch: m.details?.family, quant: m.details?.quantization_level, maxContext: null }));
+      .map((m) => ({ key: m.name, name: m.name, sizeBytes: m.size, arch: m.details?.family, quant: m.details?.quantization_level, maxContext: null }))
+      .sort((a, b) => (a.sizeBytes ?? 0) - (b.sizeBytes ?? 0) || (a.name || '').localeCompare(b.name || ''));
   },
 
   /** Downloaded variants (tags) of a model: [{ key, quant, sizeBytes, selected }]. */

@@ -78,7 +78,8 @@ export const lmstudio = {
     try { list = JSON.parse(r.stdout); } catch { return []; }
     return list
       .filter((m) => m.type === 'llm' && m.format === 'gguf')
-      .map((m) => ({ key: m.modelKey || m.path, name: m.displayName, sizeBytes: m.sizeBytes, arch: m.architecture, quant: m.quantization?.name, maxContext: m.maxContextLength, moe: /A\d+B/i.test(m.paramsString || '') }));
+      .map((m) => ({ key: m.modelKey || m.path, name: m.displayName, sizeBytes: m.sizeBytes, arch: m.architecture, quant: m.quantization?.name, maxContext: m.maxContextLength, moe: /A\d+B/i.test(m.paramsString || '') }))
+      .sort((a, b) => (a.sizeBytes ?? 0) - (b.sizeBytes ?? 0) || (a.name || '').localeCompare(b.name || ''));
   },
 
   /** Resolve the GGUF file behind a model key using LM Studio's model index. */

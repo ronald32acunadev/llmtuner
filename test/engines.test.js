@@ -299,3 +299,29 @@ test('ollamaVariants returns nothing for a tuned copy', () => {
 test('ollama selects variants by itself', () => {
   assert.equal(ollama.capabilities.variantSelect, true);
 });
+
+test('ollama listModels returns models sorted by sizeBytes from smallest to largest', async () => {
+  const ctx = { detection: { apiUrl: mockUrl } };
+  const models = await ollama.listModels(ctx);
+  assert.ok(models.length > 1);
+  for (let i = 1; i < models.length; i++) {
+    assert.ok(models[i - 1].sizeBytes <= models[i].sizeBytes, `${models[i - 1].key} (${models[i - 1].sizeBytes}) <= ${models[i].key} (${models[i].sizeBytes})`);
+  }
+});
+
+test('lmstudio listModels returns models sorted by sizeBytes from smallest to largest', { skip: process.platform === 'win32' }, async () => {
+  const customList = [
+    { type: 'llm', format: 'gguf', modelKey: 'heavy/model', displayName: 'Heavy', sizeBytes: 5000 },
+    { type: 'llm', format: 'gguf', modelKey: 'light/model', displayName: 'Light', sizeBytes: 100 },
+    { type: 'llm', format: 'gguf', modelKey: 'mid/model', displayName: 'Mid', sizeBytes: 1500 },
+  ];
+  const { home, bin } = await fakeLmsHome(customList);
+  const ctx = { detection: { home, bin } };
+  try {
+    const models = await lmstudio.listModels(ctx);
+    assert.deepEqual(models.map((m) => m.key), ['light/model', 'mid/model', 'heavy/model']);
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+  }
+});
+

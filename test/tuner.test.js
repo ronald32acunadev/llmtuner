@@ -475,3 +475,21 @@ test('a profile preset goes stale when another variant is selected in an engine 
     METAS.fam = q3;
   }
 });
+
+test('tuner listModels sorts models from smallest to largest by sizeBytes', async () => {
+  const unsorted = [
+    { key: 'm:c', name: 'Model C', sizeBytes: 300 },
+    { key: 'm:a', name: 'Model A', sizeBytes: 100 },
+    { key: 'm:b', name: 'Model B', sizeBytes: 200 },
+    { key: 'm:d', name: 'Model D', sizeBytes: 100 },
+  ];
+  ENGINES.fake.listModels = async () => unsorted;
+  try {
+    const tuner = new Tuner('fake', { installed: true }, HW);
+    const result = await tuner.listModels();
+    assert.deepEqual(result.map((m) => m.key), ['m:a', 'm:d', 'm:b', 'm:c']);
+  } finally {
+    delete ENGINES.fake.listModels;
+  }
+});
+

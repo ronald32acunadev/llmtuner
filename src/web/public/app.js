@@ -202,6 +202,7 @@ async function chooseEngine(e) {
   step('model');
   $('#model').innerHTML = `<option>${esc(t('web.readingModels'))}</option>`;
   const { models } = await api(`/api/models?engine=${e.id}`);
+  models.sort((a, b) => (a.sizeBytes ?? 0) - (b.sizeBytes ?? 0) || (a.name || '').localeCompare(b.name || ''));
   $('#model').innerHTML = models.length
     ? models.map((m) => `<option value="${esc(m.key)}">${esc(m.name)} · ${gb(m.sizeBytes)}${m.quant ? ' · ' + esc(m.quant) : ''}</option>`).join('')
     : `<option value="">${esc(t('web.noModels'))}</option>`;
