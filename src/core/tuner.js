@@ -6,6 +6,7 @@ import { PROFILES, DEFAULT_PROFILE, normalizeProfile, kvTypesFor, meetsQuality, 
 import { lmstudio } from './engines/lmstudio.js';
 import { ollama } from './engines/ollama.js';
 import { TunerError, benchError } from './errors.js';
+import { startTelemetrySampler } from './telemetry.js';
 
 export { pickBest };
 export const ENGINES = { lmstudio, ollama };
@@ -56,6 +57,19 @@ export class Tuner extends EventEmitter {
   }
 
   log(type, data = {}) { this.emit('progress', { type, ...data, at: Date.now() }); }
+
+  withTelemetry(fn) {
+    if (this._telemetryActive) return fn();
+    this._telemetryActive = true;
+    const sampler = startTelemetrySampler((sample) => this.log('telemetry', sample));
+    return Promise.resolve()
+      .then(fn)
+      .finally(() => {
+        this._telemetryActive = false;
+        sampler.stop();
+      });
+  }
+
 
   async listModels() {
     const list = (await this.engine.listModels?.(this.ctx)) || [];
@@ -203,34 +217,50 @@ export class Tuner extends EventEmitter {
 
   /** Estimate, benchmark the top candidates for real, and return a report. The profile decides the winner. */
   async run(key, ctx, { maxCandidates = 3, depthFraction = 0.5, genTokens = 200, profile: requested = DEFAULT_PROFILE } = {}) {
-    const profile = normalizeProfile(requested);
-    this.log('status', { code: 'status.engine', params: { name: this.engine.name } });
-    const { model, candidates, maxContext } = await this.plan(key, ctx, { unload: true, profile });
-    const model2 = { key, meta: model.meta };
-    const toTest = candidates.slice(0, maxCandidates);
-    this.log('plan', { candidates: toTest.map(slim), maxContext });
+    return this.withTelemetry(async () => {
+      const profile = normalizeProfile(requested);
+      this.log('status', { code: 'status.engine', params: { name: this.engine.name }, progress: { pct: 5, phase: 'plan' } });
+      const { model, candidates, maxContext } = await this.plan(key, ctx, { unload: true, profile });
+      const model2 = { key, meta: model.meta };
+      const toTest = candidates.slice(0, maxCandidates);
+      this.log('plan', { candidates: toTest.map(slim), maxContext, progress: { pct: 10, phase: 'plan' } });
 
-    const depthTokens = Math.floor(ctx * depthFraction);
-    const results = [];
-    for (const [i, c] of toTest.entries()) {
-      this.log('candidate-start', { index: i, total: toTest.length, candidate: slim(c) });
-      let bench;
-      try {
-        bench = await this.engine.benchmark(this.ctx, model2, c, {
-          depthTokens, genTokens,
-          onProgress: (p) => this.log('bench-progress', { index: i, ...p }),
+      const depthTokens = Math.floor(ctx * depthFraction);
+      const results = [];
+      for (const [i, c] of toTest.entries()) {
+        this.log('candidate-start', {
+          index: i,
+          total: toTest.length,
+          candidate: slim(c),
+          progress: { pct: 10 + Math.round((i / toTest.length) * 70), phase: 'bench', current: i + 1, total: toTest.length },
         });
-      } catch (err) {
-        bench = err?.name === 'TunerError' ? benchError(err.code, err.params) : { ok: false, error: String(err.message || err) };
+        let bench;
+        try {
+          bench = await this.engine.benchmark(this.ctx, model2, c, {
+            depthTokens, genTokens,
+            onProgress: (p) => this.log('bench-progress', {
+              index: i,
+              ...p,
+              progress: { pct: 10 + Math.round(((i + (p.phase === 'deep' ? 0.6 : 0.2)) / toTest.length) * 70), phase: 'bench', current: i + 1, total: toTest.length },
+            }),
+          });
+        } catch (err) {
+          bench = err?.name === 'TunerError' ? benchError(err.code, err.params) : { ok: false, error: String(err.message || err) };
+        }
+        results.push({ candidate: c, bench });
+        this.log('candidate-done', {
+          index: i,
+          candidate: slim(c),
+          bench,
+          progress: { pct: 10 + Math.round(((i + 1) / toTest.length) * 70), phase: 'bench', current: i + 1, total: toTest.length },
+        });
       }
-      results.push({ candidate: c, bench });
-      this.log('candidate-done', { index: i, candidate: slim(c), bench });
-    }
-    const best = pickBest(results, profile);
-    const report = { engine: this.engine.id, model: key, ctx, profile, hw: this.hw, maxContext, results: results.map((r) => ({ candidate: slim(r.candidate), bench: r.bench })), best: best ? { candidate: best.candidate, bench: best.bench } : null };
-    this.log('done', { best: report.best && { candidate: slim(best.candidate), bench: best.bench } });
-    this.lastReport = { ...report, modelObj: model2 };
-    return report;
+      const best = pickBest(results, profile);
+      const report = { engine: this.engine.id, model: key, ctx, profile, hw: this.hw, maxContext, results: results.map((r) => ({ candidate: slim(r.candidate), bench: r.bench })), best: best ? { candidate: best.candidate, bench: best.bench } : null };
+      this.log('done', { best: report.best && { candidate: slim(best.candidate), bench: best.bench }, progress: { pct: 82, phase: 'bench' } });
+      this.lastReport = { ...report, modelObj: model2 };
+      return report;
+    });
   }
 
   /**
@@ -241,63 +271,65 @@ export class Tuner extends EventEmitter {
    * the preset, or pick one once the VRAM is free.
    */
   async load(key, ctx, { force = false, dryRun = false, maxCandidates = 3, depthFraction = 0.5, measure = true, confirmApply = async () => true, profile: requested = DEFAULT_PROFILE } = {}) {
-    const profile = normalizeProfile(requested);
-    const model = await this.modelInfo(key);
-    const modelBytes = model.meta.fileBytes;
-    // Listing the variants of a non-balanced profile needs no hardware; picking one does, so the pick waits.
-    const variants = profile === DEFAULT_PROFILE ? null : await this.variants(key);
-    const listed = variants?.map((v) => ({ key: v.key, sizeBytes: v.sizeBytes, selected: v.selected }));
-    // A profile preset is keyed by the key the user chose plus the profile, and goes stale with the variant list or its selected entry.
-    const keyed = variants ? { profile, variants: listed } : {};
-    let target = null;
-    let source = 'preset';
-    let candidate;
-    let report = null;
-    let found = force ? { preset: null, reason: 'forced' } : await findPreset({ engine: this.engine.id, modelKey: key, ctx, hw: this.hw, modelBytes, ...keyed });
+    return this.withTelemetry(async () => {
+      const profile = normalizeProfile(requested);
+      const model = await this.modelInfo(key);
+      const modelBytes = model.meta.fileBytes;
+      // Listing the variants of a non-balanced profile needs no hardware; picking one does, so the pick waits.
+      const variants = profile === DEFAULT_PROFILE ? null : await this.variants(key);
+      const listed = variants?.map((v) => ({ key: v.key, sizeBytes: v.sizeBytes, selected: v.selected }));
+      // A profile preset is keyed by the key the user chose plus the profile, and goes stale with the variant list or its selected entry.
+      const keyed = variants ? { profile, variants: listed } : {};
+      let target = null;
+      let source = 'preset';
+      let candidate;
+      let report = null;
+      let found = force ? { preset: null, reason: 'forced' } : await findPreset({ engine: this.engine.id, modelKey: key, ctx, hw: this.hw, modelBytes, ...keyed });
 
-    if (found.preset) {
-      candidate = found.preset.candidate;
-      this.log('preset-hit', { preset: found.preset, file: presetPath(this.engine.id, key, ctx, profile) });
-      // The preset remembers which variant it measured: nothing is picked and no VRAM is freed.
-      if (variants) target = this.presetTarget(key, profile, model, found.preset);
-    } else {
-      source = 'benchmark';
-      const code = { none: 'status.searchNone', hardware: 'status.searchHardware', model: 'status.searchModel', forced: 'status.searchForced', variants: 'status.searchVariants' }[found.reason];
-      this.log('status', { code });
-      if (variants) {
-        // The pick depends on the free VRAM, so the engine's models are unloaded before it.
-        await this.freeVram();
-        target = this.profileTarget(key, ctx, profile, model, variants);
+      if (found.preset) {
+        candidate = found.preset.candidate;
+        this.log('preset-hit', { preset: found.preset, file: presetPath(this.engine.id, key, ctx, profile), progress: { pct: 30, phase: 'preset' } });
+        // The preset remembers which variant it measured: nothing is picked and no VRAM is freed.
+        if (variants) target = this.presetTarget(key, profile, model, found.preset);
+      } else {
+        source = 'benchmark';
+        const code = { none: 'status.searchNone', hardware: 'status.searchHardware', model: 'status.searchModel', forced: 'status.searchForced', variants: 'status.searchVariants' }[found.reason];
+        this.log('status', { code, progress: { pct: 5, phase: 'plan' } });
+        if (variants) {
+          // The pick depends on the free VRAM, so the engine's models are unloaded before it.
+          await this.freeVram();
+          target = this.profileTarget(key, ctx, profile, model, variants);
+        }
+        report = await this.run(target?.key ?? key, ctx, { maxCandidates, depthFraction, profile });
+        if (!report.best) throw new TunerError('errors.noConfigWorked');
+        candidate = report.best.candidate;
+        // Quality found no configuration that keeps its promise: say so once.
+        if (profile === 'quality' && !target.fallback && !meetsQuality(candidate)) this.log('profile-fallback', { profile, reasonCode: 'profile.fallback.noFullGpuConfig', variant: target.picked });
+        if (!dryRun) {
+          const saved = await savePreset({ engine: this.engine.id, modelKey: key, ctx, hw: this.hw, modelBytes, best: report.best, results: this.lastReport.results, ...(target ? { profile, variant: target.variant, variants: listed } : {}) });
+          this.log('preset-saved', { file: saved.file, preset: saved.preset, progress: { pct: 85, phase: 'save' } });
+        }
       }
-      report = await this.run(target?.key ?? key, ctx, { maxCandidates, depthFraction, profile });
-      if (!report.best) throw new TunerError('errors.noConfigWorked');
-      candidate = report.best.candidate;
-      // Quality found no configuration that keeps its promise: say so once.
-      if (profile === 'quality' && !target.fallback && !meetsQuality(candidate)) this.log('profile-fallback', { profile, reasonCode: 'profile.fallback.noFullGpuConfig', variant: target.picked });
-      if (!dryRun) {
-        const saved = await savePreset({ engine: this.engine.id, modelKey: key, ctx, hw: this.hw, modelBytes, best: report.best, results: this.lastReport.results, ...(target ? { profile, variant: target.variant, variants: listed } : {}) });
-        this.log('preset-saved', { file: saved.file, preset: saved.preset });
-      }
-    }
 
-    // The variant a profile picked is applied and loaded with its own metadata.
-    const loadKey = target?.key ?? key;
-    const meta = loadKey === key ? model.meta : variants?.find((v) => v.key === loadKey)?.meta ?? (await this.modelInfo(loadKey)).meta;
-    const modelObj = { key: loadKey, meta };
-    const preview = await this.engine.apply(this.ctx, modelObj, candidate, { dryRun: true });
-    if (dryRun) return { source, candidate: slim(candidate), report, preview, profile, variant: loadKey };
-    if (!(await confirmApply(preview))) return { source, candidate: slim(candidate), report, preview, applied: false, profile, variant: loadKey };
+      // The variant a profile picked is applied and loaded with its own metadata.
+      const loadKey = target?.key ?? key;
+      const meta = loadKey === key ? model.meta : variants?.find((v) => v.key === loadKey)?.meta ?? (await this.modelInfo(loadKey)).meta;
+      const modelObj = { key: loadKey, meta };
+      const preview = await this.engine.apply(this.ctx, modelObj, candidate, { dryRun: true });
+      if (dryRun) return { source, candidate: slim(candidate), report, preview, profile, variant: loadKey };
+      if (!(await confirmApply(preview))) return { source, candidate: slim(candidate), report, preview, applied: false, profile, variant: loadKey };
 
-    this.log('status', { code: 'status.applying' });
-    const applied = await this.engine.apply(this.ctx, modelObj, candidate, { useSudo: true, skipIfApplied: source === 'preset' });
-    this.log('applied', { result: applied });
-    if (applied.pendingCommands?.length) return { source, candidate: slim(candidate), report, applied, loaded: null, profile, variant: loadKey };
+      this.log('status', { code: 'status.applying', progress: { pct: 88, phase: 'apply' } });
+      const applied = await this.engine.apply(this.ctx, modelObj, candidate, { useSudo: true, skipIfApplied: source === 'preset' });
+      this.log('applied', { result: applied, progress: { pct: 92, phase: 'apply' } });
+      if (applied.pendingCommands?.length) return { source, candidate: slim(candidate), report, applied, loaded: null, profile, variant: loadKey };
 
-    this.log('status', { code: 'status.loading' });
-    this.ctx.detection = await this.engine.detect();
-    const loaded = await this.engine.load(this.ctx, modelObj, { candidate, depthTokens: 0, genTokens: measure ? 200 : 1, onProgress: (p) => this.log('bench-progress', p) });
-    this.log('loaded', { bench: loaded });
-    return { source, candidate: slim(candidate), report, applied, loaded, profile, variant: loadKey };
+      this.log('status', { code: 'status.loading', progress: { pct: 95, phase: 'load' } });
+      this.ctx.detection = await this.engine.detect();
+      const loaded = await this.engine.load(this.ctx, modelObj, { candidate, depthTokens: 0, genTokens: measure ? 200 : 1, onProgress: (p) => this.log('bench-progress', { ...p, progress: { pct: 98, phase: 'load' } }) });
+      this.log('loaded', { bench: loaded, progress: { pct: 100, phase: 'done' } });
+      return { source, candidate: slim(candidate), report, applied, loaded, profile, variant: loadKey };
+    });
   }
 }
 

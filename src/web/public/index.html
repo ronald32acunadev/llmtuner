@@ -75,6 +75,26 @@
 
     <section id="sec-load" class="panel" hidden>
       <header><h2 id="load-title" data-i18n="web.loading">Loading</h2><span class="pill" id="load-status" data-i18n="web.inProgress">in progress</span></header>
+      <div id="load-progress-wrap" class="progress-wrap" hidden>
+        <div class="progress-bar-track">
+          <div id="load-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
+        </div>
+        <div class="progress-meta">
+          <span id="load-progress-label"></span>
+          <span id="load-progress-pct">0%</span>
+        </div>
+      </div>
+      <div id="telemetry-panel" class="telemetry-panel" hidden>
+        <div class="telemetry-card">
+          <div class="telemetry-header"><span data-i18n="web.telemetryCpu">CPU</span> <strong id="telemetry-cpu-val">0%</strong></div>
+          <div class="meter-bar"><div id="telemetry-cpu-fill" class="meter-fill" style="width: 0%"></div></div>
+        </div>
+        <div class="telemetry-card">
+          <div class="telemetry-header"><span data-i18n="web.telemetryRam">RAM</span> <strong id="telemetry-ram-val">0 / 0 GB (0%)</strong></div>
+          <div class="meter-bar"><div id="telemetry-ram-fill" class="meter-fill" style="width: 0%"></div></div>
+        </div>
+        <div id="telemetry-gpus" class="telemetry-gpus"></div>
+      </div>
       <div id="bench" hidden>
         <p class="muted small" data-i18n="web.benchIntro">There is no preset for this context and profile: several configurations are tested on your hardware. It takes a few minutes and only happens once.</p>
         <div class="table-wrap">

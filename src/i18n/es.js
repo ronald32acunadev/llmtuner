@@ -240,5 +240,9 @@ Los presets se guardan en {presetsDir}`,
   'web.themeDark': 'Oscuro',
   'web.settings': 'Configuración',
   'web.close': 'Cerrar',
+  'web.telemetryCpu': 'CPU',
+  'web.telemetryRam': 'RAM',
+  'web.telemetryVram': 'VRAM',
+  'web.telemetryGpu': 'GPU {index}',
 };
 

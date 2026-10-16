@@ -114,7 +114,45 @@ async function settingsFlow() {
 }
 
 async function main() {
-  const out = (...a) => { if (!args.json) console.log(...a); };
+  const isTTY = Boolean(process.stdout.isTTY && !args.json);
+  let lastProgress = null;
+  let lastTelemetry = null;
+  let liveActive = false;
+
+  const clearLive = () => {
+    if (isTTY && liveActive) {
+      process.stdout.write('\r\x1b[K');
+      liveActive = false;
+    }
+  };
+
+  const renderLive = () => {
+    if (!isTTY || !lastProgress) return;
+    const pct = Math.min(100, Math.max(0, lastProgress.pct ?? 0));
+    const barLen = 16;
+    const filled = Math.round((pct / 100) * barLen);
+    const bar = c.cyan('━'.repeat(filled)) + c.dim('─'.repeat(barLen - filled));
+
+    let telem = '';
+    if (lastTelemetry) {
+      if (lastTelemetry.cpu) telem += ` · CPU ${lastTelemetry.cpu.percent}%`;
+      if (lastTelemetry.ram) {
+        telem += ` · RAM ${(lastTelemetry.ram.usedBytes / 1024 ** 3).toFixed(1)}/${(lastTelemetry.ram.totalBytes / 1024 ** 3).toFixed(1)} GB`;
+      }
+      if (lastTelemetry.gpus?.length) {
+        telem += ' · ' + lastTelemetry.gpus.map((g) => `GPU${g.index} ${(g.usedBytes / 1024 ** 3).toFixed(1)}/${(g.totalBytes / 1024 ** 3).toFixed(1)} GB`).join(' ');
+      }
+    }
+
+    process.stdout.write(`\r\x1b[K  [${bar}] ${String(pct).padStart(3)}%${telem}`);
+    liveActive = true;
+  };
+
+  const out = (...a) => {
+    if (args.json) return;
+    clearLive();
+    console.log(...a);
+  };
   out([
     '',
     `  ${c.cyan('  ╭───')}${c.dim('╷ ╷ ╷')}${c.cyan('───╮')}`,
@@ -215,6 +253,14 @@ async function main() {
   let previous = null;
   tuner.on('progress', (e) => {
     if (args.json) return;
+    if (e.type === 'telemetry') {
+      lastTelemetry = e;
+      renderLive();
+      return;
+    }
+    if (e.progress) {
+      lastProgress = e.progress;
+    }
     if (e.type === 'variant-picked' || e.type === 'profile-fallback') {
       for (const line of profileEventLines(e, previous, t, advisedByWizard ? null : tuner.engine.name)) {
         out((line.level === 'warn' ? c.y : c.dim)(`  ${line.text}`));
@@ -230,25 +276,33 @@ async function main() {
       out(b.ok ? `      ${c.g('✓')} ${t('cli.benchShort', { tps: c.b(b.short.genTps + ' t/s') })}${b.deep ? t('cli.benchDeep', { tps: c.b(b.deep.genTps + ' t/s'), tokens: b.deep.promptTokens }) : ''} · CPU ${b.cpu.avg}% · VRAM ${vramStr(b.vramPeakBytes)}` : c.r(`      ✗ ${benchErrorText(b)}`));
     }
     if (e.type === 'preset-saved') out(c.g(`\n✓ ${t('common.presetSaved', { file: e.file })}`));
+
+    renderLive();
   });
 
-  const result = await tuner.load(modelKey, ctx, {
-    profile,
-    force: !!args.force,
-    dryRun: !!args['dry-run'],
-    maxCandidates: Number(args.candidates) || 3,
-    confirmApply: async (preview) => {
-      out(c.b(`\n${t('cli.changes')}`));
-      if (engineId === 'lmstudio') {
-        preview.files.forEach((f) => out(`  ${f}`));
-        if (preview.restartsApp) out(c.y(`  ${t('cli.lmsRestart')}`));
-      } else {
-        out(`  ${t('cli.ollamaNewModel', { name: c.b(preview.tunedModel) })}`);
-        out(`  ${t('cli.ollamaServer', { env: Object.entries(preview.env).map(([k, v]) => `${k}=${v}`).join(' ') })}`);
-      }
-      return args.yes || confirm({ message: t('cli.confirmApply'), default: true });
-    },
-  });
+  let result;
+  try {
+    result = await tuner.load(modelKey, ctx, {
+      profile,
+      force: !!args.force,
+      dryRun: !!args['dry-run'],
+      maxCandidates: Number(args.candidates) || 3,
+      confirmApply: async (preview) => {
+        clearLive();
+        out(c.b(`\n${t('cli.changes')}`));
+        if (engineId === 'lmstudio') {
+          preview.files.forEach((f) => out(`  ${f}`));
+          if (preview.restartsApp) out(c.y(`  ${t('cli.lmsRestart')}`));
+        } else {
+          out(`  ${t('cli.ollamaNewModel', { name: c.b(preview.tunedModel) })}`);
+          out(`  ${t('cli.ollamaServer', { env: Object.entries(preview.env).map(([k, v]) => `${k}=${v}`).join(' ') })}`);
+        }
+        return args.yes || confirm({ message: t('cli.confirmApply'), default: true });
+      },
+    });
+  } finally {
+    clearLive();
+  }
 
   if (args['dry-run']) out(c.y(`\n${t('cli.dryRun')}`));
   if (result.applied?.backups?.length) out(c.dim(`  ${t('common.backups', { list: result.applied.backups.join(', ') })}`));

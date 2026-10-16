@@ -387,6 +387,59 @@ function onCtxChange() {
 }
 $('#ctx').oninput = onCtxChange;
 
+function updateTelemetry(e) {
+  const panel = $('#telemetry-panel');
+  if (!panel || !e) return;
+  panel.hidden = false;
+
+  if (e.cpu) {
+    const cpuVal = $('#telemetry-cpu-val');
+    const cpuFill = $('#telemetry-cpu-fill');
+    if (cpuVal) cpuVal.textContent = `${e.cpu.percent}%`;
+    if (cpuFill) cpuFill.style.width = `${Math.min(100, Math.max(0, e.cpu.percent))}%`;
+  }
+
+  if (e.ram) {
+    const ramVal = $('#telemetry-ram-val');
+    const ramFill = $('#telemetry-ram-fill');
+    if (ramVal) ramVal.textContent = `${gb(e.ram.usedBytes)} / ${gb(e.ram.totalBytes)} (${e.ram.percent}%)`;
+    if (ramFill) ramFill.style.width = `${Math.min(100, Math.max(0, e.ram.percent))}%`;
+  }
+
+  if (e.gpus) {
+    const box = $('#telemetry-gpus');
+    if (box) {
+      box.innerHTML = e.gpus.map((g) => {
+        const name = g.name.replace(/^NVIDIA GeForce /, '');
+        return `<div class="telemetry-card">
+          <div class="telemetry-header"><span>GPU ${g.index} (${esc(name)})</span> <strong>${gb(g.usedBytes)} / ${gb(g.totalBytes)} (${g.percent}%)</strong></div>
+          <div class="meter-bar"><div class="meter-fill" style="width: ${Math.min(100, Math.max(0, g.percent))}%"></div></div>
+        </div>`;
+      }).join('');
+    }
+  }
+}
+
+function updateProgress(p, label) {
+  const wrap = $('#load-progress-wrap');
+  if (!wrap || !p) return;
+  wrap.hidden = false;
+
+  const bar = $('#load-progress-bar');
+  const pct = $('#load-progress-pct');
+  const lbl = $('#load-progress-label');
+
+  if (pct) pct.textContent = `${p.pct}%`;
+  if (bar) bar.style.width = `${p.pct}%`;
+  if (lbl && label !== undefined) {
+    let text = label || '';
+    if (p.phase === 'bench' && p.current && p.total) {
+      text = `[${p.current}/${p.total}] ${text}`.trim();
+    }
+    lbl.textContent = text;
+  }
+}
+
 // ---------- Load ----------
 $('#load-btn').onclick = async () => {
   const model = $('#model').value;
@@ -408,6 +461,17 @@ $('#load-btn').onclick = async () => {
   $('#load-result').innerHTML = '';
   const log = $('#load-log');
   log.textContent = '';
+  // Reset progress and telemetry
+  $('#load-progress-wrap').hidden = false;
+  $('#load-progress-bar').style.width = '0%';
+  $('#load-progress-pct').textContent = '0%';
+  $('#load-progress-label').textContent = '';
+  $('#telemetry-panel').hidden = false;
+  $('#telemetry-cpu-val').textContent = '0%';
+  $('#telemetry-cpu-fill').style.width = '0%';
+  $('#telemetry-ram-val').textContent = '0 / 0 GB (0%)';
+  $('#telemetry-ram-fill').style.width = '0%';
+  $('#telemetry-gpus').innerHTML = '';
   // One element per line, so a warning can be styled on its own.
   const addLog = (s, level = 'note') => {
     const line = document.createElement('span');
@@ -425,6 +489,17 @@ $('#load-btn').onclick = async () => {
     // Progress event before the current one: a fallback that repeats its reason is not logged twice.
     let previous = null;
     const done = await follow(jobId, (e) => {
+      if (e.type === 'telemetry') {
+        updateTelemetry(e);
+        return;
+      }
+      if (e.progress) {
+        let label = '';
+        if (e.type === 'status' && e.code) label = t(e.code, e.params);
+        else if (e.type === 'candidate-start') label = describe(e.candidate);
+        else if (e.type === 'bench-progress' && e.phase) label = e.phase === 'deep' ? t('common.longPrompt', { tokens: e.promptTokens }) : '';
+        updateProgress(e.progress, label);
+      }
       if (e.type === 'variant-picked' || e.type === 'profile-fallback') {
         for (const line of profileEventLines(e, t, { engineName: state.engine.name, previous })) addLog(line.text, line.level);
       }
@@ -457,6 +532,8 @@ $('#load-btn').onclick = async () => {
       const loaded = done.result?.loaded;
       throw new Error(done.code || done.error ? errText(done) : loaded && !loaded.ok ? benchErr(loaded) : t('bench.loadFailed'));
     }
+    updateProgress({ pct: 100, phase: 'done' });
+
     const r = done.result;
     if (r.report?.best) {
       const idx = r.report.results.findIndex((x) => x.candidate.id === r.report.best.candidate.id);
