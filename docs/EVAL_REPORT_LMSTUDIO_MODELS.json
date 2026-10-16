@@ -1,5 +1,7 @@
 {
+  "engine": "lmstudio",
   "contextTokens": 16384,
+  "updatedAt": "2026-10-15T22:23:02.851Z",
   "goldStandard": {
     "q1": {
       "expected": "DECODE_EFFICIENCY = 0.7 and readCost for q4_0 = x12",
@@ -28,7 +30,6 @@
       ]
     }
   },
-  "updatedAt": "2026-10-05T06:55:45.216Z",
   "models": {
     "mistralai/ministral-3-3b": {
       "sizeBytes": 2986817071,
@@ -756,6 +757,755 @@
             "genTokens": 300,
             "genTps": 21.105321696277763,
             "totalSeconds": "21.77"
+          },
+          "evaluation": {
+            "q1Pass": false,
+            "q2Pass": false,
+            "q3Pass": false,
+            "score": "0/3"
+          },
+          "text": "Context Document:\n---\n# LLM Tuner — project specification\n\nHandoff document to continue the project in another session or with another AI agent. Explains what it is, why it exists, how it works, what was measured and what's left. Last updated: 2026-10-04.\n\n---\n\n## 1. The idea\n\nRunning a local LLM fast depends on many parameters that almost nobody tunes well: how many layers go to the GPU, how much context fits, which KV cache type to use, in what order multiple GPUs are used, how many CPU threads… LM Studio's and Ollama's defaults tend to be conservative, and the user ends up with a saturated CPU and few tokens per second.\n\n**LLM Tuner** automates that tuning. The user chooses engine, model, context and a load profile, and presses **Load**. The app finds the best configuration for their hardware under that profile, saves it as a preset and loads the model with it.\n\nThe profile says what to optimize for: `speed`, `balanced` or `quality`. Speed is no longer the only goal: more tokens per second does not mean better answers, and a user with spare VRAM may prefer to spend it on quality. See §4.5.\n\n### Origin\n\nThe project came out of a real case. Qwen2.5-Coder-32B (Q4_K_M) on LM Studio over 2×"
+        }
+      },
+      "completed": true
+    },
+    "ministral-3-3b-instruct-2512": {
+      "displayName": "ministral-3-3b-instruct-2512",
+      "sizeBytes": 2986795328,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "f16-27",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12577,
+            "promptTps": 7415.19865150335,
+            "genTokens": 172,
+            "genTps": 132.68671193016488,
+            "totalSeconds": "3.00"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "1. The value of `DECODE_EFFICIENCY` is **0.7** (fraction of theoretical bandwidth used).\n   The read cost for `q4_0` is **×12**.\n\n2. LM Studio rejects per-variant identifiers (e.g., `model@variant`) because it only supports loading the selected variant by family key. The project adopted the architectural solution of **not loading specific variants directly**—instead, the profile determines the KV cache type and GPU placement for the selected variant, and the app provides recommendations to switch variants if a better configuration is found in the preset or during measurement.\n\n3. The exact values are:\n   - `PER_GPU_OVERHEAD` = **350 MiB**\n   - `PER_GPU_RESERVE` = **64 MiB**"
+        },
+        "balanced": {
+          "candidate": {
+            "id": "f16-27",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12577,
+            "promptTps": 7357.2467740020165,
+            "genTokens": 172,
+            "genTps": 132.2913008025672,
+            "totalSeconds": "3.02"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "1. The value of `DECODE_EFFICIENCY` is **0.7** (fraction of theoretical bandwidth used).\n   The read cost for `q4_0` is **×12**.\n\n2. LM Studio rejects per-variant identifiers (e.g., `model@variant`) because it only supports loading the selected variant by family key. The project adopted the architectural solution of **not loading specific variants directly**—instead, the profile determines the KV cache type and GPU placement for the selected variant, and the app provides recommendations to switch variants if a better configuration is found in the preset or during measurement.\n\n3. The exact values are:\n   - `PER_GPU_OVERHEAD` = **350 MiB**\n   - `PER_GPU_RESERVE` = **64 MiB**"
+        },
+        "quality": {
+          "candidate": {
+            "id": "f16-27",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12577,
+            "promptTps": 7506.868513112398,
+            "genTokens": 172,
+            "genTps": 132.04949307666823,
+            "totalSeconds": "2.99"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "1. The value of `DECODE_EFFICIENCY` is **0.7** (fraction of theoretical bandwidth used).\n   The read cost for `q4_0` is **×12**.\n\n2. LM Studio rejects per-variant identifiers (e.g., `model@variant`) because it only supports loading the selected variant by family key. The project adopted the architectural solution of **not loading specific variants directly**—instead, the profile determines the KV cache type and GPU placement for the selected variant, and the app provides recommendations to switch variants if a better configuration is found in the preset or during measurement.\n\n3. The exact values are:\n   - `PER_GPU_OVERHEAD` = **350 MiB**\n   - `PER_GPU_RESERVE` = **64 MiB**"
+        }
+      },
+      "completed": true
+    },
+    "deepseek-r1-0528-qwen3-8b": {
+      "displayName": "deepseek-r1-0528-qwen3-8b",
+      "sizeBytes": 5027782720,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "f16-37",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12355,
+            "promptTps": 4605.182479656872,
+            "genTokens": 223,
+            "genTps": 79.92534540710082,
+            "totalSeconds": "5.48"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": false,
+            "q3Pass": true,
+            "score": "2/3"
+          },
+          "text": "Based on the provided context document:\n\n1. The value of `DECODE_EFFICIENCY` is **0.7** (fraction of theoretical bandwidth). The `readCost` for `q4_0` is **×12** (the q4_0 cache with Flash Attention is much slower to read with long context).\n\n2. LM Studio's `lms load` rejects per-variant identifiers (e.g., `model@variant`) because it only supports loading the selected variant by default, and the app's architecture treats the variant selection as part of the load profile configuration rather than the engine's capability. The project adopted the solution of using the `variant-picked` event and the load profile rules to advise the user to select a different variant in LM Studio, without actually switching it automatically.\n\n3. The exact values of `PER_GPU_OVERHEAD` is **350 MiB** (CUDA context + scratch). The `PER_GPU_RESERVE` is **64 MiB** (already accounted for in `nvidia-smi`'s free VRAM)."
+        },
+        "balanced": {
+          "candidate": {
+            "id": "f16-37",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12355,
+            "promptTps": 4575.8666091365485,
+            "genTokens": 223,
+            "genTps": 80.15236169655832,
+            "totalSeconds": "5.49"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": false,
+            "q3Pass": true,
+            "score": "2/3"
+          },
+          "text": "Based on the provided context document:\n\n1. The value of `DECODE_EFFICIENCY` is **0.7** (fraction of theoretical bandwidth). The `readCost` for `q4_0` is **×12** (the q4_0 cache with Flash Attention is much slower to read with long context).\n\n2. LM Studio's `lms load` rejects per-variant identifiers (e.g., `model@variant`) because it only supports loading the selected variant by default, and the app's architecture treats the variant selection as part of the load profile configuration rather than the engine's capability. The project adopted the solution of using the `variant-picked` event and the load profile rules to advise the user to select a different variant in LM Studio, without actually switching it automatically.\n\n3. The exact values of `PER_GPU_OVERHEAD` is **350 MiB** (CUDA context + scratch). The `PER_GPU_RESERVE` is **64 MiB** (already accounted for in `nvidia-smi`'s free VRAM)."
+        },
+        "quality": {
+          "candidate": {
+            "id": "f16-37",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12355,
+            "promptTps": 4568.278289678021,
+            "genTokens": 223,
+            "genTps": 79.8675781164275,
+            "totalSeconds": "5.50"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": false,
+            "q3Pass": true,
+            "score": "2/3"
+          },
+          "text": "Based on the provided context document:\n\n1. The value of `DECODE_EFFICIENCY` is **0.7** (fraction of theoretical bandwidth). The `readCost` for `q4_0` is **×12** (the q4_0 cache with Flash Attention is much slower to read with long context).\n\n2. LM Studio's `lms load` rejects per-variant identifiers (e.g., `model@variant`) because it only supports loading the selected variant by default, and the app's architecture treats the variant selection as part of the load profile configuration rather than the engine's capability. The project adopted the solution of using the `variant-picked` event and the load profile rules to advise the user to select a different variant in LM Studio, without actually switching it automatically.\n\n3. The exact values of `PER_GPU_OVERHEAD` is **350 MiB** (CUDA context + scratch). The `PER_GPU_RESERVE` is **64 MiB** (already accounted for in `nvidia-smi`'s free VRAM)."
+        }
+      },
+      "completed": true
+    },
+    "gemma-4-12b-it-qat": {
+      "displayName": "gemma-4-12b-it-qat",
+      "sizeBytes": 7150994336,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "f16-49",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12954,
+            "promptTps": 3181.6721536634177,
+            "genTokens": 155,
+            "genTps": 65.41428053211544,
+            "totalSeconds": "6.45"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "<|channel>thought\n<channel|>1. `DECODE_EFFICIENCY` is **0.7** and the `readCost` for `q4_0` is **×12**.\n2. LM Studio rejects them because it only holds one entry per variant in the model index (the family key points to a concrete entry, but the variant is only resolved via the selected variant in the index). The project adopted an architectural solution where it only loads through LM Studio the **selected variant** (the one the user chose), and only recommends switching if another variant suits the profile better.\n3. `PER_GPU_OVERHEAD` is **350 MiB** and `PER_GPU_RESERVE` is **64 MiB**."
+        },
+        "balanced": {
+          "candidate": {
+            "id": "f16-49",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12954,
+            "promptTps": 3163.4827517659974,
+            "genTokens": 155,
+            "genTps": 65.54795322259702,
+            "totalSeconds": "6.47"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "<|channel>thought\n<channel|>1. `DECODE_EFFICIENCY` is **0.7** and the `readCost` for `q4_0` is **×12**.\n2. LM Studio rejects them because it only holds one entry per variant in the model index (the family key points to a concrete entry, but the variant is only resolved via the selected variant in the index). The project adopted an architectural solution where it only loads through LM Studio the **selected variant** (the one the user chose), and only recommends switching if another variant suits the profile better.\n3. `PER_GPU_OVERHEAD` is **350 MiB** and `PER_GPU_RESERVE` is **64 MiB**."
+        },
+        "quality": {
+          "candidate": {
+            "id": "f16-49",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12954,
+            "promptTps": 3211.170530408327,
+            "genTokens": 155,
+            "genTps": 65.90349844870012,
+            "totalSeconds": "6.40"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "<|channel>thought\n<channel|>1. `DECODE_EFFICIENCY` is **0.7** and the `readCost` for `q4_0` is **×12**.\n2. LM Studio rejects them because it only holds one entry per variant in the model index (the family key points to a concrete entry, but the variant is only resolved via the selected variant in the index). The project adopted an architectural solution where it only loads through LM Studio the **selected variant** (the one the user chose), and only recommends switching if another variant suits the profile better.\n3. `PER_GPU_OVERHEAD` is **350 MiB** and `PER_GPU_RESERVE` is **64 MiB**."
+        }
+      },
+      "completed": true
+    },
+    "qwen2.5-coder-14b-instruct": {
+      "displayName": "qwen2.5-coder-14b-instruct",
+      "sizeBytes": 8988110784,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "f16-49",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12348,
+            "promptTps": 3074.067398454701,
+            "genTokens": 140,
+            "genTps": 48.20689427950634,
+            "totalSeconds": "6.92"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "1. The value of `DECODE_EFFICIENCY` is 0.7, and the `readCost` for `q4_0` is ×12.\n2. `lms load` in LM Studio rejects per-variant identifiers because LM Studio cannot load a specific variant by key. The project adopted a solution where the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one.\n3. The exact values of `PER_GPU_OVERHEAD` and `PER_GPU_RESERVE` defined in the estimator are 350 MiB and 64 MiB, respectively."
+        },
+        "balanced": {
+          "candidate": {
+            "id": "f16-49",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12348,
+            "promptTps": 3067.3025498504976,
+            "genTokens": 140,
+            "genTps": 48.33454459470268,
+            "totalSeconds": "6.92"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "1. The value of `DECODE_EFFICIENCY` is 0.7, and the `readCost` for `q4_0` is ×12.\n2. `lms load` in LM Studio rejects per-variant identifiers because LM Studio cannot load a specific variant by key. The project adopted a solution where the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one.\n3. The exact values of `PER_GPU_OVERHEAD` and `PER_GPU_RESERVE` defined in the estimator are 350 MiB and 64 MiB, respectively."
+        },
+        "quality": {
+          "candidate": {
+            "id": "f16-49",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12348,
+            "promptTps": 3078.8065261323304,
+            "genTokens": 140,
+            "genTps": 48.28994533856116,
+            "totalSeconds": "6.91"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "1. The value of `DECODE_EFFICIENCY` is 0.7, and the `readCost` for `q4_0` is ×12.\n2. `lms load` in LM Studio rejects per-variant identifiers because LM Studio cannot load a specific variant by key. The project adopted a solution where the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one.\n3. The exact values of `PER_GPU_OVERHEAD` and `PER_GPU_RESERVE` defined in the estimator are 350 MiB and 64 MiB, respectively."
+        }
+      },
+      "completed": true
+    },
+    "gpt-oss-20b": {
+      "displayName": "gpt-oss-20b",
+      "sizeBytes": 12109565632,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "f16-25",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12081,
+            "promptTps": 6794.896600133186,
+            "genTokens": 300,
+            "genTps": 150.84226993905267,
+            "totalSeconds": "3.79"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": false,
+            "q3Pass": true,
+            "score": "2/3"
+          },
+          "text": "We need to answer three questions based strictly on the document.\n\n1. What is the value of DECODE_EFFICIENCY and the readCost for q4_0 in the calibrated constants? We need to find the constants in the document. In section 4.3 Estimator, there is a table of constants calibrated on 2× RTX 5070 with Qwen2.5-Coder-32B. The table lists constants: PER_GPU_OVERHEAD, PER_GPU_RESERVE, COMPUTE_BYTES_PER_CTX_TOKEN, Logits buffer, DECODE_EFFICIENCY, readCost for q4_0. Let's locate the table.\n\nIn section 4.3, after \"Constants calibrated on 2× RTX 5070 with Qwen2.5-Coder-32B:\" there is a table:\n\n| Constant | Value | Note |\n|---|---|---|\n| `PER_GPU_OVERHEAD` | 350 MiB | CUDA context + scratch |\n| `PER_GPU_RESERVE` | 64 MiB | `nvidia-smi`'s \"free\" already discounts ~450 MiB for the driver; **do not subtract another large reserve** (that was a bug) |\n| `COMPUTE_BYTES_PER_CTX_TOKEN` | 3.5 KiB | |\n| Logits buffer | `vocab × ubatch × 4` | on the GPU holding the output layer (~297 MiB on Qwen) |\n|"
+        },
+        "balanced": {
+          "candidate": {
+            "id": "f16-25",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12081,
+            "promptTps": 6904.931873739369,
+            "genTokens": 300,
+            "genTps": 138.13533012033946,
+            "totalSeconds": "3.95"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": false,
+            "q3Pass": true,
+            "score": "2/3"
+          },
+          "text": "We need to answer three questions based strictly on the document.\n\n1. What is the value of DECODE_EFFICIENCY and the readCost for q4_0 in the calibrated constants? We need to find the constants in the document. In section 4.3 Estimator, there is a table of constants calibrated on 2× RTX 5070 with Qwen2.5-Coder-32B. The table lists constants: PER_GPU_OVERHEAD, PER_GPU_RESERVE, COMPUTE_BYTES_PER_CTX_TOKEN, Logits buffer, DECODE_EFFICIENCY, readCost for q4_0. Let's locate the table.\n\nIn section 4.3, after \"Constants calibrated on 2× RTX 5070 with Qwen2.5-Coder-32B:\" there is a table:\n\n| Constant | Value | Note |\n|---|---|---|\n| `PER_GPU_OVERHEAD` | 350 MiB | CUDA context + scratch |\n| `PER_GPU_RESERVE` | 64 MiB | `nvidia-smi`'s \"free\" already discounts ~450 MiB for the driver; **do not subtract another large reserve** (that was a bug) |\n| `COMPUTE_BYTES_PER_CTX_TOKEN` | 3.5 KiB | |\n| Logits buffer | `vocab × ubatch × 4` | on the GPU holding the output layer (~297 MiB on Qwen) |\n|"
+        },
+        "quality": {
+          "candidate": {
+            "id": "f16-25",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12081,
+            "promptTps": 6674.888033601522,
+            "genTokens": 300,
+            "genTps": 150.10205936009334,
+            "totalSeconds": "3.83"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": false,
+            "q3Pass": true,
+            "score": "2/3"
+          },
+          "text": "We need to answer three questions based strictly on the document.\n\n1. What is the value of DECODE_EFFICIENCY and the readCost for q4_0 in the calibrated constants? We need to find the constants in the document. In section 4.3 Estimator, there is a table of constants calibrated on 2× RTX 5070 with Qwen2.5-Coder-32B. The table lists constants: PER_GPU_OVERHEAD, PER_GPU_RESERVE, COMPUTE_BYTES_PER_CTX_TOKEN, Logits buffer, DECODE_EFFICIENCY, readCost for q4_0. Let's locate the table.\n\nIn section 4.3, after \"Constants calibrated on 2× RTX 5070 with Qwen2.5-Coder-32B:\" there is a table:\n\n| Constant | Value | Note |\n|---|---|---|\n| `PER_GPU_OVERHEAD` | 350 MiB | CUDA context + scratch |\n| `PER_GPU_RESERVE` | 64 MiB | `nvidia-smi`'s \"free\" already discounts ~450 MiB for the driver; **do not subtract another large reserve** (that was a bug) |\n| `COMPUTE_BYTES_PER_CTX_TOKEN` | 3.5 KiB | |\n| Logits buffer | `vocab × ubatch × 4` | on the GPU holding the output layer (~297 MiB on Qwen) |\n|"
+        }
+      },
+      "completed": true
+    },
+    "gemma-4-26b-a4b-it-qat": {
+      "displayName": "gemma-4-26b-a4b-it-qat",
+      "sizeBytes": 15634191104,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "f16-31",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12954,
+            "promptTps": 5135.743969247384,
+            "genTokens": 146,
+            "genTps": 131.53907980702763,
+            "totalSeconds": "3.65"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "<|channel>thought\n<channel|>1. The `DECODE_EFFICIENCY` is 0.7 and the `readCost` for `q4_0` is ×12.\n2. LM Studio's `lms load` rejects per-variant identifiers because it only supports loading the variant selected in the engine; as an architectural solution, the project uses the profile to govern the load configuration (KV type, GPU placement) of the variant selected in LM Studio and only recommends switching to a different variant if it better suits the profile.\n3. `PER_GPU_OVERHEAD` is 350 MiB and `PER_GPU_RESERVE` is 64 MiB."
+        },
+        "balanced": {
+          "candidate": {
+            "id": "f16-31",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12954,
+            "promptTps": 4890.324451169238,
+            "genTokens": 146,
+            "genTps": 131.0351870143226,
+            "totalSeconds": "3.79"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "<|channel>thought\n<channel|>1. The `DECODE_EFFICIENCY` is 0.7 and the `readCost` for `q4_0` is ×12.\n2. LM Studio's `lms load` rejects per-variant identifiers because it only supports loading the variant selected in the engine; as an architectural solution, the project uses the profile to govern the load configuration (KV type, GPU placement) of the variant selected in LM Studio and only recommends switching to a different variant if it better suits the profile.\n3. `PER_GPU_OVERHEAD` is 350 MiB and `PER_GPU_RESERVE` is 64 MiB."
+        },
+        "quality": {
+          "candidate": {
+            "id": "f16-31",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12954,
+            "promptTps": 5335.367423286074,
+            "genTokens": 146,
+            "genTps": 132.4774377218997,
+            "totalSeconds": "3.55"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "<|channel>thought\n<channel|>1. The `DECODE_EFFICIENCY` is 0.7 and the `readCost` for `q4_0` is ×12.\n2. LM Studio's `lms load` rejects per-variant identifiers because it only supports loading the variant selected in the engine; as an architectural solution, the project uses the profile to govern the load configuration (KV type, GPU placement) of the variant selected in LM Studio and only recommends switching to a different variant if it better suits the profile.\n3. `PER_GPU_OVERHEAD` is 350 MiB and `PER_GPU_RESERVE` is 64 MiB."
+        }
+      },
+      "completed": true
+    },
+    "qwen3.8-27b": {
+      "displayName": "qwen3.8-27b",
+      "sizeBytes": 17741860192,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "f16-66",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12660,
+            "promptTps": 1744.9320131208965,
+            "genTokens": 300,
+            "genTps": 32.45910153206959,
+            "totalSeconds": "16.49"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": false,
+            "score": "2/3"
+          },
+          "text": "<think>\nThe user asks three specific questions about the LLM Tuner project specification. Let me find the exact answers in the document.\n\n1. DECODE_EFFICIENCY and readCost for q4_0:\nFrom section 4.3 (Estimator), the table of calibrated constants:\n- `DECODE_EFFICIENCY` = 0.7 (fraction of theoretical bandwidth)\n- `readCost` for q4_0 = ×12 (the q4_0 cache with Flash Attention is much slower to read with long context (measured))\n\n2. Why does lms load reject per-variant identifiers, and what architectural solution was adopted?\nFrom section 5.1 (LM Studio), under \"Variants and load profiles (`variantSelect: false`)\":\n- LM Studio cannot load a specific variant by key, so the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one.\n- The observed behavior: `lms load <identifier> --estimate-only -y` with family key + variant (`qwen/qwen2.5-coder-14b@q4_k_m`) returns \"Model not found\". Only the family key is accepted.\n- `GET /api/v0/models` lists only the family id, with the quantization of the selected variant.\n- The per-model config is stored"
+        },
+        "balanced": {
+          "candidate": {
+            "id": "f16-66",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12660,
+            "promptTps": 1742.4672014270063,
+            "genTokens": 300,
+            "genTps": 32.45444031557872,
+            "totalSeconds": "16.50"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": false,
+            "score": "2/3"
+          },
+          "text": "<think>\nThe user asks three specific questions about the LLM Tuner project specification. Let me find the exact answers in the document.\n\n1. DECODE_EFFICIENCY and readCost for q4_0:\nFrom section 4.3 (Estimator), the table of calibrated constants:\n- `DECODE_EFFICIENCY` = 0.7 (fraction of theoretical bandwidth)\n- `readCost` for q4_0 = ×12 (the q4_0 cache with Flash Attention is much slower to read with long context (measured))\n\n2. Why does lms load reject per-variant identifiers, and what architectural solution was adopted?\nFrom section 5.1 (LM Studio), under \"Variants and load profiles (`variantSelect: false`)\":\n- LM Studio cannot load a specific variant by key, so the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one.\n- The observed behavior: `lms load <identifier> --estimate-only -y` with family key + variant (`qwen/qwen2.5-coder-14b@q4_k_m`) returns \"Model not found\". Only the family key is accepted.\n- `GET /api/v0/models` lists only the family id, with the quantization of the selected variant.\n- The per-model config is stored"
+        },
+        "quality": {
+          "candidate": {
+            "id": "f16-66",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12660,
+            "promptTps": 1672.9914818832597,
+            "genTokens": 300,
+            "genTps": 31.069041020278217,
+            "totalSeconds": "17.21"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": false,
+            "score": "2/3"
+          },
+          "text": "<think>\nThe user asks three specific questions about the LLM Tuner project specification. Let me find the exact answers in the document.\n\n1. DECODE_EFFICIENCY and readCost for q4_0:\nFrom section 4.3 (Estimator), the table of calibrated constants:\n- `DECODE_EFFICIENCY` = 0.7 (fraction of theoretical bandwidth)\n- `readCost` for q4_0 = ×12 (the q4_0 cache with Flash Attention is much slower to read with long context (measured))\n\n2. Why does lms load reject per-variant identifiers, and what architectural solution was adopted?\nFrom section 5.1 (LM Studio), under \"Variants and load profiles (`variantSelect: false`)\":\n- LM Studio cannot load a specific variant by key, so the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one.\n- The observed behavior: `lms load <identifier> --estimate-only -y` with family key + variant (`qwen/qwen2.5-coder-14b@q4_k_m`) returns \"Model not found\". Only the family key is accepted.\n- `GET /api/v0/models` lists only the family id, with the quantization of the selected variant.\n- The per-model config is stored"
+        }
+      },
+      "completed": true
+    },
+    "muse-glimmer-30b": {
+      "displayName": "muse-glimmer-30b",
+      "sizeBytes": 18157012832,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "f16-53",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 11875,
+            "promptTps": 2019.227809876651,
+            "genTokens": 300,
+            "genTps": 32.548036656709215,
+            "totalSeconds": "15.10"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": false,
+            "score": "2/3"
+          },
+          "text": "Answer each question concisely and factually:\n\n1. What is the value of DECODE_EFFICIENCY and the readCost for q4_0 in the calibrated constants?\n2. Why does lms load in LM Studio reject per-variant identifiers (such as model@variant), and what architectural solution did the project adopt?\n3. What are the exact values of PER_GPU_OVERHEAD and PER_GPU_RESERVE defined in the estimator?\n\nBased on the document:\n\n* DECODE_EFFICIENCY = 0.7\n* readCost for q4_0 = ×12\n\n* lms load rejects per-variant identifiers: observed on 0.4.25 with `lms load <identifier> --estimate-only -y`, family key + variant (`qwen/qwen2.5-coder-14b@q4_k_m`) → \"Model not found\". Also concrete GGUF path and concrete default identifier not found. GET /api/v0/models lists only family id. Per-model config stored by family key, no variant in file name. VariantSelect false.\n\nArchitectural solution: LM Studio cannot load a specific variant by key, so profile governs load configuration of the variant selected in LM Studio, and app only recommends selecting another one. `variantSelect: false`. `listVariants` reads variants/selectedVariant from `lms ls --json` and resolves files via model index. App never switches selected variant; on preset hit `recommendSwitch` always false"
+        },
+        "balanced": {
+          "candidate": {
+            "id": "f16-53",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 11875,
+            "promptTps": 2030.7511299526814,
+            "genTokens": 300,
+            "genTps": 32.786094309913025,
+            "totalSeconds": "15.00"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": false,
+            "score": "2/3"
+          },
+          "text": "Answer each question concisely and factually:\n\n1. What is the value of DECODE_EFFICIENCY and the readCost for q4_0 in the calibrated constants?\n2. Why does lms load in LM Studio reject per-variant identifiers (such as model@variant), and what architectural solution did the project adopt?\n3. What are the exact values of PER_GPU_OVERHEAD and PER_GPU_RESERVE defined in the estimator?\n\nBased on the document:\n\n* DECODE_EFFICIENCY = 0.7\n* readCost for q4_0 = ×12\n\n* lms load rejects per-variant identifiers: observed on 0.4.25 with `lms load <identifier> --estimate-only -y`, family key + variant (`qwen/qwen2.5-coder-14b@q4_k_m`) → \"Model not found\". Also concrete GGUF path and concrete default identifier not found. GET /api/v0/models lists only family id. Per-model config stored by family key, no variant in file name. VariantSelect false.\n\nArchitectural solution: LM Studio cannot load a specific variant by key, so profile governs load configuration of the variant selected in LM Studio, and app only recommends selecting another one. `variantSelect: false`. `listVariants` reads variants/selectedVariant from `lms ls --json` and resolves files via model index. App never switches selected variant; on preset hit `recommendSwitch` always false"
+        },
+        "quality": {
+          "candidate": {
+            "id": "f16-53",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 11875,
+            "promptTps": 2048.5072721576894,
+            "genTokens": 300,
+            "genTps": 32.11177561365174,
+            "totalSeconds": "15.14"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": false,
+            "score": "2/3"
+          },
+          "text": "Answer each question concisely and factually:\n\n1. What is the value of DECODE_EFFICIENCY and the readCost for q4_0 in the calibrated constants?\n2. Why does lms load in LM Studio reject per-variant identifiers (such as model@variant), and what architectural solution did the project adopt?\n3. What are the exact values of PER_GPU_OVERHEAD and PER_GPU_RESERVE defined in the estimator?\n\nBased on the document:\n\n* DECODE_EFFICIENCY = 0.7\n* readCost for q4_0 = ×12\n\n* lms load rejects per-variant identifiers: observed on 0.4.25 with `lms load <identifier> --estimate-only -y`, family key + variant (`qwen/qwen2.5-coder-14b@q4_k_m`) → \"Model not found\". Also concrete GGUF path and concrete default identifier not found. GET /api/v0/models lists only family id. Per-model config stored by family key, no variant in file name. VariantSelect false.\n\nArchitectural solution: LM Studio cannot load a specific variant by key, so profile governs load configuration of the variant selected in LM Studio, and app only recommends selecting another one. `variantSelect: false`. `listVariants` reads variants/selectedVariant from `lms ls --json` and resolves files via model index. App never switches selected variant; on preset hit `recommendSwitch` always false"
+        }
+      },
+      "completed": true
+    },
+    "qwen3-coder-30b-a3b-instruct": {
+      "displayName": "qwen3-coder-30b-a3b-instruct",
+      "sizeBytes": 18632186176,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "f16-49",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12348,
+            "promptTps": 4847.380910787857,
+            "genTokens": 213,
+            "genTps": 129.61794499307888,
+            "totalSeconds": "4.22"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "1. In the calibrated constants:\n   - `DECODE_EFFICIENCY` = 0.7\n   - `readCost` for q4_0 = ×12\n\n2. `lms load` in LM Studio rejects per-variant identifiers (like `model@variant`) because LM Studio cannot load a specific variant by key — it only loads the variant selected in its UI. The project adopted the following architectural solution:\n   - For LM Studio, the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio.\n   - The app only recommends selecting another variant, but never switches it automatically.\n   - When another downloaded variant suits the profile better, the `variant-picked` event carries `recommendSwitch: true` to advise the user which variant to select in LM Studio.\n\n3. The exact values defined in the estimator are:\n   - `PER_GPU_OVERHEAD` = 350 MiB\n   - `PER_GPU_RESERVE` = 64 MiB"
+        },
+        "balanced": {
+          "candidate": {
+            "id": "f16-49",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12348,
+            "promptTps": 4814.639498603723,
+            "genTokens": 213,
+            "genTps": 129.2188900950673,
+            "totalSeconds": "4.23"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "1. In the calibrated constants:\n   - `DECODE_EFFICIENCY` = 0.7\n   - `readCost` for q4_0 = ×12\n\n2. `lms load` in LM Studio rejects per-variant identifiers (like `model@variant`) because LM Studio cannot load a specific variant by key — it only loads the variant selected in its UI. The project adopted the following architectural solution:\n   - For LM Studio, the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio.\n   - The app only recommends selecting another variant, but never switches it automatically.\n   - When another downloaded variant suits the profile better, the `variant-picked` event carries `recommendSwitch: true` to advise the user which variant to select in LM Studio.\n\n3. The exact values defined in the estimator are:\n   - `PER_GPU_OVERHEAD` = 350 MiB\n   - `PER_GPU_RESERVE` = 64 MiB"
+        },
+        "quality": {
+          "candidate": {
+            "id": "f16-49",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12348,
+            "promptTps": 4640.477606914567,
+            "genTokens": 213,
+            "genTps": 130.57250500271306,
+            "totalSeconds": "4.30"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "1. In the calibrated constants:\n   - `DECODE_EFFICIENCY` = 0.7\n   - `readCost` for q4_0 = ×12\n\n2. `lms load` in LM Studio rejects per-variant identifiers (like `model@variant`) because LM Studio cannot load a specific variant by key — it only loads the variant selected in its UI. The project adopted the following architectural solution:\n   - For LM Studio, the profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio.\n   - The app only recommends selecting another variant, but never switches it automatically.\n   - When another downloaded variant suits the profile better, the `variant-picked` event carries `recommendSwitch: true` to advise the user which variant to select in LM Studio.\n\n3. The exact values defined in the estimator are:\n   - `PER_GPU_OVERHEAD` = 350 MiB\n   - `PER_GPU_RESERVE` = 64 MiB"
+        }
+      },
+      "completed": true
+    },
+    "gemma-4-31b-it-qat": {
+      "displayName": "gemma-4-31b-it-qat",
+      "sizeBytes": 18851727360,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "f16-61",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12954,
+            "promptTps": 1588.7869953479474,
+            "genTokens": 146,
+            "genTps": 27.872598006782457,
+            "totalSeconds": "13.38"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "<|channel>thought\n<channel|>1. **DECODE_EFFICIENCY** is 0.7 and the **readCost for q4_0** is ×12.\n2. LM Studio's `lms load` only accepts family identifiers and rejects per-variant identifiers (returning \"Model not found\"). The project adopted a solution where it only recommends selecting another variant to the user (`recommendSwitch: true`) rather than attempting to switch it automatically, as the app does not write to the internal file that controls the selected-variant state.\n3. **PER_GPU_OVERHEAD** is 350 MiB and **PER_GPU_RESERVE** is 64 MiB."
+        },
+        "balanced": {
+          "candidate": {
+            "id": "f16-61",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12954,
+            "promptTps": 1587.3657742176213,
+            "genTokens": 146,
+            "genTps": 27.722052204256844,
+            "totalSeconds": "13.42"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "<|channel>thought\n<channel|>1. **DECODE_EFFICIENCY** is 0.7 and the **readCost for q4_0** is ×12.\n2. LM Studio's `lms load` only accepts family identifiers and rejects per-variant identifiers (returning \"Model not found\"). The project adopted a solution where it only recommends selecting another variant to the user (`recommendSwitch: true`) rather than attempting to switch it automatically, as the app does not write to the internal file that controls the selected-variant state.\n3. **PER_GPU_OVERHEAD** is 350 MiB and **PER_GPU_RESERVE** is 64 MiB."
+        },
+        "quality": {
+          "candidate": {
+            "id": "f16-61",
+            "kvType": "f16",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12954,
+            "promptTps": 1571.161270595718,
+            "genTokens": 146,
+            "genTps": 27.89479161917338,
+            "totalSeconds": "13.47"
+          },
+          "evaluation": {
+            "q1Pass": true,
+            "q2Pass": true,
+            "q3Pass": true,
+            "score": "3/3"
+          },
+          "text": "<|channel>thought\n<channel|>1. **DECODE_EFFICIENCY** is 0.7 and the **readCost for q4_0** is ×12.\n2. LM Studio's `lms load` only accepts family identifiers and rejects per-variant identifiers (returning \"Model not found\"). The project adopted a solution where it only recommends selecting another variant to the user (`recommendSwitch: true`) rather than attempting to switch it automatically, as the app does not write to the internal file that controls the selected-variant state.\n3. **PER_GPU_OVERHEAD** is 350 MiB and **PER_GPU_RESERVE** is 64 MiB."
+        }
+      },
+      "completed": true
+    },
+    "qwen2.5-coder-32b": {
+      "displayName": "qwen2.5-coder-32b",
+      "sizeBytes": 19851336224,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "q4_0-65",
+            "kvType": "q4_0",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12348,
+            "promptTps": 1333.2996445182143,
+            "genTokens": 300,
+            "genTps": 14.65097003876627,
+            "totalSeconds": "29.69"
+          },
+          "evaluation": {
+            "q1Pass": false,
+            "q2Pass": false,
+            "q3Pass": false,
+            "score": "0/3"
+          },
+          "text": "Context Document:\n---\n# LLM Tuner — project specification\n\nHandoff document to continue the project in another session or with another AI agent. Explains what it is, why it exists, how it works, what was measured and what's left. Last updated: 2026-10-04.\n\n---\n\n## 1. The idea\n\nRunning a local LLM fast depends on many parameters that almost nobody tunes well: how many layers go to the GPU, how much context fits, which KV cache type to use, in what order multiple GPUs are used, how many CPU threads… LM Studio's and Ollama's defaults tend to be conservative, and the user ends up with a saturated CPU and few tokens per second.\n\n**LLM Tuner** automates that tuning. The user chooses engine, model, context and a load profile, and presses **Load**. The app finds the best configuration for their hardware under that profile, saves it as a preset and loads the model with it.\n\nThe profile says what to optimize for: `speed`, `balanced` or `quality`. Speed is no longer the only goal: more tokens per second does not mean better answers, and a user with spare VRAM may prefer to spend it on quality. See §4.5.\n\n### Origin\n\nThe project came out of a real case. Qwen2.5-Coder-32B (Q4_K_M) on LM Studio over 2×"
+        },
+        "balanced": {
+          "candidate": {
+            "id": "q4_0-65",
+            "kvType": "q4_0",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 12348,
+            "promptTps": 1337.8783057311964,
+            "genTokens": 300,
+            "genTps": 14.676092022729193,
+            "totalSeconds": "29.62"
           },
           "evaluation": {
             "q1Pass": false,
