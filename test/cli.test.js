@@ -16,7 +16,7 @@ const cli = (...args) => {
     input = args.at(-1).input;
     cmdArgs = args.slice(0, -1);
   }
-  return spawnSync(process.execPath, [CLI, ...cmdArgs], { input, env: { ...process.env, LLM_TUNER_CONFIG_DIR: dir }, encoding: 'utf8' });
+  return spawnSync(process.execPath, [CLI, ...cmdArgs], { input, env: { ...process.env, LLM_TUNER_CONFIG_DIR: dir }, encoding: 'utf8', timeout: 10000 });
 };
 
 beforeEach(async () => { await fs.rm(settings, { force: true }); });
@@ -94,33 +94,53 @@ test('/setting and --settings also trigger interactive settings', () => {
   assert.match(r2.stdout, /Settings saved\./);
 });
 
+const stripAnsi = (str) => {
+  return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+};
+
 test('/settings allows changing language and updates settings.json', async () => {
   await new Promise((resolve, reject) => {
     const p = spawn(process.execPath, [CLI, '/settings'], {
       env: { ...process.env, LLM_TUNER_CONFIG_DIR: dir },
     });
+
+    let buf = '';
     let step = 0;
+    const timeout = setTimeout(() => {
+      p.kill();
+      reject(new Error('Test timed out after 10 seconds'));
+    }, 10000);
+
     p.stdout.on('data', (d) => {
-      const str = d.toString();
-      if (step === 0 && str.includes('Select an option')) {
+      buf += stripAnsi(d.toString());
+
+      if (step === 0 && buf.includes('Select an option')) {
         step = 1;
+        buf = '';
         p.stdin.write('\n'); // Select Language
-      } else if (step === 1 && str.includes('? Language')) {
+      } else if (step === 1 && buf.includes('? Language')) {
         step = 2;
+        buf = '';
         p.stdin.write('\x1b[B\n'); // Select Español
-      } else if (step === 2 && str.includes('Selecciona una opción')) {
+      } else if (step === 2 && buf.includes('Selecciona una opción')) {
         step = 3;
+        buf = '';
         p.stdin.write('\x1b[B\x1b[B\n'); // Select Guardar y volver
       }
     });
-    p.on('error', reject);
+
+    p.on('error', (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+
     p.on('exit', (code) => {
-      try {
-        assert.equal(code, 0);
-        resolve();
-      } catch (err) {
-        reject(err);
+      clearTimeout(timeout);
+      if (code !== 0) {
+        reject(new Error(`Process exited with code ${code}`));
+        return;
       }
+      resolve();
     });
   });
 
@@ -133,28 +153,44 @@ test('/settings allows changing theme and updates settings.json', async () => {
     const p = spawn(process.execPath, [CLI, '/settings'], {
       env: { ...process.env, LLM_TUNER_CONFIG_DIR: dir },
     });
+
+    let buf = '';
     let step = 0;
+    const timeout = setTimeout(() => {
+      p.kill();
+      reject(new Error('Test timed out after 10 seconds'));
+    }, 10000);
+
     p.stdout.on('data', (d) => {
-      const str = d.toString();
-      if (step === 0 && str.includes('Select an option')) {
+      buf += stripAnsi(d.toString());
+
+      if (step === 0 && buf.includes('Select an option')) {
         step = 1;
+        buf = '';
         p.stdin.write('\x1b[B\n'); // Select Theme
-      } else if (step === 1 && str.includes('? Theme')) {
+      } else if (step === 1 && buf.includes('? Theme')) {
         step = 2;
+        buf = '';
         p.stdin.write('\x1b[B\x1b[B\n'); // Select Dark
-      } else if (step === 2 && str.includes('Select an option')) {
+      } else if (step === 2 && buf.includes('Select an option')) {
         step = 3;
+        buf = '';
         p.stdin.write('\x1b[B\x1b[B\n'); // Select Save and return
       }
     });
-    p.on('error', reject);
+
+    p.on('error', (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+
     p.on('exit', (code) => {
-      try {
-        assert.equal(code, 0);
-        resolve();
-      } catch (err) {
-        reject(err);
+      clearTimeout(timeout);
+      if (code !== 0) {
+        reject(new Error(`Process exited with code ${code}`));
+        return;
       }
+      resolve();
     });
   });
 
