@@ -328,3 +328,19 @@ td .err { color: var(--bad); white-space: normal; }
 .chat-form input { flex: 1; min-width: 0; }
 .chat-form button { flex-shrink: 0; }
 
+/* Progress bar and real-time telemetry */
+.progress-wrap { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.progress-bar-track { width: 100%; height: 8px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: var(--accent); transition: width .2s ease; }
+.progress-meta { display: flex; justify-content: space-between; align-items: center; font: 500 .8rem var(--mono); color: var(--muted); }
+.progress-meta strong { color: var(--ink); }
+
+.telemetry-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 10px; }
+.telemetry-card { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; }
+.telemetry-header { display: flex; justify-content: space-between; align-items: center; font: 500 .8rem var(--mono); color: var(--muted); }
+.telemetry-header strong { color: var(--ink); }
+.telemetry-gpus { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.meter-bar { width: 100%; height: 8px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.meter-fill { height: 100%; background: var(--gpu); transition: width .2s ease; }
+#telemetry-cpu-fill { background: var(--accent); }
+

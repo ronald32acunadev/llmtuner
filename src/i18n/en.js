@@ -240,5 +240,9 @@ Presets are saved in {presetsDir}`,
   'web.themeDark': 'Dark',
   'web.settings': 'Settings',
   'web.close': 'Close',
+  'web.telemetryCpu': 'CPU',
+  'web.telemetryRam': 'RAM',
+  'web.telemetryVram': 'VRAM',
+  'web.telemetryGpu': 'GPU {index}',
 };
 

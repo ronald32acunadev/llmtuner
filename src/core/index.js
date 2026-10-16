@@ -8,3 +8,5 @@ export { fmtBytes, configDir } from './util.js';
 export { findPreset, savePreset, listPresets, presetsDir, presetPath, variantsSignature, hardwareFingerprint } from './presets.js';
 export { readSettings, writeSettings, settingsPath, THEMES, DEFAULT_THEME, normalizeTheme } from './settings.js';
 export { TunerError, benchError } from './errors.js';
+export { sampleRam, sampleGpus, startTelemetrySampler } from './telemetry.js';
+
