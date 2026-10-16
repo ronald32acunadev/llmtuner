@@ -6,6 +6,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -21,6 +22,7 @@ jobs:
     # The push that creates the branch must not publish: releases arrive through a pull request.
     if: ${{ !github.event.created }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment: npm
     permissions:
       contents: write # create the tag and the GitHub Release

@@ -10,7 +10,10 @@ const { startServer } = await import('../src/web/server.js');
 
 let server, url;
 before(async () => { ({ server, url } = await startServer({ port: 0 })); });
-after(() => server.close());
+after(() => {
+  server.closeAllConnections?.();
+  server.close();
+});
 
 const get = (p) => fetch(url + p);
 const post = (p, body) => fetch(url + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? '' : JSON.stringify(body) });
