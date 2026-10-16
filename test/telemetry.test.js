@@ -47,52 +47,49 @@ test('sampleGpus returns Promise resolving to array', async () => {
 });
 
 test('startTelemetrySampler calls callback with correct structure', async () => {
-  let sampleCount = 0;
-  const samples = [];
-
-  const sampler = startTelemetrySampler((sample) => {
-    samples.push(sample);
-    sampleCount++;
-
-    assert.ok(typeof sample === 'object' && sample !== null);
-    assert.ok('cpu' in sample);
-    assert.ok('ram' in sample);
-    assert.ok('gpus' in sample);
-
-    assert.ok(typeof sample.cpu.percent === 'number' && sample.cpu.percent >= 0);
-
-    assert.ok(typeof sample.ram === 'object' && sample.ram !== null);
-    assert.ok('totalBytes' in sample.ram);
-    assert.ok('freeBytes' in sample.ram);
-    assert.ok('usedBytes' in sample.ram);
-    assert.ok('percent' in sample.ram);
-
-    assert.ok(typeof sample.ram.totalBytes === 'number' && sample.ram.totalBytes > 0);
-    assert.ok(typeof sample.ram.freeBytes === 'number' && sample.ram.freeBytes >= 0);
-    assert.ok(typeof sample.ram.usedBytes === 'number' && sample.ram.usedBytes >= 0);
-    assert.ok(typeof sample.ram.percent === 'number' && sample.ram.percent >= 0 && sample.ram.percent <= 100);
-
-    assert.equal(sample.ram.usedBytes + sample.ram.freeBytes, sample.ram.totalBytes);
-  }, 30);
-
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  let sampler;
+  const sample = await new Promise((resolve) => {
+    sampler = startTelemetrySampler((s) => {
+      resolve(s);
+    }, 20);
+  });
   sampler.stop();
 
-  assert.ok(sampleCount > 0);
+  assert.ok(typeof sample === 'object' && sample !== null);
+  assert.ok('cpu' in sample);
+  assert.ok('ram' in sample);
+  assert.ok('gpus' in sample);
+
+  assert.ok(typeof sample.cpu.percent === 'number' && sample.cpu.percent >= 0);
+
+  assert.ok(typeof sample.ram === 'object' && sample.ram !== null);
+  assert.ok('totalBytes' in sample.ram);
+  assert.ok('freeBytes' in sample.ram);
+  assert.ok('usedBytes' in sample.ram);
+  assert.ok('percent' in sample.ram);
+
+  assert.ok(typeof sample.ram.totalBytes === 'number' && sample.ram.totalBytes > 0);
+  assert.ok(typeof sample.ram.freeBytes === 'number' && sample.ram.freeBytes >= 0);
+  assert.ok(typeof sample.ram.usedBytes === 'number' && sample.ram.usedBytes >= 0);
+  assert.ok(typeof sample.ram.percent === 'number' && sample.ram.percent >= 0 && sample.ram.percent <= 100);
+
+  assert.equal(sample.ram.usedBytes + sample.ram.freeBytes, sample.ram.totalBytes);
 });
 
 test('startTelemetrySampler stops correctly', async () => {
   let callCount = 0;
+  let sampler;
 
-  const sampler = startTelemetrySampler(() => {
-    callCount++;
-  }, 20);
+  await new Promise((resolve) => {
+    sampler = startTelemetrySampler(() => {
+      callCount++;
+      if (callCount === 1) resolve();
+    }, 20);
+  });
 
-  await new Promise((resolve) => setTimeout(resolve, 100));
   sampler.stop();
+  const countAtStop = callCount;
+  await new Promise((resolve) => setTimeout(resolve, 80));
 
-  const finalCount = callCount;
-  await new Promise((resolve) => setTimeout(resolve, 60));
-
-  assert.equal(callCount, finalCount);
+  assert.equal(callCount, countAtStop);
 });
