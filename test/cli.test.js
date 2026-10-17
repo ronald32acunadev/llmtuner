@@ -35,6 +35,24 @@ test('help does not offer a web mode in either language', () => {
   assert.doesNotMatch(cli('--lang', 'es', '--help').stdout, /--web/);
 });
 
+test('--version and -v print the package version and exit 0', () => {
+  const r1 = cli('--version');
+  assert.equal(r1.status, 0);
+  assert.match(r1.stdout.trim(), /^\d+\.\d+\.\d+/);
+
+  const r2 = cli('-v');
+  assert.equal(r2.status, 0);
+  assert.equal(r2.stdout.trim(), r1.stdout.trim());
+});
+
+test('CLI displays update banner when update-check.json has a newer version', async () => {
+  const cachePath = path.join(dir, 'update-check.json');
+  await fs.writeFile(cachePath, JSON.stringify({ lastChecked: Date.now(), latestVersion: '99.0.0' }));
+  const r = cli({ input: '\x03' });
+  assert.match(r.stdout, /Update available/);
+  assert.match(r.stdout, /99\.0\.0/);
+});
+
 test('the CLI does not load the web server', async () => {
   const source = await fs.readFile(CLI, 'utf8');
   assert.doesNotMatch(source, /web\/server\.js/);

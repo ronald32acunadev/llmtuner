@@ -1,6 +1,6 @@
 {
   "name": "llm-tuner",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Detects your hardware and finds the fastest configuration to run local LLMs with LM Studio or Ollama.",
   "keywords": [
     "llm",

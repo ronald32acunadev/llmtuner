@@ -22,6 +22,7 @@
     <button id="settings-open" class="settings-trigger" type="button" aria-haspopup="dialog" aria-expanded="false">
       <span class="settings-trigger-icon">⚙</span>
       <span data-i18n="web.settings">Settings</span>
+      <span id="update-dot" class="update-dot" hidden></span>
     </button>
     <ol class="steps" id="steps">
       <li data-step="engine" class="active" data-i18n="web.stepEngine">Engine</li>
@@ -143,6 +144,12 @@
         <option value="light" data-i18n="web.themeLight">Light</option>
         <option value="dark" data-i18n="web.themeDark">Dark</option>
       </select>
+    </div>
+    <div class="drawer-field version-info">
+      <span class="muted" id="version-display"></span>
+      <div id="update-badge" hidden>
+        <a href="https://github.com/ronald32acunadev/llmtuner/releases" target="_blank" rel="noopener noreferrer" class="tag prio" id="update-link"></a>
+      </div>
     </div>
   </div>
 </aside>

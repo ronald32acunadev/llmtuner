@@ -280,7 +280,7 @@ test('web UI serves index.html with theme switch and style.css with theme tokens
 
   const css = await (await get('/style.css')).text();
   assert.match(css, /--accent:\s*#00e5ff/);
-  assert.match(css, /--accent:\s*#0284c7/);
+  assert.match(css, /--accent:\s*#007c99/);
   assert.match(css, /\.theme-switch/);
   assert.match(css, /\.settings-trigger/);
   assert.match(css, /\.drawer/);
@@ -350,5 +350,12 @@ test('GET /api/models returns models sorted from smallest to largest by size', a
   }
 });
 
-
-
+test('GET /api/update returns update status structure', async () => {
+  const r = await get('/api/update');
+  assert.equal(r.status, 200);
+  const data = await r.json();
+  assert.ok(typeof data === 'object' && data !== null);
+  assert.ok('updateAvailable' in data);
+  assert.ok('currentVersion' in data);
+  assert.equal(typeof data.currentVersion, 'string');
+});

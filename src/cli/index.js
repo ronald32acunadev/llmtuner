@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { select, input, confirm, search } from '@inquirer/prompts';
-import { detectHardware, detectEngines, Tuner, installPlans, runInstall, listPresets, presetsDir, fmtBytes, readSettings, writeSettings, THEMES, PROFILES, DEFAULT_PROFILE, TunerError } from '../core/index.js';
+import { detectHardware, detectEngines, Tuner, installPlans, runInstall, listPresets, presetsDir, fmtBytes, readSettings, writeSettings, THEMES, PROFILES, DEFAULT_PROFILE, TunerError, checkUpdate, CURRENT_VERSION } from '../core/index.js';
 import { t as translate, LOCALES, errorText } from '../i18n/index.js';
 import { profileChoices, profileNotes, profileSwitchNote, profileEventLines, shouldAskProfile, parseContext } from './profile.js';
 
@@ -34,11 +34,17 @@ const isLight = () => theme === 'light';
 const c = {
   b: (s) => `\x1b[1m${s}\x1b[0m`,
   dim: (s) => isLight() ? `\x1b[90m${s}\x1b[0m` : `\x1b[2m${s}\x1b[0m`,
-  g: (s) => isLight() ? `\x1b[32m${s}\x1b[0m` : `\x1b[92m${s}\x1b[0m`,
+  g: (s) => isLight() ? `\x1b[38;2;40;138;0m${s}\x1b[0m` : `\x1b[38;2;101;255;0m${s}\x1b[0m`,
   y: (s) => isLight() ? `\x1b[33m${s}\x1b[0m` : `\x1b[93m${s}\x1b[0m`,
-  r: (s) => isLight() ? `\x1b[31m${s}\x1b[0m` : `\x1b[91m${s}\x1b[0m`,
-  cyan: (s) => isLight() ? `\x1b[36m${s}\x1b[0m` : `\x1b[96m${s}\x1b[0m`,
+  r: (s) => isLight() ? `\x1b[38;2;214;21;0m${s}\x1b[0m` : `\x1b[38;2;255;26;0m${s}\x1b[0m`,
+  cyan: (s) => isLight() ? `\x1b[38;2;0;124;153m${s}\x1b[0m` : `\x1b[38;2;0;229;255m${s}\x1b[0m`,
+  purple: (s) => isLight() ? `\x1b[38;2;120;0;199m${s}\x1b[0m` : `\x1b[38;2;154;0;255m${s}\x1b[0m`,
 };
+
+if (args.version) {
+  console.log(CURRENT_VERSION);
+  process.exit(0);
+}
 
 if (args.help) {
   console.log(t('cli.help', { presetsDir: presetsDir() }));
@@ -114,6 +120,7 @@ async function settingsFlow() {
 }
 
 async function main() {
+  const updatePromise = checkUpdate().catch(() => null);
   const isTTY = Boolean(process.stdout.isTTY && !args.json);
   let lastProgress = null;
   let lastTelemetry = null;
@@ -162,6 +169,12 @@ async function main() {
     `  ${c.cyan('  ╰───')}${c.dim('╵ ╵ ╵')}${c.cyan('───╯')}`,
     '',
   ].join('\n'));
+
+  const updateInfo = await updatePromise;
+  if (updateInfo?.updateAvailable) {
+    out(c.y(`  ▲ ${t('cli.updateAvailable', { current: updateInfo.currentVersion, latest: updateInfo.latestVersion })}`));
+    out(c.dim(`    ${t('cli.updateCommand', { cmd: 'npm install -g llm-tuner' })}\n`));
+  }
 
   const hw = await detectHardware();
   out(c.dim(`  ${hw.cpu.brand} · ${fmtBytes(hw.ram.totalBytes)} RAM`));
@@ -343,11 +356,12 @@ function vramStr(peaks = {}) {
 }
 
 function parseArgs(argv) {
-  const flags = new Set(['help', 'yes', 'dry-run', 'json', 'force', 'presets', 'settings']);
+  const flags = new Set(['help', 'version', 'yes', 'dry-run', 'json', 'force', 'presets', 'settings']);
   const o = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-h') o.help = true;
+    if (a === '-v') o.version = true;
     if (a === '/settings' || a === '/setting' || a === 'settings') o.settings = true;
     if (!a.startsWith('--')) continue;
     const k = a.slice(2);
