@@ -136,6 +136,22 @@ async function boot() {
   document.documentElement.lang = s.lang;
   applyStatic();
   setupDrawer();
+  api('/api/update').then((up) => {
+    if (up?.currentVersion) {
+      const vDisp = $('#version-display');
+      if (vDisp) vDisp.textContent = t('web.version', { version: up.currentVersion });
+    }
+    if (up?.updateAvailable) {
+      const dot = $('#update-dot');
+      if (dot) dot.hidden = false;
+      const badge = $('#update-badge');
+      const link = $('#update-link');
+      if (badge && link) {
+        link.textContent = t('web.updateAvailable', { latest: up.latestVersion });
+        badge.hidden = false;
+      }
+    }
+  }).catch(() => {});
   state.storedProfile = s.profile ?? null;
   state.profileIds = s.profiles;
   renderProfile();

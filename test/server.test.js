@@ -350,5 +350,12 @@ test('GET /api/models returns models sorted from smallest to largest by size', a
   }
 });
 
-
-
+test('GET /api/update returns update status structure', async () => {
+  const r = await get('/api/update');
+  assert.equal(r.status, 200);
+  const data = await r.json();
+  assert.ok(typeof data === 'object' && data !== null);
+  assert.ok('updateAvailable' in data);
+  assert.ok('currentVersion' in data);
+  assert.equal(typeof data.currentVersion, 'string');
+});

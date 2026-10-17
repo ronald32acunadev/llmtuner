@@ -344,3 +344,25 @@ td .err { color: var(--bad); white-space: normal; }
 .meter-fill { height: 100%; background: var(--gpu); transition: width .2s ease; }
 #telemetry-cpu-fill { background: var(--accent); }
 
+/* Update notifications */
+.update-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn, #f59e0b);
+  display: inline-block;
+  margin-left: auto;
+}
+.version-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  font-size: .85rem;
+}
+.version-info #update-link {
+  text-decoration: none;
+  font-size: .75rem;
+}
+

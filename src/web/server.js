@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError, PROFILES } from '../core/index.js';
+import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError, PROFILES, checkUpdate } from '../core/index.js';
 import { THEMES } from '../core/settings.js';
 import { LOCALES, messagesFor } from '../i18n/index.js';
 import { openUrl } from '../core/installer.js';
@@ -51,6 +51,8 @@ function send(res, status, obj) {
 
 const routes = {
   'GET /api/settings': async () => ({ ...(await readSettings()), locales: LOCALES, themes: THEMES, profiles: PROFILES }),
+
+  'GET /api/update': async () => checkUpdate(),
 
   'POST /api/settings': async (req) => {
     const payload = await body(req);
