@@ -280,7 +280,7 @@ test('web UI serves index.html with theme switch and style.css with theme tokens
 
   const css = await (await get('/style.css')).text();
   assert.match(css, /--accent:\s*#00e5ff/);
-  assert.match(css, /--accent:\s*#0284c7/);
+  assert.match(css, /--accent:\s*#007c99/);
   assert.match(css, /\.theme-switch/);
   assert.match(css, /\.settings-trigger/);
   assert.match(css, /\.drawer/);
