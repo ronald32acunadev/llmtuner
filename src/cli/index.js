@@ -34,10 +34,11 @@ const isLight = () => theme === 'light';
 const c = {
   b: (s) => `\x1b[1m${s}\x1b[0m`,
   dim: (s) => isLight() ? `\x1b[90m${s}\x1b[0m` : `\x1b[2m${s}\x1b[0m`,
-  g: (s) => isLight() ? `\x1b[32m${s}\x1b[0m` : `\x1b[92m${s}\x1b[0m`,
+  g: (s) => isLight() ? `\x1b[38;2;40;138;0m${s}\x1b[0m` : `\x1b[38;2;101;255;0m${s}\x1b[0m`,
   y: (s) => isLight() ? `\x1b[33m${s}\x1b[0m` : `\x1b[93m${s}\x1b[0m`,
-  r: (s) => isLight() ? `\x1b[31m${s}\x1b[0m` : `\x1b[91m${s}\x1b[0m`,
-  cyan: (s) => isLight() ? `\x1b[36m${s}\x1b[0m` : `\x1b[96m${s}\x1b[0m`,
+  r: (s) => isLight() ? `\x1b[38;2;214;21;0m${s}\x1b[0m` : `\x1b[38;2;255;26;0m${s}\x1b[0m`,
+  cyan: (s) => isLight() ? `\x1b[38;2;0;124;153m${s}\x1b[0m` : `\x1b[38;2;0;229;255m${s}\x1b[0m`,
+  purple: (s) => isLight() ? `\x1b[38;2;120;0;199m${s}\x1b[0m` : `\x1b[38;2;154;0;255m${s}\x1b[0m`,
 };
 
 if (args.version) {
@@ -161,11 +162,11 @@ async function main() {
   };
   out([
     '',
-    `  ${c.cyan('  ╭───')}${c.dim('╷ ╷ ╷')}${c.cyan('───╮')}`,
-    `  ${c.cyan('╭─┤  ')}${c.cyan('┌───┐')}${c.cyan('  ├─╮  ')}${c.b('LLM Tuner')}`,
-    `  ${c.cyan('│ ')}${c.dim('╶┤')}${c.b(' │ █ │ ')}${c.dim('├╴')}${c.cyan('▲ │  ')}${c.dim(t('web.tagline'))}`,
-    `  ${c.cyan('╰─┤  ')}${c.cyan('└───┘')}${c.cyan('  ├──╯')}`,
-    `  ${c.cyan('  ╰───')}${c.dim('╵ ╵ ╵')}${c.cyan('───╯')}`,
+    `  ${c.cyan('  ╭───')}${c.dim('╷ ╷ ╷')}${c.purple('───╮')}`,
+    `  ${c.cyan('╭─┤  ')}${c.cyan('┌───┐')}${c.purple('  ├─╮  ')}${c.b('LLM Tuner')}`,
+    `  ${c.cyan('│ ')}${c.dim('╶┤')}${c.b(' │ ')}${c.g('█')}${c.b(' │ ')}${c.dim('├╴')}${c.r('▲')}${c.purple(' │  ')}${c.dim(t('web.tagline'))}`,
+    `  ${c.g('╰─┤  ')}${c.cyan('└───┘')}${c.purple('  ├──╯')}`,
+    `  ${c.g('  ╰───')}${c.dim('╵ ╵ ╵')}${c.purple('───╯')}`,
     '',
   ].join('\n'));
 
