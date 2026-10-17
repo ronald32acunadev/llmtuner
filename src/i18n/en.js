@@ -244,5 +244,10 @@ Presets are saved in {presetsDir}`,
   'web.telemetryRam': 'RAM',
   'web.telemetryVram': 'VRAM',
   'web.telemetryGpu': 'GPU {index}',
+  'cli.updateAvailable': 'Update available: {current} → {latest}',
+  'cli.updateCommand': 'Run {cmd} to update',
+  'web.updateAvailable': 'Update available: v{latest}',
+  'web.updateLink': 'View release notes on GitHub',
+  'web.version': 'Version {version}',
 };
 

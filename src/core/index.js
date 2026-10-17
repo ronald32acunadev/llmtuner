@@ -9,4 +9,4 @@ export { findPreset, savePreset, listPresets, presetsDir, presetPath, variantsSi
 export { readSettings, writeSettings, settingsPath, THEMES, DEFAULT_THEME, normalizeTheme } from './settings.js';
 export { TunerError, benchError } from './errors.js';
 export { sampleRam, sampleGpus, startTelemetrySampler } from './telemetry.js';
-
+export { checkUpdate, isNewerVersion, CURRENT_VERSION } from './updater.js';
