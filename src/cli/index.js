@@ -162,11 +162,11 @@ async function main() {
   };
   out([
     '',
-    `  ${c.cyan('  ╭───')}${c.dim('╷ ╷ ╷')}${c.purple('───╮')}`,
-    `  ${c.cyan('╭─┤  ')}${c.cyan('┌───┐')}${c.purple('  ├─╮  ')}${c.b('LLM Tuner')}`,
-    `  ${c.cyan('│ ')}${c.dim('╶┤')}${c.b(' │ ')}${c.g('█')}${c.b(' │ ')}${c.dim('├╴')}${c.r('▲')}${c.purple(' │  ')}${c.dim(t('web.tagline'))}`,
-    `  ${c.g('╰─┤  ')}${c.cyan('└───┘')}${c.purple('  ├──╯')}`,
-    `  ${c.g('  ╰───')}${c.dim('╵ ╵ ╵')}${c.purple('───╯')}`,
+    `  ${c.cyan('  ╭───')}${c.dim('╷ ╷ ╷')}${c.cyan('───╮')}`,
+    `  ${c.cyan('╭─┤  ')}${c.cyan('┌───┐')}${c.cyan('  ├─╮  ')}${c.b('LLM Tuner')}`,
+    `  ${c.cyan('│ ')}${c.dim('╶┤')}${c.b(' │ █ │ ')}${c.dim('├╴')}${c.cyan('▲ │  ')}${c.dim(t('web.tagline'))}`,
+    `  ${c.cyan('╰─┤  ')}${c.cyan('└───┘')}${c.cyan('  ├──╯')}`,
+    `  ${c.cyan('  ╰───')}${c.dim('╵ ╵ ╵')}${c.cyan('───╯')}`,
     '',
   ].join('\n'));
 
