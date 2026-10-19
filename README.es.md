@@ -94,15 +94,30 @@ Requisitos previos:
 
 ## Uso
 
-### Asistente interactivo
+### CLI interactiva y comandos slash
 
-Ejecuta el asistente en la terminal:
+Ejecuta la interfaz en la terminal:
 
 ```bash
 llm-tuner
 ```
 
-Te guiará paso a paso en la selección de motor, modelo, contexto, perfil recomendado y carga afinada.
+Ejecutar `llm-tuner` sin argumentos abre un menú interactivo para seleccionar la acción deseada:
+- `/load`: Ajustar y cargar un modelo con la configuración óptima para tu hardware
+- `/mcp`: Conectar tu motor local como servidor MCP con agentes de IA (Claude, OpenCode, VS Code, Codex)
+- `/presets`: Listar e inspeccionar los presets guardados
+- `/settings`: Configurar idioma (`en` / `es`) y tema visual (`system` / `light` / `dark`)
+- `/help`: Mostrar ayuda y opciones de uso
+- `/exit`: Salir del menú
+
+También puedes ejecutar cualquier comando slash directamente desde tu terminal:
+
+```bash
+llm-tuner /load
+llm-tuner /mcp
+llm-tuner /presets
+llm-tuner /settings
+```
 
 ### Aplicación de escritorio
 

@@ -95,24 +95,34 @@ export default {
   'common.longPrompt': 'prompt largo (~{tokens} tokens, 50% del contexto)…',
   'common.presetSaved': 'Preset guardado: {file}',
   'common.backups': 'Copias de seguridad: {list}',
+  'common.back': 'Volver',
 
   // CLI
   'cli.help': `llm-tuner — carga tu LLM local con la configuración más rápida para el contexto que necesitas
 
-Uso: llm-tuner [opciones]
+Uso: llm-tuner [comando] [opciones]
+
+Comandos:
+  /load                        Ajustar y cargar un modelo con la configuración óptima
+  /mcp                         Conectar motor local con agentes de IA como servidor MCP
+  /presets                     Listar presets guardados
+  /settings                    Menú interactivo de configuración (idioma y tema)
+  /help                        Mostrar esta ayuda
+  /exit                        Salir del menú interactivo
+
+Opciones:
   --engine <lmstudio|ollama>   Motor
   --model <clave>              Modelo (clave de LM Studio o nombre de Ollama)
   --ctx <tokens>               Contexto (p. ej. 16384)
-  --profile <speed|balanced|quality>  Qué optimizar (se pregunta en el asistente; balanced con --yes, --json, o si se indican motor, modelo y contexto)
+  --profile <speed|balanced|quality>  Qué optimizar (velocidad, equilibrado, calidad)
   --force                      Volver a medir aunque exista un preset
   --candidates <n>             Configuraciones a probar al medir (3)
   --yes                        No pedir confirmación
   --dry-run                    Medir y mostrar cambios sin aplicar nada ni guardar preset
-  --presets                    Listar presets guardados
+  --presets                    Listar presets guardados (igual que /presets)
   --json                       Salida final en JSON
   --lang <en|es>               Idioma de la interfaz (se guarda para la próxima vez)
   --theme <system|light|dark>  Tema de la interfaz (se guarda para la próxima)
-  /settings                    Menú interactivo de configuración
 
 Los presets se guardan en {presetsDir}`,
   'cli.desktopStartFailed': 'No se pudo iniciar la aplicación de escritorio: {error}\nEl entorno de escritorio (Electron) se descarga la primera vez que ejecutas llm-tuner-desktop, así que esa primera ejecución necesita conexión a la red.\nLa interfaz de terminal funciona sin él: ejecuta llm-tuner.',
@@ -263,5 +273,23 @@ Los presets se guardan en {presetsDir}`,
   'web.mcpAlreadyConfigured': 'Configurado',
   'web.mcpSuccess': 'MCP configurado con éxito en: {agents}',
   'web.mcpSaveBtn': 'Guardar y configurar',
+
+  // CLI Slash Commands
+  'cli.menuTitle': 'Selecciona un comando:',
+  'cli.cmdLoadDesc': 'Ajustar y cargar un modelo con la configuración óptima',
+  'cli.cmdMcpDesc': 'Conectar motor local con agentes de IA como servidor MCP',
+  'cli.cmdPresetsDesc': 'Ver presets de configuración guardados',
+  'cli.cmdSettingsDesc': 'Configurar idioma y tema de la interfaz',
+  'cli.cmdHelpDesc': 'Ver ayuda de uso y opciones',
+  'cli.cmdExitDesc': 'Salir',
+  'cli.mcpSelectEngine': '¿Qué motor quieres configurar como servidor MCP?',
+  'cli.mcpSelectAgents': 'Selecciona los agentes de IA a configurar (espacio para marcar, enter para confirmar):',
+  'cli.mcpServerNamePrompt': 'Nombre del servidor MCP:',
+  'cli.mcpNoAgentsSelected': 'No se seleccionó ningún agente. Saliendo.',
+  'cli.mcpSuccess': "Servidor MCP '{server}' configurado en: {agents}",
+  'cli.mcpFailed': 'Error al configurar MCP en: {agents}',
+  'cli.mcpStatusInstalled': 'Instalado',
+  'cli.mcpStatusDetected': 'Detectado',
+  'cli.mcpStatusAvailable': 'Disponible',
 };
 
