@@ -370,3 +370,32 @@ td .err { color: var(--bad); white-space: normal; }
   font-size: .75rem;
 }
 
+/* MCP integration styles */
+.engine-card { display: flex; flex-direction: column; gap: 6px; }
+.mcp-btn { font-size: .8rem; padding: 6px 10px; width: 100%; border-radius: 6px; border: 1px dashed var(--line); color: var(--muted); background: var(--bg); cursor: pointer; }
+.mcp-btn:hover { color: var(--ink); border-color: var(--accent); border-style: solid; }
+
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .5); z-index: 90; }
+.modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; width: 90%; max-width: 520px; z-index: 100; box-shadow: 0 10px 30px rgba(0, 0, 0, .3); padding: 0; display: flex; flex-direction: column; color: var(--ink); }
+.modal[hidden] { display: none; }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.modal-header h3 { margin: 0; font-size: 1.1rem; }
+.modal-close { background: transparent; border: none; font-size: 1.2rem; cursor: pointer; color: var(--muted); padding: 4px; }
+.modal-close:hover { color: var(--ink); }
+.modal-body { padding: 20px; display: grid; gap: 14px; overflow-y: auto; max-height: calc(85vh - 70px); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+
+.mcp-advanced { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; font-size: .85rem; }
+.mcp-advanced summary { cursor: pointer; color: var(--muted); outline: none; margin-bottom: 6px; }
+.mcp-advanced summary:hover { color: var(--ink); }
+.mcp-advanced .field { margin-top: 8px; }
+
+.mcp-agents-list { display: grid; gap: 8px; margin-top: 4px; max-height: 200px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; padding: 10px; background: var(--code-bg); }
+.mcp-agent-item { display: flex; align-items: center; gap: 10px; font-size: .9rem; cursor: pointer; }
+.mcp-agent-item input[type=checkbox] { width: 16px; height: 16px; margin: 0; }
+.mcp-agent-name { flex: 1; }
+
+.mcp-status { margin: 4px 0 0; font-size: .85rem; }
+.mcp-status.good { color: var(--accent); }
+.mcp-status.bad { color: var(--bad); }
+

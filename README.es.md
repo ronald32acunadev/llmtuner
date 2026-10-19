@@ -41,6 +41,7 @@ Ningún LLM decide la configuración. LLM Tuner lee la topología de tu hardware
 - **Soporte de motores locales**: Compatibilidad directa con LM Studio (a través de `llama-server`) y Ollama (instancias privadas aisladas).
 - **Presets persistentes**: Mide una única vez por combinación de hardware, modelo, contexto y perfil. Invalida presets automáticamente si el hardware o el archivo del modelo cambian.
 - **Doble interfaz**: Asistente en consola (`llm-tuner`) y aplicación gráfica de escritorio (`llm-tuner-desktop`).
+- **Integración MCP para agentes de IA**: Conecta tus motores locales (LM Studio, Ollama) como servidores Model Context Protocol (MCP) en Claude Desktop, Claude Code, OpenCode, Antigravity, VS Code y ChatGPT/Codex con nombres personalizados y seguridad multiplataforma.
 - **Bilingüe**: Localización completa en español e inglés tanto en terminal como en entorno gráfico.
 
 ---
@@ -93,15 +94,30 @@ Requisitos previos:
 
 ## Uso
 
-### Asistente interactivo
+### CLI interactiva y comandos slash
 
-Ejecuta el asistente en la terminal:
+Ejecuta la interfaz en la terminal:
 
 ```bash
 llm-tuner
 ```
 
-Te guiará paso a paso en la selección de motor, modelo, contexto, perfil recomendado y carga afinada.
+Ejecutar `llm-tuner` sin argumentos abre un menú interactivo para seleccionar la acción deseada:
+- `/load`: Ajustar y cargar un modelo con la configuración óptima para tu hardware
+- `/mcp`: Conectar tu motor local como servidor MCP con agentes de IA (Claude, OpenCode, VS Code, Codex)
+- `/presets`: Listar e inspeccionar los presets guardados
+- `/settings`: Configurar idioma (`en` / `es`) y tema visual (`system` / `light` / `dark`)
+- `/help`: Mostrar ayuda y opciones de uso
+- `/exit`: Salir del menú
+
+También puedes ejecutar cualquier comando slash directamente desde tu terminal:
+
+```bash
+llm-tuner /load
+llm-tuner /mcp
+llm-tuner /presets
+llm-tuner /settings
+```
 
 ### Aplicación de escritorio
 

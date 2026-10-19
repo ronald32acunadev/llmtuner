@@ -41,6 +41,7 @@ No LLM decides the configuration. LLM Tuner reads your hardware topology and mod
 - **Engine Support**: First-class support for both LM Studio (direct `llama-server` management) and Ollama (isolated private benchmarks).
 - **Persistent Presets**: Measures once per hardware, model, context, and profile. Automatically invalidates presets if hardware or model weights change.
 - **Dual Interfaces**: Interactive terminal wizard (`llm-tuner`) and cross-platform desktop UI (`llm-tuner-desktop`).
+- **AI Agent MCP Integration**: Connect your local engines (LM Studio, Ollama) as Model Context Protocol (MCP) servers to Claude Desktop, Claude Code, OpenCode, Antigravity, VS Code, and ChatGPT/Codex with custom naming and cross-platform safety.
 - **Bilingual**: Full English and Spanish localization for both terminal and desktop interfaces.
 
 ---
@@ -93,15 +94,30 @@ Prerequisites:
 
 ## Usage
 
-### Interactive Wizard
+### Interactive CLI & Slash Commands
 
-Launch the terminal wizard:
+Launch the terminal interface:
 
 ```bash
 llm-tuner
 ```
 
-Guides you interactively through engine selection, model selection, context length, profile recommendation, and automatic tuning.
+Running `llm-tuner` without arguments presents an interactive menu to choose a command:
+- `/load`: Tune and load a model with optimal hardware settings
+- `/mcp`: Connect your local engine as an MCP server to AI agents (Claude, OpenCode, VS Code, Codex)
+- `/presets`: Inspect saved tuning presets
+- `/settings`: Configure language (`en` / `es`) and visual theme (`system` / `light` / `dark`)
+- `/help`: Display help and usage options
+- `/exit`: Exit the interactive menu
+
+You can also run any slash command directly from your terminal:
+
+```bash
+llm-tuner /load
+llm-tuner /mcp
+llm-tuner /presets
+llm-tuner /settings
+```
 
 ### Desktop App
 

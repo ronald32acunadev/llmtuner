@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError, PROFILES, checkUpdate } from '../core/index.js';
+import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError, PROFILES, checkUpdate, detectAgents, installMcpServer } from '../core/index.js';
 import { THEMES } from '../core/settings.js';
 import { LOCALES, messagesFor } from '../i18n/index.js';
 import { openUrl } from '../core/installer.js';
@@ -140,6 +140,25 @@ const routes = {
     const detection = await e.detect();
     const tuner = new Tuner(engine, detection);
     return tuner.chat(model, messages);
+  },
+
+  'GET /api/mcp/agents': async () => {
+    const agents = await detectAgents();
+    return { agents };
+  },
+
+  'POST /api/mcp/install': async (req) => {
+    const payload = await body(req);
+    if (!payload?.engineId || !payload?.customName) {
+      throw new TunerError('errors.missingParameter', { param: 'engineId, customName' });
+    }
+    return installMcpServer({
+      engineId: payload.engineId,
+      customName: payload.customName,
+      agentIds: Array.isArray(payload.agentIds) ? payload.agentIds : [],
+      host: payload.host,
+      apiKey: payload.apiKey
+    });
   },
 };
 
