@@ -41,6 +41,7 @@ No LLM decides the configuration. LLM Tuner reads your hardware topology and mod
 - **Engine Support**: First-class support for both LM Studio (direct `llama-server` management) and Ollama (isolated private benchmarks).
 - **Persistent Presets**: Measures once per hardware, model, context, and profile. Automatically invalidates presets if hardware or model weights change.
 - **Dual Interfaces**: Interactive terminal wizard (`llm-tuner`) and cross-platform desktop UI (`llm-tuner-desktop`).
+- **AI Agent MCP Integration**: Connect your local engines (LM Studio, Ollama) as Model Context Protocol (MCP) servers to Claude Desktop, Claude Code, OpenCode, Antigravity, VS Code, and ChatGPT/Codex with custom naming and cross-platform safety.
 - **Bilingual**: Full English and Spanish localization for both terminal and desktop interfaces.
 
 ---
