@@ -65,7 +65,7 @@ const LMS_LIST = [
   { type: 'llm', format: 'gguf', modelKey: FAMILY, displayName: 'Qwen2.5 Coder 14B', sizeBytes: 25, quantization: { name: 'Q8_0' }, variants: [`${FAMILY}@q4_k_m`, `${FAMILY}@q8_0`, `${FAMILY}@q2_k`], selectedVariant: `${FAMILY}@q8_0` },
   { type: 'llm', format: 'gguf', modelKey: 'ghost/model', displayName: 'Ghost', sizeBytes: 777, quantization: { name: 'Q4_K_M' } },
 ];
-const LMS_SCRIPT = `#!${process.execPath}\nconst a = process.argv.slice(2);\nif (a[0] === 'ls' && a[1] === '--json') process.stdout.write(require('fs').readFileSync(__dirname + '/ls.json', 'utf8'));\nelse process.exit(1);\n`;
+const LMS_SCRIPT = `#!${process.execPath}\nconst a = process.argv.slice(2);\nif (a[0] === 'ls' && a[1] === '--json') process.stdout.write(require('fs').readFileSync(__dirname + '/ls.json', 'utf8'));\nelse if (a[0] === 'load') { require('fs').writeFileSync(__dirname + '/load.json', JSON.stringify(a)); process.exit(0); }\nelse if (a[0] === 'unload' || a[0] === 'server') process.exit(0);\nelse process.exit(1);\n`;
 
 /** Build a fake LM Studio home: model index, two dummy GGUF files and a fake `lms` binary that prints `list`. */
 async function fakeLmsHome(list = LMS_LIST) {
@@ -324,4 +324,56 @@ test('lmstudio listModels returns models sorted by sizeBytes from smallest to la
     await fs.rm(home, { recursive: true, force: true });
   }
 });
+
+test('lmstudio configPaths resolves a virtual key to the concrete model path in user-concrete-model-default-config', { skip: process.platform === 'win32' }, async () => {
+  const { home, bin } = await fakeLmsHome();
+  const ctx = { detection: { home, bin } };
+  try {
+    const paths = await lmstudio.configPaths(ctx, FAMILY);
+    const expected = path.join(home, '.internal', 'user-concrete-model-default-config', 'lmstudio-community', 'Qwen2.5-Coder-14B-Instruct-GGUF', 'Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf.json');
+    assert.equal(paths.modelConfig, expected);
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+  }
+});
+
+test('lmstudio writeModelConfig writes to the concrete model path and creates directories', { skip: process.platform === 'win32' }, async () => {
+  const { home, bin } = await fakeLmsHome();
+  const ctx = { detection: { home, bin } };
+  try {
+    const candidate = { ctx: 32768, fullOffload: true, gpuLayers: 30, totalLayers: 30, flashAttention: true, threads: 4, batch: 512, ubatch: 512, parallel: 1, kvType: 'f16' };
+    await lmstudio.writeModelConfig(ctx, FAMILY, candidate);
+    const expected = path.join(home, '.internal', 'user-concrete-model-default-config', 'lmstudio-community', 'Qwen2.5-Coder-14B-Instruct-GGUF', 'Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf.json');
+    const content = JSON.parse(await fs.readFile(expected, 'utf8'));
+    const ctxField = content.load.fields.find((f) => f.key === 'llm.load.contextLength');
+    assert.equal(ctxField?.value, 32768);
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+  }
+});
+
+test('lmstudio load passes context length and gpu offload to lms load', { skip: process.platform === 'win32' }, async () => {
+  const { home, bin } = await fakeLmsHome();
+  const ctx = { detection: { home, bin, apiUrl: 'http://127.0.0.1:9999' } };
+  try {
+    const candidate = { ctx: 32768, fullOffload: true, gpuLayers: 30, totalLayers: 30, parallel: 1 };
+    // load calls runApiBenchmark which will fail because server is fake, but we only check the CLI arguments recorded in load.json
+    await lmstudio.load(ctx, { key: FAMILY }, { candidate }).catch(() => null);
+    const loadJson = path.join(home, 'load.json');
+    const raw = await fs.readFile(loadJson, 'utf8');
+    const args = JSON.parse(raw);
+    const cIdx = args.indexOf('-c');
+    assert.notEqual(cIdx, -1, 'Expected -c flag in lms load args');
+    assert.equal(args[cIdx + 1], '32768');
+    const gpuIdx = args.indexOf('--gpu');
+    assert.notEqual(gpuIdx, -1, 'Expected --gpu flag in lms load args');
+    assert.equal(args[gpuIdx + 1], 'max');
+    const pIdx = args.indexOf('--parallel');
+    assert.notEqual(pIdx, -1, 'Expected --parallel flag in lms load args');
+    assert.equal(args[pIdx + 1], '1');
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+  }
+});
+
 
