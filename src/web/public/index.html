@@ -153,6 +153,39 @@
     </div>
   </div>
 </aside>
+<div id="mcp-backdrop" class="modal-backdrop" hidden></div>
+<dialog id="mcp-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="mcp-title" hidden>
+  <div class="modal-header">
+    <h3 id="mcp-title" data-i18n="web.mcpModalTitle">Add as MCP Server</h3>
+    <button id="mcp-close" class="modal-close" type="button" aria-label="Close">✕</button>
+  </div>
+  <form id="mcp-form" class="modal-body">
+    <div class="field">
+      <label for="mcp-server-name" data-i18n="web.mcpServerName">MCP Server Name</label>
+      <input id="mcp-server-name" type="text" required pattern="[A-Za-z0-9_-]+" placeholder="e.g. pumbastudio">
+    </div>
+    <details class="mcp-advanced">
+      <summary data-i18n="web.mcpAdvancedOptions">Advanced connection options</summary>
+      <div class="field">
+        <label for="mcp-host" data-i18n="web.mcpBaseUrl">Base URL / Host</label>
+        <input id="mcp-host" type="text" placeholder="Default port">
+      </div>
+      <div class="field" id="mcp-api-key-group">
+        <label for="mcp-api-key" data-i18n="web.mcpApiKey">API Key</label>
+        <input id="mcp-api-key" type="password" placeholder="sk-lm-local">
+      </div>
+    </details>
+    <div class="field">
+      <label data-i18n="web.mcpSelectAgents">Select AI agents to configure:</label>
+      <div id="mcp-agents-list" class="mcp-agents-list"></div>
+    </div>
+    <div class="modal-actions">
+      <button id="mcp-cancel" class="btn secondary" type="button" data-i18n="web.close">Cancel</button>
+      <button id="mcp-save-btn" class="btn primary" type="submit" data-i18n="web.mcpSaveBtn">Save & Configure</button>
+    </div>
+    <p id="mcp-status" class="mcp-status" hidden></p>
+  </form>
+</dialog>
 <script src="app.js" type="module"></script>
 </body>
 </html>
