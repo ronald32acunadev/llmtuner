@@ -170,9 +170,10 @@ export const lmstudio = {
 
   async benchmarkViaLms(ctx, model, candidate, opts) {
     const bin = ctx.detection.bin;
-    const restore = await this.writeModelConfig(ctx, model.key, candidate);
+    const modelKey = model.key || model;
+    const restore = await this.writeModelConfig(ctx, modelKey, candidate, model.meta);
     try {
-      const args = ['load', model.key, '-y', '--identifier', 'llm-tuner-bench', '-c', String(candidate.ctx), '--gpu', candidate.fullOffload ? 'max' : String(candidate.gpuLayers / candidate.totalLayers)];
+      const args = ['load', modelKey, '-y', '--identifier', 'llm-tuner-bench', '-c', String(candidate.ctx), '--gpu', candidate.fullOffload ? 'max' : String(candidate.gpuLayers / candidate.totalLayers)];
       const r = await run(bin, args, { timeout: 600_000 });
       if (r.code !== 0) return { ok: false, error: (r.stderr || r.stdout).slice(-400) };
       return await runApiBenchmark({ kind: 'lmstudio', baseUrl: 'http://127.0.0.1:1234', model: 'llm-tuner-bench', ...opts });
@@ -182,17 +183,52 @@ export const lmstudio = {
     }
   },
 
-  configPaths(ctx, key) {
+  /** Resolve the concrete indexedModelIdentifier for a given key or file. */
+  async resolveConcreteIdentifier(ctx, key, meta) {
+    if (!key) return key;
+    if (key.includes('/') && key.endsWith('.gguf')) return key;
+    const home = ctx.detection?.home || (await lmsHome());
+    const idx = await readJson(path.join(home, '.internal', 'model-index-cache.json'), { models: [] });
+    const entries = idx.models || [];
+    const byId = (id) => entries.find((e) => e.indexedModelIdentifier === id && !e.virtual);
+    let entry = null;
+    if (meta?.file) {
+      entry = entries.find((e) => e.entryPoint?.absPath === meta.file || (e.concreteModelDirAbsolutePath && meta.file.startsWith(e.concreteModelDirAbsolutePath)));
+    }
+    if (!entry) {
+      entry = entries.find((e) => e.indexedModelIdentifier === key || e.defaultIdentifier === key || e.virtual?.baseChain?.[0] === key);
+    }
+    const concrete = entry?.virtual?.concreteModelIndexedModelIdentifier || entry?.virtual?.baseChain?.at?.(-1);
+    if (concrete) entry = byId(concrete) || entry;
+    if (entry?.indexedModelIdentifier) return entry.indexedModelIdentifier;
+    if (entry?.entryPoint?.relPath) return entry.entryPoint.relPath;
+    if (ctx.detection?.bin) {
+      const r = await run(ctx.detection.bin, ['ls', '--json']);
+      if (r.code === 0) {
+        try {
+          const list = JSON.parse(r.stdout);
+          const found = (Array.isArray(list) ? list : []).find((m) => m && (m.modelKey === key || m.path === key || m.indexedModelIdentifier === key));
+          if (found?.indexedModelIdentifier || found?.path) return found.indexedModelIdentifier || found.path;
+        } catch { /* ignore */ }
+      }
+    }
+    return key;
+  },
+
+  async configPaths(ctx, key, meta) {
     const internal = path.join(ctx.detection.home, '.internal');
+    const concrete = key ? await this.resolveConcreteIdentifier(ctx, key, meta) : '';
     return {
-      modelConfig: path.join(internal, 'user-concrete-model-default-config', `${key}.json`),
+      modelConfig: path.join(internal, 'user-concrete-model-default-config', `${concrete || key}.json`),
+      aliasConfig: concrete && concrete !== key ? path.join(internal, 'user-concrete-model-default-config', `${key}.json`) : null,
       hardwareConfig: path.join(internal, 'hardware-config.json'),
     };
   },
 
-  async writeModelConfig(ctx, key, c) {
-    const file = this.configPaths(ctx, key).modelConfig;
-    const cur = (await readJson(file)) || { preset: '', operation: { fields: [] }, load: { fields: [] } };
+  async writeModelConfig(ctx, key, c, meta) {
+    const paths = await this.configPaths(ctx, key, meta);
+    const file = paths.modelConfig;
+    const cur = (await readJson(file)) || (paths.aliasConfig ? (await readJson(paths.aliasConfig)) : null) || { preset: '', operation: { fields: [] }, load: { fields: [] } };
     const fields = new Map((cur.load?.fields || []).map((f) => [f.key, f.value]));
     const set = (k, v) => fields.set(k, v);
     set('llm.load.contextLength', c.ctx);
@@ -207,15 +243,24 @@ export const lmstudio = {
     set('llm.load.llama.kCacheQuantizationType', { checked: c.kvType !== 'f16', value: c.kvType });
     set('llm.load.llama.vCacheQuantizationType', { checked: c.kvType !== 'f16', value: c.kvType });
     if (c.cpuMoeLayers) set('llm.load.numCpuExpertLayersRatio', +(c.cpuMoeLayers / (c.totalLayers - 1)).toFixed(3));
-    const next = { ...cur, load: { ...(cur.load || {}), fields: [...fields].map(([key, value]) => ({ key, value })) } };
-    if (JSON.stringify(next) === JSON.stringify(cur)) return { file, backup: null, unchanged: true };
+    const next = { ...cur, load: { ...(cur.load || {}), fields: [...fields].map(([k, value]) => ({ key: k, value })) } };
+    const fileExists = await exists(file);
+    if (fileExists && JSON.stringify(next) === JSON.stringify(cur)) {
+      if (paths.aliasConfig && !(await exists(paths.aliasConfig))) {
+        await writeJsonWithBackup(paths.aliasConfig, next).catch(() => null);
+      }
+      return { file, backup: null, unchanged: true };
+    }
     const backup = await writeJsonWithBackup(file, next);
+    if (paths.aliasConfig) {
+      await writeJsonWithBackup(paths.aliasConfig, next).catch(() => null);
+    }
     return { file, backup };
   },
 
   /** hardware-config.json is superjson: {"json":[[backendName,{fields:[...]}]],"meta":{...}} */
   async writeHardwareConfig(ctx, c) {
-    const file = this.configPaths(ctx, '').hardwareConfig;
+    const file = (await this.configPaths(ctx, '')).hardwareConfig;
     const be = await this.backend(ctx);
     const backendName = be?.name || 'llama.cpp';
     const cur = (await readJson(file)) || { json: [], meta: { values: ['map'] } };
@@ -269,7 +314,7 @@ export const lmstudio = {
 
   /** Does hardware-config.json already match what this candidate needs? */
   async isHardwareApplied(ctx, c) {
-    const file = this.configPaths(ctx, '').hardwareConfig;
+    const file = (await this.configPaths(ctx, '')).hardwareConfig;
     const be = await this.backend(ctx);
     const cur = await readJson(file);
     const entry = (cur?.json || []).find(([name]) => name === (be?.name || 'llama.cpp'));
@@ -288,7 +333,8 @@ export const lmstudio = {
    * overwritten by the app on exit, so the app is closed while it changes.
    */
   async apply(ctx, model, c, { closeApp = true, relaunch = true, dryRun = false } = {}) {
-    const paths = this.configPaths(ctx, model.key);
+    const modelKey = model.key || model;
+    const paths = await this.configPaths(ctx, modelKey, model.meta);
     const hardwareOk = await this.isHardwareApplied(ctx, c);
     const det = await this.detect();
     const plan = { files: hardwareOk ? [paths.modelConfig] : [paths.modelConfig, paths.hardwareConfig], restartsApp: !hardwareOk && det.appRunning, candidate: c };
@@ -304,7 +350,7 @@ export const lmstudio = {
       if (b.backup) backups.push(b.backup);
       changes.push({ code: 'changes.lmsHardware' });
     }
-    const a = await this.writeModelConfig(ctx, model.key, c);
+    const a = await this.writeModelConfig(ctx, modelKey, c, model.meta);
     if (a.backup) backups.push(a.backup);
     if (!a.unchanged) changes.push(c.fullOffload
       ? { code: 'changes.lmsModelFull', params: { ctx: c.ctx, kvType: c.kvType, threads: c.threads } }
@@ -317,16 +363,23 @@ export const lmstudio = {
   },
 
   /** Load the model the normal way (using the saved config) and optionally measure it. */
-  async load(ctx, model, { depthTokens = 0, genTokens = 200, onProgress } = {}) {
+  async load(ctx, model, { candidate, depthTokens = 0, genTokens = 200, onProgress } = {}) {
     const bin = ctx.detection.bin;
     if (!bin) return benchError('bench.lmsUnavailable');
     await run(bin, ['server', 'start']);
     await run(bin, ['unload', '--all']);
     onProgress?.({ phase: 'load' });
-    const r = await run(bin, ['load', model.key, '-y'], { timeout: 600_000 });
+    const modelKey = model.key || model;
+    const args = ['load', modelKey, '-y'];
+    if (candidate?.ctx) args.push('-c', String(candidate.ctx));
+    if (candidate?.gpuLayers != null && candidate?.totalLayers) {
+      args.push('--gpu', candidate.fullOffload ? 'max' : String(+(candidate.gpuLayers / candidate.totalLayers).toFixed(3)));
+    }
+    if (candidate?.parallel) args.push('--parallel', String(candidate.parallel));
+    const r = await run(bin, args, { timeout: 600_000 });
     if (r.code !== 0) return { ok: false, error: (r.stderr || r.stdout).slice(-400) };
     const url = ctx.detection?.apiUrl || apiUrl();
-    return runApiBenchmark({ kind: 'lmstudio', baseUrl: url, model: model.key, depthTokens, genTokens, onProgress });
+    return runApiBenchmark({ kind: 'lmstudio', baseUrl: url, model: modelKey, depthTokens, genTokens, onProgress });
   },
 
   async chat(ctx, model, messages) {
