@@ -1,0 +1,256 @@
+import { select, input, confirm, search } from '@inquirer/prompts';
+import {
+  detectHardware,
+  detectEngines,
+  Tuner,
+  installPlans,
+  runInstall,
+  listPresets,
+  fmtBytes,
+  readSettings,
+  writeSettings,
+  DEFAULT_PROFILE,
+  TunerError,
+  checkUpdate,
+} from '../../core/index.js';
+import { t as translate } from '../../i18n/index.js';
+import { profileChoices, profileNotes, profileSwitchNote, profileEventLines, shouldAskProfile, parseContext } from '../profile.js';
+import { getColors } from '../colors.js';
+
+export async function loadCommand(args, { lang, theme }) {
+  const c = getColors(theme);
+  const t = (key, params) => translate(lang, key, params);
+
+  const describe = (cand) => {
+    const where = cand.fullOffload ? t('candidate.allGpu') : t('candidate.layersGpu', { gpu: cand.gpuLayers, total: cand.totalLayers });
+    return `KV ${cand.kvType} · ${where}${cand.cpuMoeLayers ? t('candidate.expertsRam', { layers: cand.cpuMoeLayers }) : ''}${t('candidate.threads', { n: cand.threads })}${cand.probe ? t('candidate.probe') : ''}`;
+  };
+
+  const benchErrorText = (b) => {
+    return b.errorCode ? t(b.errorCode, b.errorParams) : b.error;
+  };
+
+  const vramStr = (peaks = {}) => {
+    const e = Object.entries(peaks || {});
+    return e.length ? e.map(([i, b]) => `GPU${i} ${(b / 1024 ** 3).toFixed(1)} GB`).join(' / ') : t('common.na');
+  };
+
+  const updatePromise = checkUpdate().catch(() => null);
+  const isTTY = Boolean(process.stdout.isTTY && !args.json);
+  let lastProgress = null;
+  let lastTelemetry = null;
+  let liveActive = false;
+
+  const clearLive = () => {
+    if (isTTY && liveActive) {
+      process.stdout.write('\r\x1b[K');
+      liveActive = false;
+    }
+  };
+
+  const renderLive = () => {
+    if (!isTTY || !lastProgress) return;
+    const pct = Math.min(100, Math.max(0, lastProgress.pct ?? 0));
+    const barLen = 16;
+    const filled = Math.round((pct / 100) * barLen);
+    const bar = c.cyan('━'.repeat(filled)) + c.dim('─'.repeat(barLen - filled));
+
+    let telem = '';
+    if (lastTelemetry) {
+      if (lastTelemetry.cpu) telem += ` · CPU ${lastTelemetry.cpu.percent}%`;
+      if (lastTelemetry.ram) {
+        telem += ` · RAM ${(lastTelemetry.ram.usedBytes / 1024 ** 3).toFixed(1)}/${(lastTelemetry.ram.totalBytes / 1024 ** 3).toFixed(1)} GB`;
+      }
+      if (lastTelemetry.gpus?.length) {
+        telem += ' · ' + lastTelemetry.gpus.map((g) => `GPU${g.index} ${(g.usedBytes / 1024 ** 3).toFixed(1)}/${(g.totalBytes / 1024 ** 3).toFixed(1)} GB`).join(' ');
+      }
+    }
+
+    process.stdout.write(`\r\x1b[K  [${bar}] ${String(pct).padStart(3)}%${telem}`);
+    liveActive = true;
+  };
+
+  const out = (...a) => {
+    if (args.json) return;
+    clearLive();
+    console.log(...a);
+  };
+
+  out([
+    '',
+    `  ${c.cyan('  ╭───')}${c.dim('╷ ╷ ╷')}${c.cyan('───╮')}`,
+    `  ${c.cyan('╭─┤  ')}${c.cyan('┌───┐')}${c.cyan('  ├─╮  ')}${c.b('LLM Tuner')}`,
+    `  ${c.cyan('│ ')}${c.dim('╶┤')}${c.b(' │ █ │ ')}${c.dim('├╴')}${c.cyan('▲ │  ')}${c.dim(t('web.tagline'))}`,
+    `  ${c.cyan('╰─┤  ')}${c.cyan('└───┘')}${c.cyan('  ├──╯')}`,
+    `  ${c.cyan('  ╰───')}${c.dim('╵ ╵ ╵')}${c.cyan('───╯')}`,
+    '',
+  ].join('\n'));
+
+  const updateInfo = await updatePromise;
+  if (updateInfo?.updateAvailable) {
+    out(c.y(`  ▲ ${t('cli.updateAvailable', { current: updateInfo.currentVersion, latest: updateInfo.latestVersion })}`));
+    out(c.dim(`    ${t('cli.updateCommand', { cmd: 'npm install -g llm-tuner' })}\n`));
+  }
+
+  const hw = await detectHardware();
+  out(c.dim(`  ${hw.cpu.brand} · ${fmtBytes(hw.ram.totalBytes)} RAM`));
+  for (const g of hw.gpus) out(c.dim(`  GPU${g.index} ${g.name} · ${fmtBytes(g.totalBytes)}${g.pcieGen ? ` · PCIe ${g.pcieGen}.0 x${g.pcieWidth}` : ''}${g.displayAttached ? t('cli.display') : ''}`));
+  if (!hw.gpus.length) out(c.y(`  ${t('cli.noGpu')}`));
+
+  // 1. Engine
+  let det = await detectEngines(hw);
+  let engineId = args.engine;
+  if (!engineId) {
+    engineId = await select({
+      message: t('cli.whichEngine'),
+      default: det.recommended,
+      choices: det.engines.map((e) => ({
+        name: `${e.name}  ${e.detection.installed ? c.g(t('cli.installed')) + (e.detection.version ? c.dim(' v' + e.detection.version) : '') : c.dim(t('cli.notInstalled'))}${e.id === det.recommended ? c.y(`  ${t('cli.recommended')}`) : ''}`,
+        value: e.id,
+      })),
+    });
+  }
+  if (!det.engines.find((e) => e.id === engineId)?.detection.installed) {
+    await installFlow(engineId, { args, t, c });
+    det = await detectEngines(hw);
+    if (!det.engines.find((e) => e.id === engineId).detection.installed) throw new TunerError('errors.installNotFinished');
+  }
+  const tuner = await Tuner.create(engineId);
+
+  // 2. Model
+  let models = await tuner.listModels();
+  if (!models.length) {
+    out(c.y(`\n${t('cli.noModels', { engine: tuner.engine.name })}`));
+    const name = await input({ message: engineId === 'ollama' ? t('cli.downloadOllama') : t('cli.downloadLms') });
+    const bin = tuner.ctx.detection.bin;
+    const r = await runInstall(engineId === 'ollama' ? { cmd: bin, args: ['pull', name] } : { cmd: bin, args: ['get', name, '-y'] }, (l) => out(c.dim('  ' + l)));
+    if (r.code !== 0) throw new TunerError('errors.modelDownloadFailed');
+    models = await tuner.listModels();
+  }
+  const modelKey = args.model || await search({
+    message: t('cli.model'),
+    source: (term) => models
+      .filter((m) => !term || `${m.key} ${m.name}`.toLowerCase().includes(term.toLowerCase()))
+      .map((m) => ({ name: `${m.name}  ${c.dim(`${fmtBytes(m.sizeBytes)}${m.quant ? ' · ' + m.quant : ''}`)}`, value: m.key })),
+  });
+
+  // 3. Context
+  let ctx = parseContext(args.ctx);
+  if (!ctx) {
+    const presets = await listPresets({ engine: engineId, modelKey });
+    const preview = await tuner.plan(modelKey, 8192);
+    const limit = preview.model.meta.trainContext || 131072;
+    const list = Object.entries(preview.maxContext).map(([k, v]) => `KV ${k} ${v ? Math.floor(v / 1024) + 'K' : '—'}`).join(' · ');
+    out(c.dim(`  ${t('cli.maxFullGpu', { list, train: Math.floor(limit / 1024) })}`));
+    if (presets.length) out(c.dim(`  ${t('cli.tunedContexts', { list: presets.map((p) => `${p.ctx / 1024}K (${p.shortTps} t/s)`).join(', ') })}`));
+    const answer = await input({
+      message: t('cli.context'),
+      default: String(presets.at(-1)?.ctx || Math.min(16384, limit)),
+      validate: (v) => parseContext(v, limit) !== null || t('cli.contextRange', { limit }),
+    });
+    ctx = parseContext(answer, limit);
+  }
+
+  // 4. Profile
+  let profile = args.profile;
+  if (!profile && !shouldAskProfile(args)) {
+    profile = DEFAULT_PROFILE;
+  }
+  const advisedByWizard = !profile;
+  if (!profile) {
+    const plan = await tuner.profilePlan(modelKey, ctx);
+    const { profile: stored } = await readSettings();
+    for (const line of profileNotes(plan, t)) {
+      out((line.level === 'warn' ? c.y : c.dim)(`  ${line.text}`));
+    }
+    profile = await select({
+      message: t('cli.profile'),
+      ...profileChoices(plan, t, { stored, mark: c.y, dim: c.dim }),
+    });
+    try {
+      await writeSettings({ profile });
+    } catch (e) {
+      console.error(c.y(t('cli.profileNotSaved', { error: e.message })));
+    }
+    const switchNote = profileSwitchNote(plan, profile, t, tuner.engine.name);
+    if (switchNote) out(c.dim(`  ${switchNote}`));
+  }
+
+  // 5. Load
+  let previous = null;
+  tuner.on('progress', (e) => {
+    if (args.json) return;
+    if (e.type === 'telemetry') {
+      lastTelemetry = e;
+      renderLive();
+      return;
+    }
+    if (e.progress) {
+      lastProgress = e.progress;
+    }
+    if (e.type === 'variant-picked' || e.type === 'profile-fallback') {
+      for (const line of profileEventLines(e, previous, t, advisedByWizard ? null : tuner.engine.name)) {
+        out((line.level === 'warn' ? c.y : c.dim)(`  ${line.text}`));
+      }
+    }
+    previous = e;
+    if (e.type === 'status') out(c.dim(`\n${t(e.code, e.params)}`));
+    if (e.type === 'preset-hit') out(c.g(`\n✓ ${t('cli.presetHit', { date: e.preset.createdAt.slice(0, 10), config: describe(e.preset.candidate), tps: e.preset.bench.short.genTps })}`));
+    if (e.type === 'candidate-start') out(`  [${e.index + 1}/${e.total}] ${describe(e.candidate)}`);
+    if (e.type === 'bench-progress' && e.phase === 'deep') out(c.dim(`      ${t('common.longPrompt', { tokens: e.promptTokens })}`));
+    if (e.type === 'candidate-done') {
+      const b = e.bench;
+      out(b.ok ? `      ${c.g('✓')} ${t('cli.benchShort', { tps: c.b(b.short.genTps + ' t/s') })}${b.deep ? t('cli.benchDeep', { tps: c.b(b.deep.genTps + ' t/s'), tokens: b.deep.promptTokens }) : ''} · CPU ${b.cpu.avg}% · VRAM ${vramStr(b.vramPeakBytes)}` : c.r(`      ✗ ${benchErrorText(b)}`));
+    }
+    if (e.type === 'preset-saved') out(c.g(`\n✓ ${t('common.presetSaved', { file: e.file })}`));
+
+    renderLive();
+  });
+
+  let result;
+  try {
+    result = await tuner.load(modelKey, ctx, {
+      profile,
+      force: !!args.force,
+      dryRun: !!args['dry-run'],
+      maxCandidates: Number(args.candidates) || 3,
+      confirmApply: async (preview) => {
+        clearLive();
+        out(c.b(`\n${t('cli.changes')}`));
+        if (engineId === 'lmstudio') {
+          preview.files.forEach((f) => out(`  ${f}`));
+          if (preview.restartsApp) out(c.y(`  ${t('cli.lmsRestart')}`));
+        } else {
+          out(`  ${t('cli.ollamaNewModel', { name: c.b(preview.tunedModel) })}`);
+          out(`  ${t('cli.ollamaServer', { env: Object.entries(preview.env).map(([k, v]) => `${k}=${v}`).join(' ') })}`);
+        }
+        return args.yes || confirm({ message: t('cli.confirmApply'), default: true });
+      },
+    });
+  } finally {
+    clearLive();
+  }
+
+  if (args['dry-run']) out(c.y(`\n${t('cli.dryRun')}`));
+  if (result.applied?.backups?.length) out(c.dim(`  ${t('common.backups', { list: result.applied.backups.join(', ') })}`));
+  if (result.applied?.pendingCommands?.length) {
+    out(c.y(`\n${t('cli.pending')}`));
+    result.applied.pendingCommands.forEach((cmd) => out(`  ${cmd}`));
+  }
+  const l = result.loaded;
+  if (l) out(l.ok
+    ? c.g(`\n✓ ${t('cli.loaded', { engine: tuner.engine.name, tps: c.b(l.short.genTps + ' t/s') })}${l.model ? t('cli.usesModel', { model: l.model }) : ''}`)
+    : c.r(`\n✗ ${t('cli.loadFailed', { error: benchErrorText(l) })}`));
+  if (args.json) console.log(JSON.stringify(result, null, 2));
+}
+
+async function installFlow(engineId, { args, t, c }) {
+  const plans = await installPlans(engineId);
+  if (!plans.length) throw new TunerError('errors.noInstaller');
+  const plan = plans.length === 1 ? plans[0] : await select({ message: t('cli.installMethod'), choices: plans.map((p) => ({ name: t(p.labelCode), value: p })) });
+  console.log(c.dim(`  ${plan.shell || (plan.cmd ? [plan.cmd, ...plan.args].join(' ') : plan.url)}`));
+  if (!args.yes && !(await confirm({ message: t('cli.installNow'), default: true }))) process.exit(0);
+  const r = await runInstall(plan, (l) => console.log(c.dim('  ' + l)));
+  if (r.manual) await input({ message: t('cli.installManual') });
+  else if (r.code !== 0) throw new TunerError('errors.installerExit', { code: r.code });
+}

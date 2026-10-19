@@ -99,20 +99,29 @@ export default {
   // CLI
   'cli.help': `llm-tuner — load your local LLM with the fastest configuration for the context you need
 
-Usage: llm-tuner [options]
+Usage: llm-tuner [command] [options]
+
+Commands:
+  /load                        Tune and load a model with optimal hardware settings
+  /mcp                         Connect local engine to AI coding agents as MCP server
+  /presets                     List saved presets
+  /settings                    Interactive settings menu (language and theme)
+  /help                        Show this help message
+  /exit                        Exit the interactive menu
+
+Options:
   --engine <lmstudio|ollama>   Engine
   --model <key>                Model (LM Studio key or Ollama name)
   --ctx <tokens>               Context (e.g. 16384)
-  --profile <speed|balanced|quality>  What to optimize for (asked in the wizard; balanced with --yes, --json, or when engine, model and context are all given)
+  --profile <speed|balanced|quality>  What to optimize for (speed, balanced, quality)
   --force                      Measure again even if a preset exists
   --candidates <n>             Configurations to test when measuring (3)
   --yes                        Do not ask for confirmation
   --dry-run                    Measure and show the changes without applying anything or saving a preset
-  --presets                    List saved presets
+  --presets                    List saved presets (same as /presets)
   --json                       Final output as JSON
   --lang <en|es>               Interface language (saved for next time)
   --theme <system|light|dark>  Interface theme (saved for next time)
-  /settings                    Interactive settings menu
 
 Presets are saved in {presetsDir}`,
   'cli.desktopStartFailed': 'Could not start the desktop app: {error}\nThe desktop runtime (Electron) is downloaded the first time you run llm-tuner-desktop, so that first run needs a network connection.\nThe terminal interface works without it: run llm-tuner.',
@@ -263,5 +272,23 @@ Presets are saved in {presetsDir}`,
   'web.mcpAlreadyConfigured': 'Configured',
   'web.mcpSuccess': 'Successfully configured MCP in: {agents}',
   'web.mcpSaveBtn': 'Save & Configure',
+
+  // CLI Slash Commands
+  'cli.menuTitle': 'Select a command:',
+  'cli.cmdLoadDesc': 'Tune and load a model with optimal hardware settings',
+  'cli.cmdMcpDesc': 'Connect local engine to AI coding agents as MCP server',
+  'cli.cmdPresetsDesc': 'View saved tuning presets',
+  'cli.cmdSettingsDesc': 'Configure interface language and visual theme',
+  'cli.cmdHelpDesc': 'View usage help and CLI flags',
+  'cli.cmdExitDesc': 'Exit',
+  'cli.mcpSelectEngine': 'Which engine do you want to configure as an MCP server?',
+  'cli.mcpSelectAgents': 'Select AI agents to configure (space to toggle, enter to confirm):',
+  'cli.mcpServerNamePrompt': 'MCP server name:',
+  'cli.mcpNoAgentsSelected': 'No agents selected. Exiting.',
+  'cli.mcpSuccess': "Configured MCP server '{server}' in: {agents}",
+  'cli.mcpFailed': 'Failed to configure MCP in: {agents}',
+  'cli.mcpStatusInstalled': 'Installed',
+  'cli.mcpStatusDetected': 'Detected',
+  'cli.mcpStatusAvailable': 'Available',
 };
 
