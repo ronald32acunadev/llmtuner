@@ -10,3 +10,4 @@ export { readSettings, writeSettings, settingsPath, THEMES, DEFAULT_THEME, norma
 export { TunerError, benchError } from './errors.js';
 export { sampleRam, sampleGpus, startTelemetrySampler } from './telemetry.js';
 export { checkUpdate, isNewerVersion, CURRENT_VERSION } from './updater.js';
+export { detectAgents, installMcpServer, SUPPORTED_AGENTS } from './mcp/index.js';
