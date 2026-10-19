@@ -129,6 +129,160 @@ function setBusy(busy) {
   $('#theme').disabled = busy;
 }
 
+// ---------- MCP Modal ----------
+let activeMcpEngine = null;
+let mcpAgentsCache = null;
+
+function setupMcpModal() {
+  const modal = $('#mcp-modal');
+  const backdrop = $('#mcp-backdrop');
+  const closeBtn = $('#mcp-close');
+  const cancelBtn = $('#mcp-cancel');
+  const form = $('#mcp-form');
+  const nameInput = $('#mcp-server-name');
+
+  if (!modal || !backdrop) return;
+
+  function closeModal() {
+    modal.hidden = true;
+    backdrop.hidden = true;
+    activeMcpEngine = null;
+    const statusEl = $('#mcp-status');
+    if (statusEl) statusEl.hidden = true;
+  }
+
+  if (closeBtn) closeBtn.onclick = closeModal;
+  if (cancelBtn) cancelBtn.onclick = closeModal;
+  if (backdrop) backdrop.onclick = closeModal;
+
+  if (nameInput) {
+    nameInput.oninput = () => {
+      updateMcpAgentsList();
+    };
+  }
+
+  if (form) {
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      if (!activeMcpEngine) return;
+
+      const customName = (nameInput?.value || '').trim();
+      if (!customName) return;
+
+      const checkedBoxes = Array.from(document.querySelectorAll('.mcp-agent-check:checked'));
+      const agentIds = checkedBoxes.map((cb) => cb.value);
+
+      const host = $('#mcp-host')?.value.trim() || undefined;
+      const apiKey = $('#mcp-api-key')?.value.trim() || undefined;
+      const saveBtn = $('#mcp-save-btn');
+      const statusEl = $('#mcp-status');
+
+      if (saveBtn) saveBtn.disabled = true;
+      if (statusEl) {
+        statusEl.hidden = false;
+        statusEl.className = 'mcp-status';
+        statusEl.textContent = t('status.applying');
+      }
+
+      try {
+        const res = await api('/api/mcp/install', {
+          engineId: activeMcpEngine.id,
+          customName,
+          agentIds,
+          host,
+          apiKey
+        });
+
+        if (res.success) {
+          if (statusEl) {
+            statusEl.className = 'mcp-status good';
+            statusEl.textContent = t('web.mcpSuccess', { agents: res.updated.join(', ') || 'none' });
+          }
+          setTimeout(() => {
+            closeModal();
+            if (saveBtn) saveBtn.disabled = false;
+          }, 1500);
+        } else {
+          const errMsgs = res.errors.map((e) => `${e.agentId}: ${e.error}`).join('; ');
+          if (statusEl) {
+            statusEl.className = 'mcp-status bad';
+            statusEl.textContent = `${t('web.error')}: ${errMsgs}`;
+          }
+          if (saveBtn) saveBtn.disabled = false;
+        }
+      } catch (err) {
+        if (statusEl) {
+          statusEl.className = 'mcp-status bad';
+          statusEl.textContent = err.message;
+        }
+        if (saveBtn) saveBtn.disabled = false;
+      }
+    };
+  }
+}
+
+async function openMcpModal(engine) {
+  activeMcpEngine = engine;
+  const modal = $('#mcp-modal');
+  const backdrop = $('#mcp-backdrop');
+  const title = $('#mcp-title');
+  const nameInput = $('#mcp-server-name');
+  const hostInput = $('#mcp-host');
+  const apiKeyGroup = $('#mcp-api-key-group');
+  const apiKeyInput = $('#mcp-api-key');
+  const statusEl = $('#mcp-status');
+
+  if (title) title.textContent = t('web.mcpModalTitle', { engine: engine.name });
+  if (nameInput) nameInput.value = engine.id === 'lmstudio' ? 'lmstudio' : 'ollama';
+
+  if (engine.id === 'lmstudio') {
+    if (hostInput) hostInput.placeholder = 'http://127.0.0.1:1234/v1';
+    if (apiKeyGroup) apiKeyGroup.hidden = false;
+    if (apiKeyInput) {
+      apiKeyInput.value = '';
+      apiKeyInput.placeholder = 'sk-lm-local';
+    }
+  } else {
+    if (hostInput) hostInput.placeholder = 'http://127.0.0.1:11434';
+    if (apiKeyGroup) apiKeyGroup.hidden = true;
+    if (apiKeyInput) apiKeyInput.value = '';
+  }
+
+  if (statusEl) statusEl.hidden = true;
+  if (backdrop) backdrop.hidden = false;
+  if (modal) modal.hidden = false;
+
+  try {
+    const data = await api('/api/mcp/agents');
+    mcpAgentsCache = data.agents || [];
+    updateMcpAgentsList();
+  } catch {
+    mcpAgentsCache = [];
+  }
+  if (nameInput) nameInput.focus();
+}
+
+function updateMcpAgentsList() {
+  const container = $('#mcp-agents-list');
+  if (!container || !mcpAgentsCache) return;
+
+  const currentName = ($('#mcp-server-name')?.value || '').trim();
+  container.innerHTML = '';
+
+  for (const agent of mcpAgentsCache) {
+    const isAlreadyConfigured = agent.configuredServers?.includes(currentName);
+    const row = document.createElement('label');
+    row.className = 'mcp-agent-item';
+    row.innerHTML = `
+      <input type="checkbox" class="mcp-agent-check" value="${esc(agent.id)}" ${agent.detected ? 'checked' : ''}>
+      <span class="mcp-agent-name">${esc(agent.name)}</span>
+      <span class="tag ${agent.detected ? 'prio' : ''}">${esc(agent.detected ? t('web.mcpDetected') : t('web.mcpNotDetected'))}</span>
+      ${isAlreadyConfigured ? `<span class="tag bad">${esc(t('web.mcpAlreadyConfigured'))}</span>` : ''}
+    `;
+    container.appendChild(row);
+  }
+}
+
 async function boot() {
   const s = await api('/api/settings');
   applyTheme(s.theme);
@@ -136,6 +290,7 @@ async function boot() {
   document.documentElement.lang = s.lang;
   applyStatic();
   setupDrawer();
+  setupMcpModal();
   api('/api/update').then((up) => {
     if (up?.currentVersion) {
       const vDisp = $('#version-display');
@@ -198,6 +353,8 @@ async function init() {
   box.innerHTML = '';
   for (const e of s.engines) {
     const d = e.detection;
+    const card = document.createElement('div');
+    card.className = 'engine-card';
     const btn = document.createElement('button');
     btn.className = 'engine';
     btn.type = 'button';
@@ -205,7 +362,21 @@ async function init() {
     btn.innerHTML = `<b>${esc(e.name)}${e.id === s.recommended ? ` <span class="tag prio">${esc(t('web.recommended'))}</span>` : ''}</b>
       <small>${d.installed ? `${esc(t('web.installed'))}${d.version ? ' · v' + esc(d.version) : ''}` : esc(t('web.notInstalled'))}</small>`;
     btn.onclick = () => chooseEngine(e);
-    box.appendChild(btn);
+    card.appendChild(btn);
+
+    if (d.installed) {
+      const mcpBtn = document.createElement('button');
+      mcpBtn.className = 'btn mcp-btn';
+      mcpBtn.type = 'button';
+      mcpBtn.title = t('web.addAsMcpTooltip');
+      mcpBtn.textContent = `🔗 ${t('web.addAsMcp')}`;
+      mcpBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        openMcpModal(e);
+      };
+      card.appendChild(mcpBtn);
+    }
+    box.appendChild(card);
   }
 }
 
