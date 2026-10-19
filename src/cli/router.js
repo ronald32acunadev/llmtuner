@@ -6,6 +6,7 @@ import { mcpCommand } from './commands/mcp.js';
 import { presetsCommand } from './commands/presets.js';
 import { settingsCommand } from './commands/settings.js';
 import { helpCommand } from './commands/help.js';
+import { withNav } from './nav.js';
 
 export function parseCliArgs(argv) {
   const flags = new Set(['help', 'version', 'yes', 'dry-run', 'json', 'force', 'presets', 'settings']);
@@ -140,34 +141,77 @@ export async function routeCli(argv, env = {}) {
     return 0;
   }
 
-  // Interactive menu mode when run bare
+  // Interactive menu mode when run bare (persistent loop until /exit)
   if (command === 'menu') {
     const isInteractive = process.stdin.isTTY || env.forceInteractive;
     if (!isInteractive) {
-      // Non-interactive without arguments falls back to load
-      command = 'load';
-    } else {
+      await loadCommand(args, { lang, theme });
+      return 0;
+    }
+
+    let currentLang = lang;
+    let currentTheme = theme;
+
+    while (true) {
+      const activeT = (k, p) => translate(currentLang, k, p);
+      let selectedCommand;
+
       try {
-        command = await select({
-          message: t('cli.menuTitle'),
+        selectedCommand = await withNav(() => select({
+          message: activeT('cli.menuTitle'),
           choices: [
-            { name: `/load     ${t('cli.cmdLoadDesc')}`, value: 'load' },
-            { name: `/mcp      ${t('cli.cmdMcpDesc')}`, value: 'mcp' },
-            { name: `/presets  ${t('cli.cmdPresetsDesc')}`, value: 'presets' },
-            { name: `/settings ${t('cli.cmdSettingsDesc')}`, value: 'settings' },
-            { name: `/help     ${t('cli.cmdHelpDesc')}`, value: 'help' },
-            { name: `/exit     ${t('cli.cmdExitDesc')}`, value: 'exit' },
+            { name: `/load     ${activeT('cli.cmdLoadDesc')}`, value: 'load' },
+            { name: `/mcp      ${activeT('cli.cmdMcpDesc')}`, value: 'mcp' },
+            { name: `/presets  ${activeT('cli.cmdPresetsDesc')}`, value: 'presets' },
+            { name: `/settings ${activeT('cli.cmdSettingsDesc')}`, value: 'settings' },
+            { name: `/help     ${activeT('cli.cmdHelpDesc')}`, value: 'help' },
+            { name: `/exit     ${activeT('cli.cmdExitDesc')}`, value: 'exit' },
           ],
-        });
+        }), { allowBack: false });
       } catch (e) {
-        if (e?.name === 'ExitPromptError') return 130;
+        if (e?.name === 'ExitPromptError') {
+          return 0;
+        }
         throw e;
       }
-    }
-  }
 
-  if (command === 'exit') {
-    return 0;
+      if (selectedCommand === 'exit') {
+        return 0;
+      }
+
+      try {
+        switch (selectedCommand) {
+          case 'load':
+            await loadCommand(args, { lang: currentLang, theme: currentTheme });
+            break;
+          case 'mcp':
+            await mcpCommand(args, { lang: currentLang, theme: currentTheme });
+            break;
+          case 'presets':
+            await presetsCommand(args, { lang: currentLang, theme: currentTheme });
+            break;
+          case 'settings':
+            await settingsCommand(args, { lang: currentLang, theme: currentTheme });
+            {
+              const s = await readSettings();
+              currentLang = s.lang;
+              currentTheme = s.theme;
+            }
+            break;
+          case 'help':
+            await helpCommand(args, { lang: currentLang, theme: currentTheme });
+            break;
+        }
+      } catch (e) {
+        if (e?.name === 'ExitPromptError') {
+          // Sub-command was cancelled, return to main menu
+        } else {
+          console.error(`\n${activeT('common.error', { message: errorText(currentLang, e) })}`);
+        }
+      }
+
+      console.log('');
+    }
   }
 
   try {

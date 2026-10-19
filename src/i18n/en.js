@@ -95,6 +95,7 @@ export default {
   'common.longPrompt': 'long prompt (~{tokens} tokens, 50% context)…',
   'common.presetSaved': 'Preset saved: {file}',
   'common.backups': 'Backups: {list}',
+  'common.back': 'Back',
 
   // CLI
   'cli.help': `llm-tuner — load your local LLM with the fastest configuration for the context you need

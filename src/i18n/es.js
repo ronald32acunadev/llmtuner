@@ -95,6 +95,7 @@ export default {
   'common.longPrompt': 'prompt largo (~{tokens} tokens, 50% del contexto)…',
   'common.presetSaved': 'Preset guardado: {file}',
   'common.backups': 'Copias de seguridad: {list}',
+  'common.back': 'Volver',
 
   // CLI
   'cli.help': `llm-tuner — carga tu LLM local con la configuración más rápida para el contexto que necesitas
