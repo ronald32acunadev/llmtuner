@@ -27,13 +27,28 @@ async function hasSystemdService() {
   return r.code === 0;
 }
 
+/** Extracts OLLAMA_MODELS from the systemd service environment if configured. */
+async function systemdModelsDir() {
+  if (PLATFORM !== 'linux') return null;
+  try {
+    const r = await run('systemctl', ['show', 'ollama.service', '--property=Environment']);
+    if (r.code === 0) {
+      const match = r.stdout.match(/OLLAMA_MODELS=(?:"([^"]+)"|([^\s]+))/);
+      return match ? (match[1] || match[2]) : null;
+    }
+  } catch { /* next */ }
+  return null;
+}
+
 /** Where the models live (needed to start a private benchmark server). */
 async function modelsDir() {
-  if (process.env.OLLAMA_MODELS) return process.env.OLLAMA_MODELS;
-  const candidates = [path.join(homeDir(), '.ollama', 'models')];
-  if (PLATFORM === 'linux') candidates.unshift('/usr/share/ollama/.ollama/models', '/var/lib/ollama/.ollama/models');
+  const candidates = [process.env.OLLAMA_MODELS, await systemdModelsDir(), path.join(homeDir(), '.ollama', 'models')].filter(Boolean);
+  if (PLATFORM === 'linux') candidates.push('/usr/share/ollama/.ollama/models', '/var/lib/ollama/.ollama/models');
   for (const c of candidates) {
-    try { await fs.access(path.join(c, 'manifests'), fs.constants.R_OK); return c; } catch { /* next */ }
+    try {
+      await fs.access(path.join(c, 'manifests'), fs.constants.R_OK | fs.constants.W_OK);
+      return c;
+    } catch { /* next */ }
   }
   return null;
 }
@@ -206,12 +221,16 @@ export const ollama = {
    * attention can change per candidate without touching the user's server.
    */
   async benchmark(ctx, model, candidate, opts) {
-    const dir = ctx.detection.modelsDir;
-    if (!dir || !ctx.detection.bin) {
-      // Can't read the models: measure on the main server (its KV type/FA stay as configured).
+    const fallbackMainServer = async () => {
       const res = await runApiBenchmark({ kind: 'ollama', baseUrl: ctx.detection.apiUrl, model: model.key, ollamaOptions: this.requestOptions(candidate), ...opts });
       await this.unloadAll(ctx.detection.apiUrl);
       return { ...res, noteCode: 'bench.mainServerNote' };
+    };
+
+    const dir = ctx.detection.modelsDir;
+    if (!dir || !ctx.detection.bin) {
+      // Can't read/write the models: measure on the main server (its KV type/FA stay as configured).
+      return fallbackMainServer();
     }
     const port = await freePort();
     const url = `http://127.0.0.1:${port}`;
@@ -223,7 +242,7 @@ export const ollama = {
         if ((await fetchJson(`${url}/api/version`, { timeout: 1000 }))?.ok) { up = true; break; }
         await sleep(500);
       }
-      if (!up) return benchError('bench.ollamaTestServerFailed', { detail: proc.lines.slice(-2).join(' | ') });
+      if (!up) return fallbackMainServer();
       const res = await runApiBenchmark({ kind: 'ollama', baseUrl: url, model: model.key, ollamaOptions: this.requestOptions(candidate), ...opts });
       // How much really landed on GPU (Ollama may silently fall back to CPU).
       const ps = await fetchJson(`${url}/api/ps`);
