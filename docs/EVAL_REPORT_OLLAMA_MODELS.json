@@ -1,7 +1,7 @@
 {
   "engine": "ollama",
   "contextTokens": 16384,
-  "updatedAt": "2026-10-15T22:53:53.691Z",
+  "updatedAt": "2026-10-20T21:38:58.388Z",
   "goldStandard": {
     "q1": {
       "expected": "DECODE_EFFICIENCY = 0.7 and readCost for q4_0 = x12",
@@ -43,10 +43,10 @@
           },
           "timings": {
             "promptTokens": 12968,
-            "promptTps": 386.8,
+            "promptTps": 854.2,
             "genTokens": 939,
-            "genTps": 73.1,
-            "totalSeconds": "108.14"
+            "genTps": 143.5,
+            "totalSeconds": "63.39"
           },
           "evaluation": {
             "q1Pass": true,
@@ -64,10 +64,10 @@
           },
           "timings": {
             "promptTokens": 12968,
-            "promptTps": 2551.1,
+            "promptTps": 2537.6,
             "genTokens": 939,
-            "genTps": 143.9,
-            "totalSeconds": "17.93"
+            "genTps": 143.3,
+            "totalSeconds": "17.42"
           },
           "evaluation": {
             "q1Pass": true,
@@ -85,10 +85,10 @@
           },
           "timings": {
             "promptTokens": 12968,
-            "promptTps": 2547.9,
+            "promptTps": 2536.1,
             "genTokens": 939,
-            "genTps": 143.7,
-            "totalSeconds": "17.53"
+            "genTps": 143.1,
+            "totalSeconds": "17.70"
           },
           "evaluation": {
             "q1Pass": true,
@@ -113,10 +113,10 @@
           },
           "timings": {
             "promptTokens": 12377,
-            "promptTps": 2780.3,
+            "promptTps": 2611.4,
             "genTokens": 140,
-            "genTps": 48.7,
-            "totalSeconds": "42.84"
+            "genTps": 47.1,
+            "totalSeconds": "34.93"
           },
           "evaluation": {
             "q1Pass": true,
@@ -134,10 +134,10 @@
           },
           "timings": {
             "promptTokens": 12377,
-            "promptTps": 2792.1,
+            "promptTps": 2614.7,
             "genTokens": 140,
-            "genTps": 48.1,
-            "totalSeconds": "16.18"
+            "genTps": 47.5,
+            "totalSeconds": "16.67"
           },
           "evaluation": {
             "q1Pass": true,
@@ -155,10 +155,10 @@
           },
           "timings": {
             "promptTokens": 12377,
-            "promptTps": 2812.6,
+            "promptTps": 2643.1,
             "genTokens": 140,
-            "genTps": 48.5,
-            "totalSeconds": "16.09"
+            "genTps": 47,
+            "totalSeconds": "16.44"
           },
           "evaluation": {
             "q1Pass": true,
@@ -183,10 +183,10 @@
           },
           "timings": {
             "promptTokens": 12669,
-            "promptTps": 1013.6,
+            "promptTps": 980.6,
             "genTokens": 1005,
-            "genTps": 83,
-            "totalSeconds": "84.81"
+            "genTps": 81.1,
+            "totalSeconds": "76.05"
           },
           "evaluation": {
             "q1Pass": true,
@@ -204,10 +204,10 @@
           },
           "timings": {
             "promptTokens": 12669,
-            "promptTps": 1053.3,
+            "promptTps": 1016.8,
             "genTokens": 1005,
-            "genTps": 82.8,
-            "totalSeconds": "40.14"
+            "genTps": 80.7,
+            "totalSeconds": "41.23"
           },
           "evaluation": {
             "q1Pass": true,
@@ -225,10 +225,10 @@
           },
           "timings": {
             "promptTokens": 12669,
-            "promptTps": 1052.9,
+            "promptTps": 1019.4,
             "genTokens": 1005,
-            "genTps": 82.8,
-            "totalSeconds": "40.12"
+            "genTps": 80.8,
+            "totalSeconds": "41.20"
           },
           "evaluation": {
             "q1Pass": true,
@@ -253,10 +253,10 @@
           },
           "timings": {
             "promptTokens": 11930,
-            "promptTps": 1893.5,
-            "genTokens": 1175,
-            "genTps": 32.6,
-            "totalSeconds": "99.08"
+            "promptTps": 1808.8,
+            "genTokens": 1169,
+            "genTps": 31.7,
+            "totalSeconds": "94.35"
           },
           "evaluation": {
             "q1Pass": true,
@@ -264,7 +264,7 @@
             "q3Pass": true,
             "score": "3/3"
           },
-          "text": "Based on the specification:\n\n1. **Calibrated constants**\n* `DECODE_EFFICIENCY` = **0.7** – fraction of theoretical bandwidth\n* `readCost` for q4_0 = **×12** – “the q4_0 cache with Flash Attention is much slower to read with long context (measured)”\n\n2. **LM Studio per-variant identifiers**\n* `lms load` rejects per-variant identifiers. Observed on 0.4.25 with `lms load <identifier> --estimate-only -y`:\n  * Family key `qwen/qwen2.5-coder-14b` → Accepted\n  * Family key + variant `qwen/qwen2.5-coder-14b@q4_k_m`, the downloaded variant → “Model not found”\n  * Concrete GGUF path → “Model not found”\n  * Concrete default identifier → “Model not found”\n* Architectural solution: `variantSelect: false` for LM Studio. LM Studio cannot load a specific variant by key. The profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one. The per-model config is stored by family key with no variant in the file name; the selected-variant state is a non-public internal file the app does not write. When another downloaded variant suits the profile better, the `variant-picked` event carries `recommendSwitch: true` and the UI tells the user which variant to select in LM Studio; the app never switches it.\n\n3. **Estimator constants**\n* `PER_GPU_OVERHEAD` = **350 MiB** – CUDA context + scratch\n* `PER_GPU_RESERVE` = **64 MiB** – `nvidia-smi`’s “free” already discounts ~450 MiB for the driver; do not subtract another large reserve"
+          "text": "Based on the specification:\n\n1. **Calibrated constants**\n* `DECODE_EFFICIENCY` = **0.7** – fraction of theoretical bandwidth\n* `readCost` for q4_0 = **×12** – “the q4_0 cache with Flash Attention is much slower to read with long context (measured)”\n\n2. **LM Studio per-variant identifiers**\nObserved with 0.4.25 `lms load <identifier> --estimate-only -y`:\n* Family key `qwen/qwen2.5-coder-14b` → Accepted\n* Family key + variant `qwen/qwen2.5-coder-14b@q4_k_m`, the downloaded variant → “Model not found”\n* Concrete GGUF path / concrete default identifier → “Model not found”\n\nLM Studio cannot load a specific variant by key. `variantSelect: false` for LM Studio. The profile therefore governs the load configuration – KV type, GPU placement – of the variant selected in LM Studio, and the app only recommends selecting another one. The variant measured and loaded is always the one selected in the engine under the key the user chose; the pick is only reported with `recommendSwitch: true` when it differs from the selected one.\n\n3. **Estimator constants**\n* `PER_GPU_OVERHEAD` = **350 MiB** – CUDA context + scratch\n* `PER_GPU_RESERVE` = **64 MiB** – `nvidia-smi`’s “free” already discounts ~450 MiB for the driver; do not subtract another large reserve"
         },
         "balanced": {
           "candidate": {
@@ -274,10 +274,10 @@
           },
           "timings": {
             "promptTokens": 11930,
-            "promptTps": 1870.8,
-            "genTokens": 1175,
-            "genTps": 32.3,
-            "totalSeconds": "59.41"
+            "promptTps": 1789.4,
+            "genTokens": 1169,
+            "genTps": 31.7,
+            "totalSeconds": "60.55"
           },
           "evaluation": {
             "q1Pass": true,
@@ -285,7 +285,7 @@
             "q3Pass": true,
             "score": "3/3"
           },
-          "text": "Based on the specification:\n\n1. **Calibrated constants**\n* `DECODE_EFFICIENCY` = **0.7** – fraction of theoretical bandwidth\n* `readCost` for q4_0 = **×12** – “the q4_0 cache with Flash Attention is much slower to read with long context (measured)”\n\n2. **LM Studio per-variant identifiers**\n* `lms load` rejects per-variant identifiers. Observed on 0.4.25 with `lms load <identifier> --estimate-only -y`:\n  * Family key `qwen/qwen2.5-coder-14b` → Accepted\n  * Family key + variant `qwen/qwen2.5-coder-14b@q4_k_m`, the downloaded variant → “Model not found”\n  * Concrete GGUF path → “Model not found”\n  * Concrete default identifier → “Model not found”\n* Architectural solution: `variantSelect: false` for LM Studio. LM Studio cannot load a specific variant by key. The profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one. The per-model config is stored by family key with no variant in the file name; the selected-variant state is a non-public internal file the app does not write. When another downloaded variant suits the profile better, the `variant-picked` event carries `recommendSwitch: true` and the UI tells the user which variant to select in LM Studio; the app never switches it.\n\n3. **Estimator constants**\n* `PER_GPU_OVERHEAD` = **350 MiB** – CUDA context + scratch\n* `PER_GPU_RESERVE` = **64 MiB** – `nvidia-smi`’s “free” already discounts ~450 MiB for the driver; do not subtract another large reserve"
+          "text": "Based on the specification:\n\n1. **Calibrated constants**\n* `DECODE_EFFICIENCY` = **0.7** – fraction of theoretical bandwidth\n* `readCost` for q4_0 = **×12** – “the q4_0 cache with Flash Attention is much slower to read with long context (measured)”\n\n2. **LM Studio per-variant identifiers**\nObserved with 0.4.25 `lms load <identifier> --estimate-only -y`:\n* Family key `qwen/qwen2.5-coder-14b` → Accepted\n* Family key + variant `qwen/qwen2.5-coder-14b@q4_k_m`, the downloaded variant → “Model not found”\n* Concrete GGUF path / concrete default identifier → “Model not found”\n\nLM Studio cannot load a specific variant by key. `variantSelect: false` for LM Studio. The profile therefore governs the load configuration – KV type, GPU placement – of the variant selected in LM Studio, and the app only recommends selecting another one. The variant measured and loaded is always the one selected in the engine under the key the user chose; the pick is only reported with `recommendSwitch: true` when it differs from the selected one.\n\n3. **Estimator constants**\n* `PER_GPU_OVERHEAD` = **350 MiB** – CUDA context + scratch\n* `PER_GPU_RESERVE` = **64 MiB** – `nvidia-smi`’s “free” already discounts ~450 MiB for the driver; do not subtract another large reserve"
         },
         "quality": {
           "candidate": {
@@ -295,10 +295,10 @@
           },
           "timings": {
             "promptTokens": 11930,
-            "promptTps": 1850,
-            "genTokens": 1175,
-            "genTps": 33.1,
-            "totalSeconds": "59.41"
+            "promptTps": 1781.3,
+            "genTokens": 1169,
+            "genTps": 31.6,
+            "totalSeconds": "60.55"
           },
           "evaluation": {
             "q1Pass": true,
@@ -306,7 +306,7 @@
             "q3Pass": true,
             "score": "3/3"
           },
-          "text": "Based on the specification:\n\n1. **Calibrated constants**\n* `DECODE_EFFICIENCY` = **0.7** – fraction of theoretical bandwidth\n* `readCost` for q4_0 = **×12** – “the q4_0 cache with Flash Attention is much slower to read with long context (measured)”\n\n2. **LM Studio per-variant identifiers**\n* `lms load` rejects per-variant identifiers. Observed on 0.4.25 with `lms load <identifier> --estimate-only -y`:\n  * Family key `qwen/qwen2.5-coder-14b` → Accepted\n  * Family key + variant `qwen/qwen2.5-coder-14b@q4_k_m`, the downloaded variant → “Model not found”\n  * Concrete GGUF path → “Model not found”\n  * Concrete default identifier → “Model not found”\n* Architectural solution: `variantSelect: false` for LM Studio. LM Studio cannot load a specific variant by key. The profile governs the load configuration (KV type, GPU placement) of the variant selected in LM Studio, and the app only recommends selecting another one. The per-model config is stored by family key with no variant in the file name; the selected-variant state is a non-public internal file the app does not write. When another downloaded variant suits the profile better, the `variant-picked` event carries `recommendSwitch: true` and the UI tells the user which variant to select in LM Studio; the app never switches it.\n\n3. **Estimator constants**\n* `PER_GPU_OVERHEAD` = **350 MiB** – CUDA context + scratch\n* `PER_GPU_RESERVE` = **64 MiB** – `nvidia-smi`’s “free” already discounts ~450 MiB for the driver; do not subtract another large reserve"
+          "text": "Based on the specification:\n\n1. **Calibrated constants**\n* `DECODE_EFFICIENCY` = **0.7** – fraction of theoretical bandwidth\n* `readCost` for q4_0 = **×12** – “the q4_0 cache with Flash Attention is much slower to read with long context (measured)”\n\n2. **LM Studio per-variant identifiers**\nObserved with 0.4.25 `lms load <identifier> --estimate-only -y`:\n* Family key `qwen/qwen2.5-coder-14b` → Accepted\n* Family key + variant `qwen/qwen2.5-coder-14b@q4_k_m`, the downloaded variant → “Model not found”\n* Concrete GGUF path / concrete default identifier → “Model not found”\n\nLM Studio cannot load a specific variant by key. `variantSelect: false` for LM Studio. The profile therefore governs the load configuration – KV type, GPU placement – of the variant selected in LM Studio, and the app only recommends selecting another one. The variant measured and loaded is always the one selected in the engine under the key the user chose; the pick is only reported with `recommendSwitch: true` when it differs from the selected one.\n\n3. **Estimator constants**\n* `PER_GPU_OVERHEAD` = **350 MiB** – CUDA context + scratch\n* `PER_GPU_RESERVE` = **64 MiB** – `nvidia-smi`’s “free” already discounts ~450 MiB for the driver; do not subtract another large reserve"
         }
       },
       "completed": true
@@ -323,10 +323,10 @@
           },
           "timings": {
             "promptTokens": 12356,
-            "promptTps": 4779.5,
+            "promptTps": 4313.2,
             "genTokens": 158,
-            "genTps": 133.3,
-            "totalSeconds": "64.70"
+            "genTps": 124.9,
+            "totalSeconds": "58.35"
           },
           "evaluation": {
             "q1Pass": true,
@@ -344,10 +344,10 @@
           },
           "timings": {
             "promptTokens": 12356,
-            "promptTps": 5015.5,
+            "promptTps": 4298.5,
             "genTokens": 158,
-            "genTps": 134.2,
-            "totalSeconds": "20.08"
+            "genTps": 125.2,
+            "totalSeconds": "20.40"
           },
           "evaluation": {
             "q1Pass": true,
@@ -365,10 +365,10 @@
           },
           "timings": {
             "promptTokens": 12356,
-            "promptTps": 4907.7,
+            "promptTps": 4512.7,
             "genTokens": 158,
-            "genTps": 134,
-            "totalSeconds": "19.92"
+            "genTps": 126.1,
+            "totalSeconds": "20.32"
           },
           "evaluation": {
             "q1Pass": true,
@@ -393,10 +393,10 @@
           },
           "timings": {
             "promptTokens": 12968,
-            "promptTps": 630.2,
+            "promptTps": 604.8,
             "genTokens": 862,
-            "genTps": 22.1,
-            "totalSeconds": "122.86"
+            "genTps": 20,
+            "totalSeconds": "119.16"
           },
           "evaluation": {
             "q1Pass": true,
@@ -414,10 +414,10 @@
           },
           "timings": {
             "promptTokens": 12968,
-            "promptTps": 2688.4,
+            "promptTps": 2535,
             "genTokens": 862,
-            "genTps": 22.1,
-            "totalSeconds": "62.14"
+            "genTps": 20.1,
+            "totalSeconds": "66.78"
           },
           "evaluation": {
             "q1Pass": true,
@@ -435,10 +435,10 @@
           },
           "timings": {
             "promptTokens": 12968,
-            "promptTps": 2675.2,
+            "promptTps": 2539.5,
             "genTokens": 862,
-            "genTps": 22.2,
-            "totalSeconds": "62.08"
+            "genTps": 20.5,
+            "totalSeconds": "65.77"
           },
           "evaluation": {
             "q1Pass": true,
@@ -466,7 +466,7 @@
             "promptTps": 0,
             "genTokens": 0,
             "genTps": 0,
-            "totalSeconds": "63.64"
+            "totalSeconds": "54.45"
           },
           "evaluation": {
             "q1Pass": false,
@@ -487,7 +487,7 @@
             "promptTps": 0,
             "genTokens": 0,
             "genTps": 0,
-            "totalSeconds": "16.39"
+            "totalSeconds": "15.94"
           },
           "evaluation": {
             "q1Pass": false,
@@ -508,7 +508,7 @@
             "promptTps": 0,
             "genTokens": 0,
             "genTps": 0,
-            "totalSeconds": "16.40"
+            "totalSeconds": "15.97"
           },
           "evaluation": {
             "q1Pass": false,
@@ -536,7 +536,7 @@
             "promptTps": 0,
             "genTokens": 0,
             "genTps": 0,
-            "totalSeconds": "85.14"
+            "totalSeconds": "71.15"
           },
           "evaluation": {
             "q1Pass": false,
@@ -557,7 +557,7 @@
             "promptTps": 0,
             "genTokens": 0,
             "genTps": 0,
-            "totalSeconds": "75.54"
+            "totalSeconds": "38.66"
           },
           "evaluation": {
             "q1Pass": false,
@@ -578,7 +578,7 @@
             "promptTps": 0,
             "genTokens": 0,
             "genTps": 0,
-            "totalSeconds": "36.04"
+            "totalSeconds": "36.13"
           },
           "evaluation": {
             "q1Pass": false,
@@ -603,10 +603,10 @@
           },
           "timings": {
             "promptTokens": 12148,
-            "promptTps": 934.7,
-            "genTokens": 615,
-            "genTps": 119.8,
-            "totalSeconds": "76.14"
+            "promptTps": 973.1,
+            "genTokens": 633,
+            "genTps": 116.1,
+            "totalSeconds": "64.21"
           },
           "evaluation": {
             "q1Pass": true,
@@ -614,7 +614,7 @@
             "q3Pass": true,
             "score": "3/3"
           },
-          "text": "1. **Calibrated constants**  \n   - `DECODE_EFFICIENCY` = **0.7**  \n   - `readCost` for `q4_0` = **×12** (i.e., the read cost is 12 × the base cost)\n\n2. **Why LM Studio’s `lms load` rejects per‑variant identifiers**  \n   LM Studio’s `lms load` command only accepts a *family key* (e.g., `qwen/qwen2.5-coder-32b`) or a concrete GGUF file path. It does **not** support loading a specific variant by key (e.g., `qwen/qwen2.5-coder-32b@q4_k_m`).  \n   **Architectural solution adopted by the tuner**  \n   - The tuner measures and loads the variant that LM Studio has currently selected.  \n   - If another downloaded variant would be better for the chosen profile, the tuner simply **recommends** that the user switch the variant in LM Studio; it does not automatically change the variant because LM Studio cannot do so programmatically.\n\n3. **Exact values in the estimator**  \n   - `PER_GPU_OVERHEAD` = **350 MiB**  \n   - `PER_GPU_RESERVE` = **64 MiB**"
+          "text": "1. **Calibrated constants**  \n   - `DECODE_EFFICIENCY` = **0.7**  \n   - `readCost` for `q4_0` = **×12** (i.e., 12 × the base read cost)\n\n2. **LM Studio’s per‑variant load rejection**  \n   LM Studio’s `lms load` command only accepts the family key (e.g., `qwen/qwen2.5-coder-32b`) and will reject identifiers that include a variant suffix (`model@variant`). The project’s architecture therefore treats the engine as **variant‑select‑false**: the tuner can only measure and load the variant that LM Studio has already selected. If a different downloaded variant would be better for the chosen profile, the tuner simply recommends that the user switch the variant in LM Studio; it does not perform the switch automatically.\n\n3. **Estimator overhead constants**  \n   - `PER_GPU_OVERHEAD` = **350 MiB**  \n   - `PER_GPU_RESERVE` = **64 MiB**"
         },
         "balanced": {
           "candidate": {
@@ -624,10 +624,10 @@
           },
           "timings": {
             "promptTokens": 12148,
-            "promptTps": 6328.8,
-            "genTokens": 615,
-            "genTps": 119.8,
-            "totalSeconds": "19.11"
+            "promptTps": 5934.3,
+            "genTokens": 633,
+            "genTps": 114.7,
+            "totalSeconds": "19.77"
           },
           "evaluation": {
             "q1Pass": true,
@@ -635,7 +635,7 @@
             "q3Pass": true,
             "score": "3/3"
           },
-          "text": "1. **Calibrated constants**  \n   - `DECODE_EFFICIENCY` = **0.7**  \n   - `readCost` for `q4_0` = **×12** (i.e., the read cost is 12 × the base cost)\n\n2. **Why LM Studio’s `lms load` rejects per‑variant identifiers**  \n   LM Studio’s `lms load` command only accepts a *family key* (e.g., `qwen/qwen2.5-coder-32b`) or a concrete GGUF file path. It does **not** support loading a specific variant by key (e.g., `qwen/qwen2.5-coder-32b@q4_k_m`).  \n   **Architectural solution adopted by the tuner**  \n   - The tuner measures and loads the variant that LM Studio has currently selected.  \n   - If another downloaded variant would be better for the chosen profile, the tuner simply **recommends** that the user switch the variant in LM Studio; it does not automatically change the variant because LM Studio cannot do so programmatically.\n\n3. **Exact values in the estimator**  \n   - `PER_GPU_OVERHEAD` = **350 MiB**  \n   - `PER_GPU_RESERVE` = **64 MiB**"
+          "text": "1. **Calibrated constants**  \n   - `DECODE_EFFICIENCY` = **0.7**  \n   - `readCost` for `q4_0` = **×12** (i.e., 12 × the base read cost)\n\n2. **LM Studio’s per‑variant load rejection**  \n   LM Studio’s `lms load` command only accepts the family key (e.g., `qwen/qwen2.5-coder-32b`) and will reject identifiers that include a variant suffix (`model@variant`). The project’s architecture therefore treats the engine as **variant‑select‑false**: the tuner can only measure and load the variant that LM Studio has already selected. If a different downloaded variant would be better for the chosen profile, the tuner simply recommends that the user switch the variant in LM Studio; it does not perform the switch automatically.\n\n3. **Estimator overhead constants**  \n   - `PER_GPU_OVERHEAD` = **350 MiB**  \n   - `PER_GPU_RESERVE` = **64 MiB**"
         },
         "quality": {
           "candidate": {
@@ -645,10 +645,10 @@
           },
           "timings": {
             "promptTokens": 12148,
-            "promptTps": 6383.8,
-            "genTokens": 615,
-            "genTps": 119.6,
-            "totalSeconds": "19.06"
+            "promptTps": 6072.6,
+            "genTokens": 633,
+            "genTps": 112.9,
+            "totalSeconds": "19.75"
           },
           "evaluation": {
             "q1Pass": true,
@@ -656,7 +656,77 @@
             "q3Pass": true,
             "score": "3/3"
           },
-          "text": "1. **Calibrated constants**  \n   - `DECODE_EFFICIENCY` = **0.7**  \n   - `readCost` for `q4_0` = **×12** (i.e., the read cost is 12 × the base cost)\n\n2. **Why LM Studio’s `lms load` rejects per‑variant identifiers**  \n   LM Studio’s `lms load` command only accepts a *family key* (e.g., `qwen/qwen2.5-coder-32b`) or a concrete GGUF file path. It does **not** support loading a specific variant by key (e.g., `qwen/qwen2.5-coder-32b@q4_k_m`).  \n   **Architectural solution adopted by the tuner**  \n   - The tuner measures and loads the variant that LM Studio has currently selected.  \n   - If another downloaded variant would be better for the chosen profile, the tuner simply **recommends** that the user switch the variant in LM Studio; it does not automatically change the variant because LM Studio cannot do so programmatically.\n\n3. **Exact values in the estimator**  \n   - `PER_GPU_OVERHEAD` = **350 MiB**  \n   - `PER_GPU_RESERVE` = **64 MiB**"
+          "text": "1. **Calibrated constants**  \n   - `DECODE_EFFICIENCY` = **0.7**  \n   - `readCost` for `q4_0` = **×12** (i.e., 12 × the base read cost)\n\n2. **LM Studio’s per‑variant load rejection**  \n   LM Studio’s `lms load` command only accepts the family key (e.g., `qwen/qwen2.5-coder-32b`) and will reject identifiers that include a variant suffix (`model@variant`). The project’s architecture therefore treats the engine as **variant‑select‑false**: the tuner can only measure and load the variant that LM Studio has already selected. If a different downloaded variant would be better for the chosen profile, the tuner simply recommends that the user switch the variant in LM Studio; it does not perform the switch automatically.\n\n3. **Estimator overhead constants**  \n   - `PER_GPU_OVERHEAD` = **350 MiB**  \n   - `PER_GPU_RESERVE` = **64 MiB**"
+        }
+      },
+      "completed": true
+    },
+    "deepseek-coder:33b": {
+      "displayName": "deepseek-coder:33b",
+      "sizeBytes": 18819456424,
+      "profiles": {
+        "speed": {
+          "candidate": {
+            "id": "q8_0-63",
+            "kvType": "q8_0",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 0,
+            "promptTps": 0,
+            "genTokens": 0,
+            "genTps": 0,
+            "totalSeconds": "51.73"
+          },
+          "evaluation": {
+            "q1Pass": false,
+            "q2Pass": false,
+            "q3Pass": false,
+            "score": "0/3"
+          },
+          "text": ""
+        },
+        "balanced": {
+          "candidate": {
+            "id": "q8_0-63",
+            "kvType": "q8_0",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 0,
+            "promptTps": 0,
+            "genTokens": 0,
+            "genTps": 0,
+            "totalSeconds": "15.36"
+          },
+          "evaluation": {
+            "q1Pass": false,
+            "q2Pass": false,
+            "q3Pass": false,
+            "score": "0/3"
+          },
+          "text": ""
+        },
+        "quality": {
+          "candidate": {
+            "id": "q8_0-63",
+            "kvType": "q8_0",
+            "fullOffload": true
+          },
+          "timings": {
+            "promptTokens": 0,
+            "promptTps": 0,
+            "genTokens": 0,
+            "genTps": 0,
+            "totalSeconds": "15.37"
+          },
+          "evaluation": {
+            "q1Pass": false,
+            "q2Pass": false,
+            "q3Pass": false,
+            "score": "0/3"
+          },
+          "text": ""
         }
       },
       "completed": true
