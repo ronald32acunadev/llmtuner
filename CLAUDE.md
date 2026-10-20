@@ -53,6 +53,9 @@ Distribution is npm only (`llm-tuner`, commands `llm-tuner` and `llm-tuner-deskt
 - Presets (`presets.js`) are keyed by engine + model + ctx + profile and validated against a hardware fingerprint and the model file size; non-`balanced` presets also store the variant list and are invalidated when it changes. A preset without a `profile` field is a `balanced` preset. They live in `configDir()` (`util.js`) next to `settings.json` (`settings.js`: UI language, theme, last profile).
 - `installer.js` returns the official install plans per engine and OS; every plan is shown to the user before running, nothing is installed silently.
 - `src/web/server.js`: plain `http` with a route table (`'METHOD /path': handler`), long jobs streamed via SSE at `/api/jobs/:id/events`. Electron's `main.js` just starts this server on a random port and opens a `BrowserWindow`.
+- `src/core/mcp/`: registers the loaded engine as an MCP server in coding agents' config files (`registry.js` lists `SUPPORTED_AGENTS` with their config path and format; `buildMcpPayload` builds the `npx` server entry per engine; `adapters/` upsert into JSON or TOML configs). Exposed through the CLI `mcp` command and the web UI.
+- `updater.js` checks the npm registry for a newer `llm-tuner` (cached 24 h in `configDir()`); `telemetry.js` samples local RAM/CPU/GPU usage for live display only (nothing leaves the machine).
+- CLI: `src/cli/index.js` parses flags, `router.js` + `nav.js` drive the interactive menus, and `commands/` holds one module per menu entry (`load`, `presets`, `mcp`, `settings`, `help`).
 - i18n: `src/i18n/{en,es}.js` catalogs + `t(locale, key, params)`; `src/i18n/core.js` maps core codes to keys. `test/i18n.test.js` fails if `en`/`es` keys or params diverge or if `src/` references a missing key.
 
 ## Testing notes
