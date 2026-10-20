@@ -2,70 +2,44 @@
 
 Instructions for every AI coding agent working in this repository (Antigravity, Claude Code, Codex, Cursor, OpenCode, and any other). Read this file at the start of every new session.
 
+**Read `docs/PROYECTO.md` before changing behavior.** It is the canonical spec: the agreed user flow, the architecture, the calibrated formulas, the LM Studio/Ollama internals, real measurements, known issues and pending work. `CLAUDE.md` carries the long-form architecture notes; when the two disagree, trust the executable code and `docs/PROYECTO.md`.
+
+## Commands
+
+Node ≥ 22, ESM (`"type": "module"`). No build step, no linter, no formatter, no framework on the web UI (vanilla JS).
+
+```bash
+npm start                    # CLI wizard (src/cli/index.js)
+npm run desktop              # Electron (electron/launch.js → src/web/server.js)
+npm test                     # node --test test/*.test.js (224 tests, ~7 s)
+
+node --test test/core.test.js                          # one test file
+node --test --test-name-pattern="<regex>" test/*.test.js  # one test by name
+
+node src/cli/index.js --engine lmstudio --model <key> --ctx 16384 --yes   # non-interactive
+# other flags: --profile <speed|balanced|quality>, --force, --dry-run, --candidates N, --json, --presets, --lang <en|es>
+```
+
+There is no `lint` / `typecheck` script: `npm test` is the whole gate.
+
 ## Language and Documentation Rule (MANDATORY)
 
-- **English by default**: All source code, identifiers, function and variable names, comments, documentation (`docs/`, READMEs, architecture/planning docs), and commit messages MUST be written in English.
-- **Translations**: Translations are the only exception (e.g., `README.es.md` or dedicated i18n localization catalogs). In multi-language applications, internal code, identifiers, and core error/status codes remain strictly in English, while user-facing localized strings go through dedicated i18n catalogs.
+- **English by default**: all source code, identifiers, comments, documentation (`docs/`, `odd/`, READMEs) and commit messages are written in English. Translations are the only exception: the `es` i18n catalog, tests asserting its strings, and translated user docs such as `README.es.md`.
+- Every user-facing string goes through `src/i18n` and must exist in **both** `en` and `es`. `src/core` never emits translated text: it emits codes (`code`, `reasonCode`, `labelCode`, `errorCode`, `noteCode`, `TunerError(code, params)`), and `src/i18n/core.js` maps them to keys. `test/i18n.test.js` fails on any `en`/`es` divergence or missing key.
 
 ## Code Authorship & Delegation Rule
 
-**New or modified source code in this repository is synthesized by local LLM providers first. The agent writes the code itself only when local providers are unavailable.**
+**New or modified source code (including tests and scripts) is synthesized by a local LLM provider first. The agent writes the code itself only when both local providers are unreachable or fail, and says so briefly.** The agent is the orchestrator: it explores, prepares a self-contained prompt (task, target paths, the relevant existing code verbatim, expected output format), reviews the answer, applies it, and runs the tests. Exploration, docs, configuration files, commit messages and purely mechanical edits (renames, import fixes, formatting) stay with the agent. Never ask a local model to explore: it has no filesystem or repository access.
 
-Local models are the owner's dedicated code synthesizers, exposed to agents as MCP servers. The agent is the orchestrator: it understands the request, prepares the context, prompts the local model for code, reviews the answer, applies it to files, and verifies it.
+**Dynamic model policy**: do not hardcode model names. Use whichever model is currently loaded in memory.
 
-### Delegation Hierarchy & Dynamic Model Selection
+1. **`pumbastudio`** (LM Studio, port `1234`, tool `openai_chat`) — primary.
+2. **`pumbalama`** (Ollama, port `11434`) — when `pumbastudio` is unreachable or fails; target the model active in Ollama.
+3. **Host model** (the model running this session) — when both fail; continue without blocking.
 
-**Dynamic Model Policy**: Do NOT restrict or hardcode specific model names. The agent must dynamically use whichever model is currently loaded in memory in LM Studio or Ollama.
+Local models have a fixed knowledge cutoff and no internet access, so **the agent resolves current APIs** (Context7, official docs, `node_modules`) and passes exact library names and versions, exact function signatures, option names and import paths, plus any deprecated API the code must not use.
 
-1. **Primary Provider: `pumbastudio`**
-   - Served by LM Studio (port `1234`), MCP tool `openai_chat`.
-   - **Model**: Target the model currently loaded in LM Studio. Use the active model identifier or standard local alias (e.g., `"gpt-4o"` or active loaded model ID). LM Studio automatically serves completions using whichever model is active in memory.
-2. **Secondary Provider: `pumbalama`**
-   - Served by Ollama (port `11434`), MCP tool `chat_completion`.
-   - Used when `pumbastudio` is unreachable or fails.
-   - **Model**: Target whichever model is currently active/loaded in Ollama (e.g., checking active running models via `/api/ps` or using the active Ollama model). Do not restrict to any pre-defined model name.
-3. **Fallback: Host Model (Gemini, Claude, etc.)**
-   - Used when neither `pumbastudio` nor `pumbalama` is reachable or both fail (e.g., connection errors, GPU OOM, or no model loaded).
-   - The host model takes over seamlessly without halting or blocking the task, noting briefly that local models were unavailable.
-
-### What Local Models Write
-
-- Source code (e.g., `src/`, `lib/`, `electron/`, etc.).
-- Unit, integration, and end-to-end tests (e.g., `test/`, `tests/`).
-- Scripts and executable routines.
-
-### What the Agent Does Itself
-
-- Exploration, codebase mapping, task tracking, and planning.
-- Resolving library dependencies, reading up-to-date documentation.
-- Applying synthesized code to disk and executing builds/tests.
-- Reviewing code for correctness, safety, and architectural standards.
-- Documentation (`docs/`, READMEs), configuration files, and commit messages.
-- Mechanical edits with no logic: renames, imports adjustments, code formatting.
-
-## Workflow
-
-1. **Explore and Plan**: Explore the code and decide what needs to change. Do not ask local models to explore; they have no filesystem or repository access.
-2. **Prepare Prompt**:
-   - Call `pumbastudio` (or fallback to `pumbalama`) with a self-contained prompt.
-   - **System message**: Include project rules that apply (language, architecture constraints, style).
-   - **User message**: Include the exact task, target file paths, relevant existing code verbatim, and expected output format (full file or exact replacement block).
-3. **Review**: Check the answer against the request, project rules, and language requirements. If incorrect or incomplete, send a follow-up with the specific defect.
-4. **Apply and Test**: Apply the code to files using file tools and run applicable tests.
-
-## Be Explicit: Local Models Have Outdated Knowledge
-
-Local models have fixed knowledge cutoffs and no internet or repository access. They do not know latest library versions or newly introduced APIs:
-
-- The agent, not the local model, resolves what is current (via Context7, official docs, or `node_modules`).
-- State the exact library names and versions targeted.
-- Provide exact function signatures, option names, import paths, and usage examples.
-- Specify deprecated or removed features that must not be used.
-- Detail the change step by step: functions, behavior, inputs/outputs, edge cases.
-
-## MCP Server Setup Reference
-
-Each agent needs the servers registered in its MCP configuration:
+MCP registration each agent needs:
 
 ```json
 {
@@ -73,18 +47,48 @@ Each agent needs the servers registered in its MCP configuration:
     "pumbastudio": {
       "command": "npx",
       "args": ["-y", "@mzxrai/mcp-openai@latest"],
-      "env": {
-        "OPENAI_BASE_URL": "http://127.0.0.1:1234/v1",
-        "OPENAI_API_KEY": "sk-lm-local"
-      }
+      "env": { "OPENAI_BASE_URL": "http://127.0.0.1:1234/v1", "OPENAI_API_KEY": "sk-lm-local" }
     },
     "pumbalama": {
       "command": "npx",
       "args": ["-y", "ollama-mcp-server@latest"],
-      "env": {
-        "OLLAMA_HOST": "http://127.0.0.1:11434"
-      }
+      "env": { "OLLAMA_HOST": "http://127.0.0.1:11434" }
     }
   }
 }
 ```
+
+## Project rules that are easy to break
+
+- No LLM decides the configuration: everything is deterministic (hardware + GGUF metadata + calibrated formulas + real measurements).
+- User flow: engine → model → context → profile (`speed` | `balanced` | `quality`, default `balanced`) → Load. A preset hit applies and loads; a miss measures, saves the preset, applies and loads. A profile only governs the lossy choices (weight quantization variant, KV cache type); layer split, GPU order and threads are profile-independent. The app never downloads a model variant.
+- **Never write LM Studio's `hardware-config.json` while the app is open** (the per-model config is fine). Always save a `*.bak-llm-tuner-*` backup before modifying an engine's config file.
+- `src/core` must not depend on any interface: the CLI and the web UI only consume `Tuner` and its events. New core output is a code plus an i18n key, never a literal string.
+- LM Studio's internal files are not a public API; the integration is verified against LM Studio 0.4.25.
+- Estimator math is calibrated in `docs/PROYECTO.md` §8 and encoded as regression in `test/core.test.js`: change both together, never one alone.
+
+## Architecture (where things really live)
+
+- Entrypoints: CLI `src/cli/index.js` (flags) → `router.js`/`nav.js` menus → `commands/`; desktop `electron/launch.js` → `electron/main.js` starts `src/web/server.js` (plain `http`, route table `'METHOD /path': handler`, long jobs streamed by SSE at `/api/jobs/:id/events`).
+- `src/core/tuner.js` is the orchestrator (`Tuner.load`, `Tuner.profilePlan`, `progress` events). Engines share one interface — `src/core/engines/lmstudio.js` and `ollama.js`: `id, name, capabilities, detect, listModels, modelMeta, prepare, benchmark, apply, load, chat`, all taking `ctx = { detection, hw }`, registered in `ENGINES` in `tuner.js`.
+- Pipeline: `hardware.js` → `gguf.js` (own parser) → `estimator.js`; profile rules in `profiles.js`; presets in `presets.js` keyed by engine + model + ctx + profile, validated against a hardware fingerprint and stored in `configDir()` (`util.js`) beside `settings.json`.
+- `src/core/mcp/` registers the engine as an MCP server in coding agents' config files; `src/i18n/{en,es}.js` + `core.js` own all strings.
+- Full flow, formulas and engine internals: `docs/PROYECTO.md` and `CLAUDE.md`.
+
+## Testing notes
+
+- Tests that touch config must set `LLM_TUNER_CONFIG_DIR` to a temp dir **before importing**, so they never write the real `~/.config/llm-tuner`.
+- Engine HTTP calls are mocked by pointing `OLLAMA_HOST` / `LM_STUDIO_HOST` at a local mock server (see `test/server.test.js`).
+- `.agents/skills/evaluate-profiles/` is a benchmark harness needing real hardware and installed engines; it is **not** part of `npm test`.
+
+## Distribution and CI
+
+- npm only (`llm-tuner`; bins `llm-tuner`, `llm-tuner-desktop`). Published files are `src/`, `electron/`, `README.es.md` — `test/`, `docs/`, `AGENTS.md` and `CLAUDE.md` are excluded (asserted by `test/package.test.js`).
+- CI (`.github/workflows/ci.yml`) runs `npm ci && npm test` on Node 22 for pushes and PRs to `main`.
+- `.github/workflows/release.yml` publishes on a push to `release`, **except** the push that creates the branch: releases arrive through a pull request into `release`. Bump `package.json` version first — the workflow fails if that version is already on npm.
+
+## Gotchas
+
+- Electron 44 has no install script: `npm install` leaves `node_modules/electron/dist` without the binary, and the first `npm run desktop` downloads it. If that download fails, extract `~/.cache/electron/*/electron-*.zip` into `node_modules/electron/dist` and create `node_modules/electron/path.txt` containing `electron`.
+- `electron/launch.js` disables the Chromium sandbox only when `chrome-sandbox` lacks root setuid.
+- When delegating subagents, `.atl/skill-registry.md` is the index of available skills (project skill: `.agents/skills/evaluate-profiles/SKILL.md`).

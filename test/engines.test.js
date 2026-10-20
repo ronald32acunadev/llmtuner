@@ -309,6 +309,12 @@ test('ollama listModels returns models sorted by sizeBytes from smallest to larg
   }
 });
 
+test('ollama benchmark falls back to main server when modelsDir is not writable or null', async () => {
+  const ctx = { detection: { apiUrl: mockUrl, bin: null, modelsDir: null } };
+  const res = await ollama.benchmark(ctx, { key: 'qwen2.5-coder:14b' }, { ctx: 2048, gpuLayers: 0, threads: 4, ubatch: 512, parallel: 1 });
+  assert.equal(res.noteCode, 'bench.mainServerNote');
+});
+
 test('lmstudio listModels returns models sorted by sizeBytes from smallest to largest', { skip: process.platform === 'win32' }, async () => {
   const customList = [
     { type: 'llm', format: 'gguf', modelKey: 'heavy/model', displayName: 'Heavy', sizeBytes: 5000 },
