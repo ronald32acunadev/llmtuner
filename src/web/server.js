@@ -113,18 +113,19 @@ const routes = {
   'GET /api/presets': async (req, url) => ({ presets: await listPresets({ engine: url.searchParams.get('engine'), modelKey: url.searchParams.get('model') }) }),
 
   // The "Load" button: preset -> apply + load, or benchmark -> preset -> apply + load.
-  'POST /api/load': async (req) => {
+  'POST /api/load': async (req, url, { authorizeOllama } = {}) => {
     if (busy) throw new TunerError('errors.loadInProgress');
     const { engine, model, ctx, force = false, candidates = 3, profile } = await body(req);
     // An unknown profile is rejected before any job exists; without one the tuner uses its default.
     const options = { force, maxCandidates: Number(candidates) };
+    if (authorizeOllama) options.authorizeOllama = authorizeOllama;
     if (profile !== undefined) options.profile = knownProfile(profile);
     const tuner = await Tuner.create(engine);
     const job = createJob();
     tuner.on('progress', (e) => job.emit(e));
     busy = true;
     tuner.load(model, Number(ctx), options)
-      .then((r) => job.finish({ ok: !!r.loaded?.ok || !!r.applied?.pendingCommands?.length, result: { ...r, report: r.report && { ...r.report, best: r.report.best && { candidate: slim(r.report.best.candidate), bench: r.report.best.bench } } } }))
+      .then((r) => job.finish({ ok: !!r.loaded?.ok, result: { ...r, report: r.report && { ...r.report, best: r.report.best && { candidate: slim(r.report.best.candidate), bench: r.report.best.bench } } } }))
       .catch((e) => job.finish({ ok: false, ...errorBody(e) }))
       .finally(() => { busy = false; });
     return { jobId: job.id };
@@ -163,9 +164,11 @@ const routes = {
 };
 
 
-async function handler(req, res) {
+async function handler(req, res, options) {
   const url = new URL(req.url, 'http://localhost');
   try {
+    // A foreign website must not trigger the desktop's privileged authorizer.
+    if (options.authorizeOllama && req.method === 'POST' && req.headers.origin && req.headers.origin !== `http://127.0.0.1:${req.socket.localPort}`) return send(res, 403, { error: 'Forbidden origin' });
     // Server-Sent Events for job progress.
     const ev = url.pathname.match(/^\/api\/jobs\/([\w-]+)\/events$/);
     if (ev) {
@@ -181,7 +184,7 @@ async function handler(req, res) {
       return;
     }
     const route = routes[`${req.method} ${url.pathname}`];
-    if (route) return send(res, 200, await route(req, url));
+    if (route) return send(res, 200, await route(req, url, options));
 
     const i18n = url.pathname.match(/^\/api\/i18n\/([\w-]+)$/);
     if (i18n && req.method === 'GET') {
@@ -208,9 +211,9 @@ async function handler(req, res) {
 }
 
 /** Start the local UI server (bound to localhost only). */
-export function startServer({ port = Number(process.env.PORT) || 7860, open = false } = {}) {
+export function startServer({ port = Number(process.env.PORT) || 7860, open = false, authorizeOllama } = {}) {
   return new Promise((resolve, reject) => {
-    const server = http.createServer(handler);
+    const server = http.createServer((req, res) => handler(req, res, { authorizeOllama }));
     server.on('error', reject);
     server.listen(port, '127.0.0.1', () => {
       const url = `http://127.0.0.1:${server.address().port}`;

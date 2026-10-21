@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell, nativeImage } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startServer } from '../src/web/server.js';
+import { createOllamaAuthorizer } from '../src/platform/ollama-authorize.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,7 +21,7 @@ if (process.platform === 'win32') {
 let server;
 
 async function createWindow() {
-  const started = await startServer({ port: 0 });
+  const started = await startServer({ port: 0, authorizeOllama: createOllamaAuthorizer({ mode: 'desktop' }) });
   server = started.server;
 
   const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png';

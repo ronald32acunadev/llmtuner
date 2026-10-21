@@ -300,6 +300,44 @@ test('ollama selects variants by itself', () => {
   assert.equal(ollama.capabilities.variantSelect, true);
 });
 
+test('ollama preset reuse still requires server environment application', { skip: process.platform !== 'linux' }, async (t) => {
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-tuner-apply-test-'));
+  t.mock.method(os, 'tmpdir', () => scratch);
+  const candidate = { ctx: 32768, fullOffload: true, gpuLayers: 48, threads: 8, ubatch: 512, parallel: 1, flashAttention: true, kvType: 'q8_0', gpuOrder: [1, 0] };
+  const model = { key: 'test:model' };
+  const ctx = { detection: { apiUrl: mockUrl, bin: path.join(scratch, 'nonexistent'), systemd: false } };
+  try {
+    // The mock reports an existing tuned model. No create command may run.
+    const result = await ollama.apply(ctx, model, candidate, { skipIfApplied: true });
+    const name = ollama.tunedName(model.key, candidate);
+    const env = ollama.serverEnv(candidate);
+    assert.equal(result.tunedModel, name);
+    assert.deepEqual(result.changes, [{ code: 'changes.ollamaExists', params: { name } }]);
+    assert.deepEqual(result.env, env);
+    assert.deepEqual(result.pendingCommands, [...Object.entries(env).map(([k, v]) => `export ${k}=${v}`), 'ollama serve']);
+    assert.equal((await fs.readdir(scratch, { recursive: true })).some((file) => path.basename(file) === 'Modelfile'), false);
+  } finally {
+    await fs.rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test('ollama apply dry run remains side-effect free with preset reuse', async (t) => {
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-tuner-dry-run-test-'));
+  t.mock.method(os, 'tmpdir', () => scratch);
+  const candidate = { ctx: 32768, fullOffload: true, gpuLayers: 48, threads: 8, ubatch: 512, parallel: 1, flashAttention: true, kvType: 'q8_0', gpuOrder: [1, 0] };
+  const ctx = { detection: { apiUrl: mockUrl, bin: path.join(scratch, 'nonexistent'), systemd: false } };
+  try {
+    const result = await ollama.apply(ctx, { key: 'test:model' }, candidate, { skipIfApplied: true, dryRun: true });
+    assert.equal(result.dryRun, true);
+    assert.deepEqual(result.env, ollama.serverEnv(candidate));
+    assert.deepEqual(result.changes, []);
+    assert.deepEqual(result.pendingCommands, []);
+    assert.deepEqual(await fs.readdir(scratch), []);
+  } finally {
+    await fs.rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test('ollama listModels returns models sorted by sizeBytes from smallest to largest', async () => {
   const ctx = { detection: { apiUrl: mockUrl } };
   const models = await ollama.listModels(ctx);

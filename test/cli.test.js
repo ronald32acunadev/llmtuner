@@ -6,6 +6,44 @@ import path from 'node:path';
 import { spawnSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+test('CLI JSON authorization is noninteractive and returns parseable success or failure with the correct exit code', async () => {
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-tuner-cli-auth-'));
+  const loader = path.join(scratch, 'fake.mjs');
+  const moduleUrl = (p) => new URL(p, import.meta.url).href;
+  try {
+    await fs.writeFile(path.join(scratch, 'update-check.json'), JSON.stringify({ lastChecked: Date.now(), latestVersion: '0.0.0' }));
+    await fs.writeFile(loader, `
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import { Tuner, ENGINES } from ${JSON.stringify(moduleUrl('../src/core/tuner.js'))};
+import { authorizationIO } from ${JSON.stringify(moduleUrl('../src/platform/ollama-authorize.js'))};
+ENGINES.ollama.detect = ENGINES.lmstudio.detect = async () => ({ installed: true });
+authorizationIO.spawn = (bin, args, opts) => {
+  if (bin !== '/usr/bin/sudo' || args[0] !== '-n' || opts.stdio[0] !== 'ignore') throw Error('interactive authorization in JSON mode');
+  const child = new EventEmitter(); child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.kill = () => {};
+  queueMicrotask(() => { child.stdout.end('changed=0\\nrestarted=0\\nbackup=\\n'); child.emit('close', Number(process.env.FAKE_AUTH_CODE)); });
+  return child;
+};
+Tuner.create = async () => ({ engine: { id: 'ollama', name: 'Ollama' }, listModels: async () => [], on() {},
+  async load(model, ctx, opts) {
+    await opts.authorizeOllama({ operation: 'ollama-service-env', env: { OLLAMA_FLASH_ATTENTION: '1', OLLAMA_KV_CACHE_TYPE: 'q8_0', OLLAMA_NUM_PARALLEL: '1' } });
+    return { loaded: { ok: true, short: { genTps: 1 } } };
+  }
+});
+`);
+    for (const code of [0, 1]) {
+      const r = spawnSync(process.execPath, ['--import', loader, CLI, '--engine', 'ollama', '--model', 'fake', '--ctx', '4096', '--profile', 'balanced', '--yes', '--json'], {
+        env: { ...process.env, LLM_TUNER_CONFIG_DIR: scratch, FAKE_AUTH_CODE: String(code) }, encoding: 'utf8', timeout: 10000,
+      });
+      assert.equal(r.status, code, r.stderr);
+      assert.equal(r.stderr, '');
+      const output = JSON.parse(r.stdout);
+      if (code === 0) assert.equal(output.loaded.ok, true);
+      else { assert.equal(output.ok, false); assert.equal(output.code, 'errors.ollamaAuthorizationRequired'); }
+    }
+  } finally { await fs.rm(scratch, { recursive: true, force: true }); }
+});
+
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli', 'index.js');
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-tuner-cli-'));
 const settings = path.join(dir, 'settings.json');

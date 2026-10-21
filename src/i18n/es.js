@@ -42,6 +42,13 @@ export default {
   'errors.ggufNotFound': 'No encuentro el archivo GGUF de {key}',
   'errors.lmstudioOpen': 'LM Studio está abierto; ciérralo antes de aplicar la configuración.',
   'errors.ollamaUnknownModel': 'Ollama no reconoce el modelo {key}',
+  'errors.ollamaServiceConfig': 'Configuración de servicio de Ollama no válida; no se inició ninguna operación con privilegios.',
+  'errors.ollamaServiceTarget': 'La configuración automática requiere el servicio local de Ollama en el puerto 11434.',
+  'errors.ollamaServiceReady': 'Ollama no estuvo disponible después de la configuración. El modelo no se cargó.',
+  'errors.ollamaAuthorizationRequired': 'Se requiere autorización de administrador. Ejecuta en modo interactivo para autorizar la configuración de Ollama e inténtalo de nuevo.',
+  'errors.ollamaAuthorizationUnavailable': 'La autorización de administrador no está disponible. Comprueba que sudo o un agente de autenticación polkit de escritorio estén instalados.',
+  'errors.ollamaAuthorizationCancelled': 'Se canceló la autorización de administrador. El modelo no se cargó.',
+  'errors.ollamaAuthorizationFailed': 'Falló la configuración del servicio de Ollama. Comprueba el servicio y su copia de seguridad antes de reintentar.',
 
   // Install methods
   'install.ollamaScript': 'Script oficial (ollama.com/install.sh, pide sudo)',
@@ -73,6 +80,7 @@ export default {
   'changes.ollamaSetx': 'Variables de entorno de usuario actualizadas (setx)',
   'changes.ollamaLaunchctl': 'Variables aplicadas con launchctl (hasta el próximo reinicio; añade también a tu perfil si quieres que persistan)',
   'changes.ollamaSystemd': 'Override de systemd instalado y Ollama reiniciado',
+  'changes.ollamaSystemdUnchanged': 'Configuración del servicio de Ollama verificada; no requiere reinicio',
 
   'errors.unknownLocale': 'Idioma desconocido "{lang}". Valores válidos: {list}',
   'errors.unknownTheme': 'Tema desconocido "{theme}". Valores válidos: {list}',
@@ -123,6 +131,9 @@ Opciones:
   --json                       Salida final en JSON
   --lang <en|es>               Idioma de la interfaz (se guarda para la próxima vez)
   --theme <system|light|dark>  Tema de la interfaz (se guarda para la próxima)
+
+Los cambios del servicio de Ollama pueden solicitar autorización de administrador en la terminal.
+Si los ajustes no cambian, el servicio no se reinicia. El modo JSON/no interactivo nunca pide contraseña.
 
 Los presets se guardan en {presetsDir}`,
   'cli.desktopStartFailed': 'No se pudo iniciar la aplicación de escritorio: {error}\nEl entorno de escritorio (Electron) se descarga la primera vez que ejecutas llm-tuner-desktop, así que esa primera ejecución necesita conexión a la red.\nLa interfaz de terminal funciona sin él: ejecuta llm-tuner.',

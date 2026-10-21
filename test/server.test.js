@@ -18,6 +18,36 @@ after(() => {
 const get = (p) => fetch(url + p);
 const post = (p, body) => fetch(url + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? '' : JSON.stringify(body) });
 
+test('load jobs forward the trusted server authorizer and never report pending commands as loaded', async (t) => {
+  const { Tuner } = await import('../src/core/tuner.js');
+  const trusted = async () => {};
+  let options;
+  t.mock.method(Tuner, 'create', async () => ({
+    on() {},
+    async load(model, ctx, opts) { options = opts; return { applied: { pendingCommands: ['manual'] }, loaded: null }; },
+  }));
+  const started = await startServer({ port: 0, authorizeOllama: trusted });
+  try {
+    const r = await fetch(started.url + '/api/load', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ engine: 'ollama', model: 'm', ctx: 4096, authorizeOllama: 'untrusted' }) });
+    const job = await r.json();
+    const stream = await (await fetch(started.url + `/api/jobs/${job.jobId}/events`)).text();
+    const finished = stream.split('\n').filter((l) => l.startsWith('data: ')).map((l) => JSON.parse(l.slice(6))).at(-1);
+    assert.equal(finished.ok, false);
+    assert.equal(options.authorizeOllama, trusted);
+  } finally { started.server.closeAllConnections(); started.server.close(); }
+});
+
+test('foreign-origin requests cannot initiate desktop administrator authorization', async (t) => {
+  const { Tuner } = await import('../src/core/tuner.js');
+  const create = t.mock.method(Tuner, 'create', async () => ({ on() {}, async load() { return {}; } }));
+  const started = await startServer({ port: 0, authorizeOllama: async () => {} });
+  try {
+    const r = await fetch(started.url + '/api/load', { method: 'POST', headers: { Origin: 'https://foreign.invalid', 'Content-Type': 'text/plain' }, body: JSON.stringify({ engine: 'ollama', model: 'm', ctx: 4096 }) });
+    assert.equal(r.status, 403);
+    assert.equal(create.mock.callCount(), 0);
+  } finally { started.server.closeAllConnections(); started.server.close(); }
+});
+
 test('settings default to English and system theme and can be changed', async () => {
   assert.deepEqual(await (await get('/api/settings')).json(), { lang: 'en', theme: 'system', profile: null, locales: ['en', 'es'], themes: ['system', 'light', 'dark'], profiles: ['speed', 'balanced', 'quality'] });
   const r = await post('/api/settings', { lang: 'es' });
