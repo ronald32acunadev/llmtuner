@@ -18,6 +18,7 @@ import { profileChoices, profileNotes, profileSwitchNote, profileEventLines, sho
 import { getColors } from '../colors.js';
 import { withNav, NAV_BACK, backChoice } from '../nav.js';
 import { TerminalAnimation } from '../animation.js';
+import { createOllamaAuthorizer } from '../../platform/ollama-authorize.js';
 
 export async function loadCommand(args, { lang, theme }) {
   const c = getColors(theme);
@@ -290,6 +291,11 @@ export async function loadCommand(args, { lang, theme }) {
   let result;
   try {
     result = await tuner.load(modelKey, ctx, {
+      authorizeOllama: createOllamaAuthorizer({
+        mode: process.stdin.isTTY && process.stderr.isTTY && !args.json ? 'terminal' : 'noninteractive',
+        beforePrompt: () => anim.stop(),
+        afterPrompt: () => anim.start(t('status.applying')),
+      }),
       profile,
       force: !!args.force,
       dryRun: !!args['dry-run'],
@@ -309,6 +315,15 @@ export async function loadCommand(args, { lang, theme }) {
         return confirmed;
       },
     });
+  } catch (e) {
+    if (!/^errors\.ollama(?:Service|Authorization)/.test(e.code || '')) throw e;
+    if (args.json) {
+      console.log(JSON.stringify({ ok: false, code: e.code, params: e.params || {}, error: t(e.code, e.params) }));
+      process.exitCode = 1;
+      return;
+    }
+    e.message = t(e.code, e.params);
+    throw e;
   } finally {
     anim.stop();
   }

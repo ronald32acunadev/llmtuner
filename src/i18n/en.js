@@ -42,6 +42,13 @@ export default {
   'errors.ggufNotFound': 'Cannot find the GGUF file for {key}',
   'errors.lmstudioOpen': 'LM Studio is open; close it before applying the configuration.',
   'errors.ollamaUnknownModel': 'Ollama does not recognize the model {key}',
+  'errors.ollamaServiceConfig': 'Invalid Ollama service configuration; no privileged operation was started.',
+  'errors.ollamaServiceTarget': 'Automatic service configuration requires the local Ollama service on port 11434.',
+  'errors.ollamaServiceReady': 'Ollama did not become ready after configuration. The model was not loaded.',
+  'errors.ollamaAuthorizationRequired': 'Administrator authorization is required. Run interactively to authorize Ollama configuration, then retry.',
+  'errors.ollamaAuthorizationUnavailable': 'Administrator authorization is unavailable. Check that sudo or a desktop polkit authentication agent is installed.',
+  'errors.ollamaAuthorizationCancelled': 'Administrator authorization was cancelled. The model was not loaded.',
+  'errors.ollamaAuthorizationFailed': 'Ollama service configuration failed. Check the service and its configuration backup before retrying.',
 
   // Install methods
   'install.ollamaScript': 'Official script (ollama.com/install.sh, asks for sudo)',
@@ -73,6 +80,7 @@ export default {
   'changes.ollamaSetx': 'User environment variables updated (setx)',
   'changes.ollamaLaunchctl': 'Variables set with launchctl (until the next reboot; also add them to your profile if you want them to persist)',
   'changes.ollamaSystemd': 'systemd override installed and Ollama restarted',
+  'changes.ollamaSystemdUnchanged': 'Ollama service settings verified; no restart needed',
 
   'errors.unknownLocale': 'Unknown language "{lang}". Valid values: {list}',
   'errors.unknownTheme': 'Unknown theme "{theme}". Valid values: {list}',
@@ -123,6 +131,9 @@ Options:
   --json                       Final output as JSON
   --lang <en|es>               Interface language (saved for next time)
   --theme <system|light|dark>  Interface theme (saved for next time)
+
+Ollama service changes may ask for administrator authorization in the terminal.
+Unchanged settings do not restart the service. JSON/noninteractive mode never asks for a password.
 
 Presets are saved in {presetsDir}`,
   'cli.desktopStartFailed': 'Could not start the desktop app: {error}\nThe desktop runtime (Electron) is downloaded the first time you run llm-tuner-desktop, so that first run needs a network connection.\nThe terminal interface works without it: run llm-tuner.',

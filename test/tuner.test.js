@@ -157,6 +157,25 @@ function setup({ engine = 'fake', variantSelect = true, variants = [], failFullO
   return tuner;
 }
 
+test('load forwards authorization only to real apply and does not load after cancellation', async (t) => {
+  const tuner = setup();
+  const authorizeOllama = async () => {};
+  const original = fake.apply;
+  const seen = [];
+  t.mock.method(fake, 'apply', async function (ctx, model, candidate, opts) {
+    seen.push(opts);
+    if (!opts.dryRun) {
+      assert.equal(opts.authorize, authorizeOllama);
+      throw Object.assign(Error('cancelled'), { code: 'errors.ollamaAuthorizationCancelled' });
+    }
+    return original.call(this, ctx, model, candidate, opts);
+  });
+  await assert.rejects(tuner.load('m:q4', CTX, { authorizeOllama }), { code: 'errors.ollamaAuthorizationCancelled' });
+  assert.equal(seen.length, 2);
+  assert.equal(seen[0].authorize, undefined);
+  assert.equal(calls.some(([method]) => method === 'load'), false);
+});
+
 /** Helper to create a variant object. */
 function variant(key, quant, selected = false) {
   return { key, quant, sizeBytes: METAS[key].fileBytes, selected };

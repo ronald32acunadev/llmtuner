@@ -270,7 +270,7 @@ export class Tuner extends EventEmitter {
    * Balanced measures and loads the key the user chose; speed and quality reuse the variant stored in
    * the preset, or pick one once the VRAM is free.
    */
-  async load(key, ctx, { force = false, dryRun = false, maxCandidates = 3, depthFraction = 0.5, measure = true, confirmApply = async () => true, profile: requested = DEFAULT_PROFILE } = {}) {
+  async load(key, ctx, { force = false, dryRun = false, maxCandidates = 3, depthFraction = 0.5, measure = true, confirmApply = async () => true, authorizeOllama, profile: requested = DEFAULT_PROFILE } = {}) {
     return this.withTelemetry(async () => {
       const profile = normalizeProfile(requested);
       const model = await this.modelInfo(key);
@@ -320,7 +320,7 @@ export class Tuner extends EventEmitter {
       if (!(await confirmApply(preview))) return { source, candidate: slim(candidate), report, preview, applied: false, profile, variant: loadKey };
 
       this.log('status', { code: 'status.applying', progress: { pct: 88, phase: 'apply' } });
-      const applied = await this.engine.apply(this.ctx, modelObj, candidate, { useSudo: true, skipIfApplied: source === 'preset' });
+      const applied = await this.engine.apply(this.ctx, modelObj, candidate, { useSudo: true, skipIfApplied: source === 'preset', ...(authorizeOllama ? { authorize: authorizeOllama } : {}) });
       this.log('applied', { result: applied, progress: { pct: 92, phase: 'apply' } });
       if (applied.pendingCommands?.length) return { source, candidate: slim(candidate), report, applied, loaded: null, profile, variant: loadKey };
 

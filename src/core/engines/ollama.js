@@ -5,6 +5,7 @@ import { run, which, exists, fetchJson, freePort, spawnLogged, killProcess, slee
 import { modelMetaFromFile } from '../gguf.js';
 import { runApiBenchmark } from '../benchmark.js';
 import { TunerError, benchError } from '../errors.js';
+import { reconcileOllamaService, validateServiceEnv, validateServiceTarget } from './ollama-service.js';
 
 const DEFAULT_HOST = '127.0.0.1:11434';
 
@@ -270,24 +271,29 @@ export const ollama = {
    * 1) Create a tuned model variant with per-model parameters (num_ctx, num_gpu...).
    * 2) Set server-wide env (KV type, flash attention, GPU order) for the Ollama service.
    */
-  async apply(ctx, model, c, { dryRun = false, useSudo = false, skipIfApplied = false } = {}) {
+  async apply(ctx, model, c, { dryRun = false, skipIfApplied = false, authorize } = {}) {
     const name = this.tunedName(model.key, c);
     const env = this.serverEnv(c);
     const result = { tunedModel: name, modelfile: this.modelfile(model.key, c), env, changes: [], pendingCommands: [] };
     if (dryRun) return { dryRun: true, ...result };
+    if (PLATFORM === 'linux' && ctx.detection.systemd) {
+      validateServiceTarget(ctx.detection.apiUrl);
+      validateServiceEnv(env);
+    }
 
     const dir = path.join(os.tmpdir(), `llm-tuner-${timestamp()}`);
     await fs.mkdir(dir, { recursive: true });
     if (skipIfApplied && (await this.isApplied(ctx, model, c))) {
       result.changes.push({ code: 'changes.ollamaExists', params: { name } });
-      return result;
+    } else {
+      const mf = path.join(dir, 'Modelfile');
+      await fs.writeFile(mf, result.modelfile);
+      const r = await run(ctx.detection.bin, ['create', name, '-f', mf], { timeout: 300_000 });
+      if (r.code !== 0) throw new Error(`ollama create failed: ${(r.stderr || r.stdout).slice(-300)}`);
+      result.changes.push({ code: 'changes.ollamaCreated', params: { name } });
     }
-    const mf = path.join(dir, 'Modelfile');
-    await fs.writeFile(mf, result.modelfile);
-    const r = await run(ctx.detection.bin, ['create', name, '-f', mf], { timeout: 300_000 });
-    if (r.code !== 0) throw new Error(`ollama create failed: ${(r.stderr || r.stdout).slice(-300)}`);
-    result.changes.push({ code: 'changes.ollamaCreated', params: { name } });
 
+    // Model parameters cannot carry server-global KV/FA settings. Reapply them even on a preset hit.
     if (PLATFORM === 'win32') {
       for (const [k, v] of Object.entries(env)) await run('setx', [k, v]);
       result.changes.push({ code: 'changes.ollamaSetx' });
@@ -302,22 +308,9 @@ export const ollama = {
       await sleep(2000);
       await run('open', ['-a', 'Ollama']);
     } else if (ctx.detection.systemd) {
-      const conf = ['[Service]', ...Object.entries(env).map(([k, v]) => `Environment="${k}=${v}"`), ''].join('\n');
-      const confFile = path.join(dir, 'llm-tuner.conf');
-      await fs.writeFile(confFile, conf);
-      const cmds = [
-        'sudo mkdir -p /etc/systemd/system/ollama.service.d',
-        `sudo cp ${confFile} /etc/systemd/system/ollama.service.d/llm-tuner.conf`,
-        'sudo systemctl daemon-reload',
-        'sudo systemctl restart ollama',
-      ];
-      if (useSudo) {
-        const ok = (await run('sudo', ['-n', 'true'])).code === 0;
-        if (ok) {
-          for (const cmd of cmds) { const [, ...rest] = cmd.split(' '); await run('sudo', ['-n', ...rest]); }
-          result.changes.push({ code: 'changes.ollamaSystemd' });
-        } else result.pendingCommands.push(...cmds);
-      } else result.pendingCommands.push(...cmds);
+      const service = await reconcileOllamaService(ctx.detection.apiUrl, env, { authorize });
+      result.backups = service.backups;
+      result.changes.push({ code: service.restarted ? 'changes.ollamaSystemd' : 'changes.ollamaSystemdUnchanged' });
     } else {
       result.pendingCommands.push(...Object.entries(env).map(([k, v]) => `export ${k}=${v}`), 'ollama serve');
     }
