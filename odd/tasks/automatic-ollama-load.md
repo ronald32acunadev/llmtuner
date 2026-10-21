@@ -1,6 +1,6 @@
 # Automatic Ollama loading — design and recovery log
 Objective: complete automatic configuration and loading in desktop and CLI. Branch: `codex/fix-ollama-cuda-oom`.
-Delivery: exception-ok, single release-promotion PR. GitHub/main/release/npm delivery authorized. Runner: `node --test test/*.test.js`. Implementation verified; final native review pending.
+Delivery: exception-ok, single release-promotion PR. GitHub/main/release/npm delivery authorized. Runner: `node --test test/*.test.js`. Implementation verified; native review declined for this candidate.
 
 ## Specs
 
@@ -35,10 +35,10 @@ Delivery: exception-ok, single release-promotion PR. GitHub/main/release/npm del
 ## Tasks
 
 - T1 | S1-S3 | inline design; read-only explorer used for mapping beyond the bounded evidence budget | complete; design and implementation plan approved | no commit
-- T2 | S1-S2 | inline, shared environment comparison/application and focused regressions | verified; focused 10/10, baseline/current non-systemd differential identical | no commit
-- T3 | S2-S3 | inline, desktop/CLI authorization adapters, truthful completion, i18n and tests | verified; Tuner/server 3/3, CLI JSON 1/1, lifecycle regressions | no commit
-- T4 | S1-S3 | independent verifier for security/environment risks; then applicable native review | verifier complete after one correction; native review and commit slicing pending | no commit
-- T5 | S4 | inline release preparation, integration and authorized remote delivery | version 0.4.4 prepared; single-PR, issue and classification-label exceptions approved | commit/review/delivery pending
+- T2 | S1-S2 | inline, shared environment comparison/application and focused regressions | verified; focused 10/10, baseline/current non-systemd differential identical | 4e3f335
+- T3 | S2-S3 | inline, desktop/CLI authorization adapters, truthful completion, i18n and tests | verified; Tuner/server 3/3, CLI JSON 1/1, lifecycle regressions | 4e3f335
+- T4 | S1-S3 | independent verifier for security/environment risks; then applicable native review | verifier complete after one correction; native candidate review declined by user | 4e3f335
+- T5 | S4 | inline release preparation, integration and authorized remote delivery | version 0.4.4 prepared; single-PR, issue and classification-label exceptions approved | main/release/npm delivery in progress
 
 Forecast: approximately 300–500 authored changed lines, to refine before implementation. Resolve delivery slicing before a work-unit commit if the forecast exceeds the review budget. No parallel writers: these tasks share the same behavior and edit surfaces. Risk: items 2 and 5 (privilege boundary and service configuration); running-state coordination must also be assessed before implementation.
 
@@ -103,3 +103,4 @@ Authorization references: [polkit pkexec manual](https://www.freedesktop.org/sof
 - L11 — Integrated final suite: 249/249 passed, zero failures/skips; `git diff --check` clean. Parent removed the independent verifier's reported scratch directory. Real CUDA reload and native authorization on the host remain intentionally untested. Commits, delivery slicing and the new native review remain pending; implementation is not reported fully delivered.
 - L12 — User delivery request: "parece que funciono bien sube cambios al main y al branch release". User answered "si" to explicit GitHub CLI/session/destination/operations/npm authorization. Target verified `ronald32acunadev/llmtuner`, active account ADMIN, main/release unchanged remotely and unprotected; no open PRs or any issues exist. Release workflow requires a new npm version and promotion via PR. npm latest 0.4.3; 0.4.4 lookup returned E404. Bumped package.json and synchronized stale lockfile root metadata to 0.4.4 without installing or running scripts. Re-ran 249 tests and verified dry-run package includes both new runtime modules. No git commit, push or PR mutation yet. Request an explicit approved-issue and single-release-PR size exception; do not invent or self-approve an issue or label.
 - L13 — User answered "si dale" to the explicit exception: one promotion PR into release without an approved linked issue or classification labels and exceeding 400 lines. This supersedes ask-on-risk chain selection; the feature must publish atomically, not as partial dependent releases. Preserve one coherent implementation work unit with tests/docs and patch-version metadata, followed only by passive delivery-log updates. No protected labels will be invented or changed.
+- L14 — Implementation commit `4e3f335` contains the complete verified work unit and version 0.4.4 (19 files, 788 additions and 36 deletions). Fresh tests 249/249, package dry-run includes both runtime modules, shell syntax check passed; shellcheck is unavailable. Native assessment: high due to privileged process boundary. User selected "2" (skip this time); exact provider invocation confirmed `action: declined`, `consent: declined_this_candidate`, target `sha256:bf49973c5c7a8a0001019bad34055a12dc9f942c7794aa0fa5ff29030021a375`. No native approval or receipt is claimed. Other reviews remain enabled; ordinary authorized delivery continues. Fresh remote fetch confirmed unchanged main/release before integration.
