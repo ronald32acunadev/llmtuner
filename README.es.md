@@ -19,7 +19,7 @@ Ningún LLM decide la configuración. LLM Tuner lee la topología de tu hardware
 - [Perfiles de carga](#perfiles-de-carga)
 - [Instalación](#instalación)
 - [Uso](#uso)
-  - [Asistente interactivo](#asistente-interactivo)
+  - [CLI interactiva y comandos slash](#cli-interactiva-y-comandos-slash)
   - [Aplicación de escritorio](#aplicación-de-escritorio)
   - [Modo CLI no interactivo](#modo-cli-no-interactivo)
   - [Referencia de opciones CLI](#referencia-de-opciones-cli)
@@ -84,6 +84,12 @@ Instalación global vía npm:
 
 ```bash
 npm install -g llm-tuner
+```
+
+O ejecutar directamente sin instalación permanente con `npx`:
+
+```bash
+npx llm-tuner
 ```
 
 Requisitos previos:
@@ -163,8 +169,9 @@ llm-tuner /settings
 | `--json` | Salida en formato JSON. | `false` |
 | `--lang <en\|es>` | Establece y guarda el idioma de la interfaz. | Sistema / `en` |
 | `--theme <system\|light\|dark>` | Establece y guarda el tema de la interfaz. | `system` |
+| `-v`, `--version` | Muestra la versión actual instalada. | — |
 | `/settings` | Menú interactivo de configuración. | — |
-| `--help` | Muestra la ayuda de comandos. | — |
+| `-h`, `--help` | Muestra la ayuda de comandos. | — |
 
 ---
 
