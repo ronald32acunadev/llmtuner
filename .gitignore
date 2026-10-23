@@ -77,3 +77,6 @@ ehthumbs.db
 .idea/dictionaries
 .idea/libraries
 *.iml
+
+.codegraph/
+.atl/
