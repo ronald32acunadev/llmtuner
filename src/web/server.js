@@ -2,11 +2,71 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError, PROFILES, checkUpdate, detectAgents, installMcpServer } from '../core/index.js';
 import { THEMES } from '../core/settings.js';
 import { LOCALES, messagesFor } from '../i18n/index.js';
 import { openUrl } from '../core/installer.js';
+
+export function sanitizeHardware(hw) {
+  if (!hw || typeof hw !== 'object') return hw;
+  return {
+    os: {
+      platform: hw.os?.platform,
+      arch: hw.os?.arch,
+    },
+    cpu: {
+      physicalCores: hw.cpu?.physicalCores,
+      threads: hw.cpu?.threads,
+      avx2: hw.cpu?.avx2,
+    },
+    gpus: (hw.gpus || []).map((gpu) => ({
+      vendor: gpu.vendor,
+      backend: gpu.backend,
+      index: gpu.index,
+      name: gpu.name,
+      totalBytes: gpu.totalBytes,
+      usedBytes: gpu.usedBytes,
+      freeBytes: gpu.freeBytes,
+      bandwidthGBps: gpu.bandwidthGBps,
+      displayAttached: gpu.displayAttached,
+      unifiedMemory: gpu.unifiedMemory,
+    })),
+    ram: {
+      totalBytes: hw.ram?.totalBytes,
+      availableBytes: hw.ram?.availableBytes,
+    },
+    ramBandwidthGBps: hw.ramBandwidthGBps,
+  };
+}
+
+export function isLoopback(ip) {
+  return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip);
+}
+
+export function verifyToken(req, expectedToken) {
+  const ip = req.socket?.remoteAddress;
+  const loopback = isLoopback(ip);
+
+  if (expectedToken === null || expectedToken === undefined) {
+    return loopback;
+  }
+
+  const authHeader = req.headers?.['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+
+  const token = authHeader.slice(7);
+  const tokenBuf = Buffer.from(token);
+  const expectedBuf = Buffer.from(expectedToken);
+
+  if (tokenBuf.length !== expectedBuf.length) {
+    return false;
+  }
+
+  return timingSafeEqual(tokenBuf, expectedBuf);
+}
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -56,7 +116,9 @@ const routes = {
 
   'POST /api/settings': async (req) => {
     const payload = await body(req);
-    if (payload?.lang === undefined && payload?.theme === undefined && payload?.profile === undefined) throw new TunerError('errors.unknownLocale', { lang: '', list: LOCALES.join(', ') });
+    if (payload?.lang === undefined && payload?.theme === undefined && payload?.profile === undefined && payload?.servers === undefined && payload?.activeServerId === undefined) {
+      throw new TunerError('errors.unknownLocale', { lang: '', list: LOCALES.join(', ') });
+    }
     const patch = {};
     if (payload.lang !== undefined) {
       if (!LOCALES.includes(payload.lang)) throw new TunerError('errors.unknownLocale', { lang: String(payload.lang ?? ''), list: LOCALES.join(', ') });
@@ -67,13 +129,16 @@ const routes = {
       patch.theme = payload.theme;
     }
     if (payload.profile !== undefined) patch.profile = knownProfile(payload.profile);
+    if (payload.servers !== undefined) patch.servers = payload.servers;
+    if (payload.activeServerId !== undefined) patch.activeServerId = payload.activeServerId;
     return { ...(await writeSettings(patch)), locales: LOCALES, themes: THEMES, profiles: PROFILES };
   },
 
-  'GET /api/state': async () => {
+  'GET /api/state': async (req, url, options) => {
     const hw = await detectHardware();
     const engines = await detectEngines(hw);
-    return { hw, ...engines, busy };
+    const safeHw = (options?.isRemote || options?.serverMode) ? sanitizeHardware(hw) : hw;
+    return { hw: safeHw, ...engines, busy };
   },
 
   'GET /api/install-plans': async (req, url) => ({ plans: await installPlans(url.searchParams.get('engine')) }),
@@ -164,9 +229,23 @@ const routes = {
 };
 
 
-async function handler(req, res, options) {
+async function handler(req, res, options = {}) {
   const url = new URL(req.url, 'http://localhost');
   try {
+    const ip = req.socket?.remoteAddress;
+    const loopback = isLoopback(ip);
+    const isRemote = !loopback || !!options.serverMode;
+
+    if (options.token || isRemote) {
+      if (!verifyToken(req, options.token)) {
+        return send(res, 401, { error: 'Unauthorized', code: 'errors.unauthorized' });
+      }
+    }
+
+    if (isRemote && req.method === 'POST' && url.pathname === '/api/install') {
+      return send(res, 403, { error: 'Forbidden', code: 'errors.forbiddenRemote' });
+    }
+
     // A foreign website must not trigger the desktop's privileged authorizer.
     if (options.authorizeOllama && req.method === 'POST' && req.headers.origin && req.headers.origin !== `http://127.0.0.1:${req.socket.localPort}`) return send(res, 403, { error: 'Forbidden origin' });
     // Server-Sent Events for job progress.
@@ -184,7 +263,7 @@ async function handler(req, res, options) {
       return;
     }
     const route = routes[`${req.method} ${url.pathname}`];
-    if (route) return send(res, 200, await route(req, url, options));
+    if (route) return send(res, 200, await route(req, url, { ...options, isRemote }));
 
     const i18n = url.pathname.match(/^\/api\/i18n\/([\w-]+)$/);
     if (i18n && req.method === 'GET') {
@@ -210,16 +289,18 @@ async function handler(req, res, options) {
   }
 }
 
-/** Start the local UI server (bound to localhost only). */
-export function startServer({ port = Number(process.env.PORT) || 7860, open = false, authorizeOllama } = {}) {
+/** Start the local or remote server. */
+export function startServer({ port = Number(process.env.PORT) || 7860, host = '127.0.0.1', token = null, serverMode = false, open = false, authorizeOllama } = {}) {
   return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => handler(req, res, { authorizeOllama }));
+    const server = http.createServer((req, res) => handler(req, res, { authorizeOllama, token, serverMode, host }));
     server.on('error', reject);
-    server.listen(port, '127.0.0.1', () => {
-      const url = `http://127.0.0.1:${server.address().port}`;
+    server.listen(port, host, () => {
+      const addr = server.address();
+      const resolvedPort = typeof addr === 'string' ? addr : addr.port;
+      const url = `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${resolvedPort}`;
       console.log(`LLM Tuner available at ${url}`);
       if (open) openUrl(url);
-      resolve({ server, url });
+      resolve({ server, url, port: resolvedPort });
     });
   });
 }

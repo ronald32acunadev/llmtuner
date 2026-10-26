@@ -6,8 +6,9 @@ export { PROFILES, DEFAULT_PROFILE, normalizeProfile, QUALITY_KV_TYPES, kvTypesF
 export { installPlans, runInstall, openUrl } from './installer.js';
 export { fmtBytes, configDir } from './util.js';
 export { findPreset, savePreset, listPresets, presetsDir, presetPath, variantsSignature, hardwareFingerprint } from './presets.js';
-export { readSettings, writeSettings, settingsPath, THEMES, DEFAULT_THEME, normalizeTheme } from './settings.js';
+export { readSettings, writeSettings, settingsPath, THEMES, DEFAULT_THEME, normalizeTheme, getActiveServer, DEFAULT_SERVERS, DEFAULT_ACTIVE_SERVER_ID } from './settings.js';
 export { TunerError, benchError } from './errors.js';
 export { sampleRam, sampleGpus, startTelemetrySampler } from './telemetry.js';
 export { checkUpdate, isNewerVersion, CURRENT_VERSION } from './updater.js';
 export { detectAgents, installMcpServer, SUPPORTED_AGENTS } from './mcp/index.js';
+export { TunerApiClient } from './client.js';

@@ -337,6 +337,128 @@ async function boot() {
       alert(t('common.error', { message: err.message }));
     }
   };
+
+  function renderServerList() {
+    const sel = $('#server-select');
+    if (!sel) return;
+    sel.innerHTML = '';
+    (s.servers || []).forEach((srv) => {
+      const opt = document.createElement('option');
+      opt.value = srv.id;
+      opt.textContent = `${srv.name} (${srv.url})`;
+      if (srv.id === s.activeServerId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    const active = (s.servers || []).find((x) => x.id === s.activeServerId) || s.servers?.[0];
+    if (active) {
+      const urlSpan = $('#active-server-url');
+      if (urlSpan) urlSpan.textContent = active.url;
+      const removeBtn = $('#remove-server-btn');
+      if (removeBtn) removeBtn.hidden = (active.id === 'local');
+    }
+  }
+  renderServerList();
+
+  const serverSel = $('#server-select');
+  if (serverSel) {
+    serverSel.onchange = async () => {
+      const nextId = serverSel.value;
+      setBusy(true);
+      try {
+        await api('/api/settings', { activeServerId: nextId });
+        location.reload();
+      } catch (err) {
+        setBusy(false);
+        alert(t('common.error', { message: err.message }));
+      }
+    };
+  }
+
+  const removeServerBtn = $('#remove-server-btn');
+  if (removeServerBtn) {
+    removeServerBtn.onclick = async () => {
+      const activeId = s.activeServerId;
+      if (activeId === 'local') return;
+      const nextServers = (s.servers || []).filter((x) => x.id !== activeId);
+      setBusy(true);
+      try {
+        await api('/api/settings', { servers: nextServers, activeServerId: 'local' });
+        location.reload();
+      } catch (err) {
+        setBusy(false);
+        alert(t('common.error', { message: err.message }));
+      }
+    };
+  }
+
+  const serverModal = $('#server-modal');
+  const serverBackdrop = $('#server-backdrop');
+  function closeServerModal() {
+    if (serverModal) {
+      serverModal.hidden = true;
+      serverModal.close?.();
+    }
+    if (serverBackdrop) serverBackdrop.hidden = true;
+    $('#server-form')?.reset();
+    const fb = $('#server-test-feedback');
+    if (fb) fb.hidden = true;
+  }
+  function openServerModal() {
+    if (serverModal) {
+      serverModal.hidden = false;
+      serverModal.showModal?.();
+    }
+    if (serverBackdrop) serverBackdrop.hidden = false;
+  }
+
+  const addServerBtn = $('#add-server-btn');
+  if (addServerBtn) addServerBtn.onclick = openServerModal;
+  const serverModalClose = $('#server-modal-close');
+  if (serverModalClose) serverModalClose.onclick = closeServerModal;
+  if (serverBackdrop) serverBackdrop.onclick = closeServerModal;
+
+  const serverTestBtn = $('#server-test-btn');
+  if (serverTestBtn) {
+    serverTestBtn.onclick = async () => {
+      const url = $('#new-server-url').value.trim().replace(/\/+$/, '');
+      const token = $('#new-server-token').value.trim();
+      const fb = $('#server-test-feedback');
+      if (!fb) return;
+      fb.hidden = false;
+      fb.textContent = 'Connecting...';
+      try {
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch(`${url}/api/state`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        fb.textContent = t('web.serverConnected');
+        fb.style.color = 'var(--c-accent, green)';
+      } catch (err) {
+        fb.textContent = t('web.serverConnectionFailed', { error: err.message });
+        fb.style.color = 'var(--c-err, red)';
+      }
+    };
+  }
+
+  const serverForm = $('#server-form');
+  if (serverForm) {
+    serverForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const name = $('#new-server-name').value.trim();
+      const url = $('#new-server-url').value.trim().replace(/\/+$/, '');
+      const token = $('#new-server-token').value.trim() || null;
+      const newServer = { id: 'srv_' + Date.now(), name, url, token };
+      const nextServers = [...(s.servers || []), newServer];
+      setBusy(true);
+      try {
+        await api('/api/settings', { servers: nextServers, activeServerId: newServer.id });
+        location.reload();
+      } catch (err) {
+        setBusy(false);
+        alert(t('common.error', { message: err.message }));
+      }
+    };
+  }
+
   await init();
 }
 
@@ -346,7 +468,8 @@ async function init() {
   state.hw = s.hw;
   state.engines = s.engines;
   setBusy(s.busy);
-  $('#hw-mini').innerHTML = `<div>${esc(s.hw.cpu.brand)}</div><div>${gb(s.hw.ram.totalBytes)} RAM</div>` +
+  const cpuTitle = s.hw?.cpu?.brand || (s.hw?.cpu?.physicalCores ? `${s.hw.cpu.physicalCores} cores` : 'CPU');
+  $('#hw-mini').innerHTML = `<div>${esc(cpuTitle)}</div><div>${gb(s.hw.ram.totalBytes)} RAM</div>` +
     (s.hw.gpus.length ? s.hw.gpus.map((g) => `<div>GPU${g.index} ${esc(g.name.replace(/^NVIDIA GeForce /, ''))} · ${gb(g.totalBytes)}${g.pcieGen ? ` · PCIe ${g.pcieGen}.0 x${g.pcieWidth}` : ''}</div>`).join('') : `<div>${esc(t('web.noGpu'))}</div>`);
   $('#engine-reason').textContent = t(s.reasonCode, s.reasonParams);
   const box = $('#engines');
