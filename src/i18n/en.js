@@ -116,7 +116,7 @@ Commands:
   /load                        Tune and load a model with optimal hardware settings
   /mcp                         Connect local engine to AI coding agents as MCP server
   /presets                     List saved presets
-  /settings                    Interactive settings menu (language and theme)
+  /settings                    Interactive settings menu (language, theme, and server startup)
   /help                        Show this help message
   /exit                        Exit the interactive menu
 
@@ -134,6 +134,8 @@ Options:
   --lang <en|es>               Interface language (saved for next time)
   --theme <system|light|dark>  Interface theme (saved for next time)
 
+Server startup can be enabled or disabled after login in /settings. It starts on your next login, not immediately.
+
 Ollama service changes may ask for administrator authorization in the terminal.
 Unchanged settings do not restart the service. JSON/noninteractive mode never asks for a password.
 
@@ -143,6 +145,15 @@ Presets are saved in {presetsDir}`,
   'cli.settingsMenu': 'Select an option to configure:',
   'cli.settingsLanguage': 'Language',
   'cli.settingsTheme': 'Theme',
+  'cli.settingsAutostart': 'Automatic server startup after login',
+  'cli.settingsAutostartEnable': 'Enable',
+  'cli.settingsAutostartDisable': 'Disable',
+  'cli.enabled': 'Enabled',
+  'cli.disabled': 'Disabled',
+  'cli.unknown': 'Unknown',
+  'cli.autostartEnabled': 'Server startup is enabled for your next login.',
+  'cli.autostartDisabled': 'Server startup is disabled.',
+  'cli.autostartFailed': 'Could not update automatic server startup: {error}',
   'cli.settingsServers': 'Active Server',
   'cli.settingsExit': 'Save and return',
   'cli.settingsSaved': 'Settings saved.',

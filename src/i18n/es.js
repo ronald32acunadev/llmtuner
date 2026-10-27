@@ -116,7 +116,7 @@ Comandos:
   /load                        Ajustar y cargar un modelo con la configuración óptima
   /mcp                         Conectar motor local con agentes de IA como servidor MCP
   /presets                     Listar presets guardados
-  /settings                    Menú interactivo de configuración (idioma y tema)
+  /settings                    Menú interactivo de configuración (idioma, tema e inicio del servidor)
   /help                        Mostrar esta ayuda
   /exit                        Salir del menú interactivo
 
@@ -134,6 +134,8 @@ Opciones:
   --lang <en|es>               Idioma de la interfaz (se guarda para la próxima vez)
   --theme <system|light|dark>  Tema de la interfaz (se guarda para la próxima)
 
+El inicio del servidor se habilita o deshabilita después de iniciar sesión desde /settings. Se ejecuta en el próximo inicio de sesión, no de inmediato.
+
 Los cambios del servicio de Ollama pueden solicitar autorización de administrador en la terminal.
 Si los ajustes no cambian, el servicio no se reinicia. El modo JSON/no interactivo nunca pide contraseña.
 
@@ -143,6 +145,15 @@ Los presets se guardan en {presetsDir}`,
   'cli.settingsMenu': 'Selecciona una opción para configurar:',
   'cli.settingsLanguage': 'Idioma',
   'cli.settingsTheme': 'Tema',
+  'cli.settingsAutostart': 'Inicio automático del servidor después de iniciar sesión',
+  'cli.settingsAutostartEnable': 'Habilitar',
+  'cli.settingsAutostartDisable': 'Deshabilitar',
+  'cli.enabled': 'Habilitado',
+  'cli.disabled': 'Deshabilitado',
+  'cli.unknown': 'Desconocido',
+  'cli.autostartEnabled': 'El inicio del servidor quedó habilitado para tu próximo inicio de sesión.',
+  'cli.autostartDisabled': 'El inicio del servidor quedó deshabilitado.',
+  'cli.autostartFailed': 'No se pudo actualizar el inicio automático del servidor: {error}',
   'cli.settingsServers': 'Servidor activo',
   'cli.settingsExit': 'Guardar y volver',
   'cli.settingsSaved': 'Configuración guardada.',

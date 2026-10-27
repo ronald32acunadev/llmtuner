@@ -134,18 +134,18 @@ test('an unknown or missing --theme fails and saves nothing', async () => {
 });
 
 test('/settings exits cleanly with 0 and confirms saved settings', () => {
-  const r = cli('/settings', { input: '\x1b[B\x1b[B\n' });
+  const r = cli('/settings', { input: '\x1b[B\x1b[B\x1b[B\n' });
   assert.equal(r.status, 0);
   assert.match(r.stdout, /Select an option to configure/);
   assert.match(r.stdout, /Settings saved\./);
 });
 
 test('/setting and --settings also trigger interactive settings', () => {
-  const r1 = cli('/setting', { input: '\x1b[B\x1b[B\n' });
+  const r1 = cli('/setting', { input: '\x1b[B\x1b[B\x1b[B\n' });
   assert.equal(r1.status, 0);
   assert.match(r1.stdout, /Settings saved\./);
 
-  const r2 = cli('--settings', { input: '\x1b[B\x1b[B\n' });
+  const r2 = cli('--settings', { input: '\x1b[B\x1b[B\x1b[B\n' });
   assert.equal(r2.status, 0);
   assert.match(r2.stdout, /Settings saved\./);
 });
@@ -181,7 +181,7 @@ test('/settings allows changing language and updates settings.json', async () =>
       } else if (step === 2 && buf.includes('Selecciona una opción')) {
         step = 3;
         buf = '';
-        p.stdin.write('\x1b[B\x1b[B\n'); // Select Guardar y volver
+        p.stdin.write('\x1b[B\x1b[B\x1b[B\n'); // Select Guardar y volver
       }
     });
 
@@ -231,7 +231,7 @@ test('/settings allows changing theme and updates settings.json', async () => {
       } else if (step === 2 && buf.includes('Select an option')) {
         step = 3;
         buf = '';
-        p.stdin.write('\x1b[B\x1b[B\n'); // Select Save and return
+        p.stdin.write('\x1b[B\x1b[B\x1b[B\n'); // Select Save and return
       }
     });
 
