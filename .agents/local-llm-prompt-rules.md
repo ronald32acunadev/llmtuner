@@ -20,3 +20,7 @@ Paste this list into the system message of every code request to a local model. 
 - Ask for one file per request and end the request with a 3-line checklist of the rules it most needs.
 - Tests: pytest functions with `tmp_path`; never write to `/tmp`; never patch a whole module; import every name used.
 - Tests: keep each requested test's name, inputs, and assertions exactly; assert exact values.
+- JavaScript node:test requests override Python test conventions; use the exact target import, injected env, cleanup every scratch root, and never substitute placeholder assertions for requested behavior.
+- JavaScript arrow-function mocks must name their parameters explicitly; never read `arguments` from an arrow function.
+- Tests for Promise-returning APIs must await results; security tests must supply real sender identities and count every forbidden dependency call, not merely assert rejection.
+- IPC authorization must compare `event.senderFrame` with `webContents.mainFrame`; comparing the destination frame with itself does not authenticate the caller.
