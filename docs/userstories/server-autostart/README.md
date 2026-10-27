@@ -17,7 +17,7 @@ Start the remote LLM Tuner server after user login when explicitly enabled in Se
 
 As a server owner, I want to enable or disable automatic server startup from CLI Settings, so that the server becomes available after I log in without a manual command.
 
-**Status:** in progress. **Dependencies:** none.
+**Status:** complete. **Dependencies:** none. Commit: `99874b1` (created externally, not by this agent).
 
 ### Acceptance criteria
 
@@ -33,7 +33,7 @@ As a server owner, I want to enable or disable automatic server startup from CLI
 
 As a Desktop user, I want the same automatic server startup setting, so that I can manage it without using the terminal.
 
-**Status:** in progress. **Dependencies:** US-01 shared startup implementation.
+**Status:** complete. **Dependencies:** US-01 shared startup implementation.
 
 ### Acceptance criteria
 
@@ -49,7 +49,7 @@ As a Desktop user, I want the same automatic server startup setting, so that I c
 
 As a server owner, I want to view the server token from CLI Settings and reveal/copy it in Desktop Settings, so that I can connect from another computer.
 
-**Status:** pending. **Dependencies:** shared server configuration; can reuse US-01 configuration handling.
+**Status:** complete. **Dependencies:** shared server configuration; can reuse US-01 configuration handling.
 
 ### Acceptance criteria
 
@@ -72,7 +72,7 @@ Risk: security-sensitive token access and operating-system startup registration 
 
 ## Observed verification
 
-Planning only: inspected `src/cli/commands/serve.js`, `src/core/util.js`, `src/core/settings.js`, `src/cli/commands/settings.js`, and `electron/main.js` through CodeGraph. No source changes or functional tests have been performed.
+Current verification: full isolated suite 303 passed, 0 failed/skipped; installed Electron main/preload/renderer smoke passed. See dated execution log below for prior RED/GREEN and remaining platform limitations. US-02/US-03 acceptance checks passed; user declined native review for this candidate.
 
 ## Request and decisions
 
@@ -101,3 +101,16 @@ Planning only: inspected `src/cli/commands/serve.js`, `src/core/util.js`, `src/c
 
 - Scope update: "OK continua con las demas tareas , cumpliendo la regla de modelo local por favor". Execute US-02 then US-03 without another transition approval. First use pumbastudio and immediately persist reusable rejection corrections before retry/provider changes.
 - Design for remaining stories: restricted Electron IPC, not HTTP endpoints, for local startup/credentials; validate sender WebContents, top frame and origin. Preload exposes only named operations. Pass actual Node executable from the Node-based Desktop launcher, never use Electron executable as Node. No changes to generic HTTP settings/telemetry.
+
+- US-02/03 progress: pumbastudio generated IPC controller, sandbox preload, Electron integration, Node runtime forwarding, isolated UI module, markup and catalogs. RED then GREEN observed for controller 5 tests, preload 2, UI interaction 6. Reusable corrections persisted before each single local retry. No fallback used for these stories; integration and CLI token tests/independent final checks remain pending.
+
+- Repository checkpoint changed externally during local generation: HEAD is now `b61854e` (preceded by `df8a51b` and `99874b1`). No agent commit was issued. Existing controller/test/tracking files became tracked; bytes of the controller match the reviewed local output. Preserved these commits and all remaining worktree changes.
+
+- US-02/US-03 independent verification: complete isolated `npm test` exit 0, 303 passed, 0 failed/skipped. Direct controller 5, preload 2, UI 6 and CLI token 3 tests passed. Syntax/diff checks and English/Spanish catalog parity passed; 89 referenced localization keys verified. Parent repeated controller/UI/CLI focused commands successfully.
+- Security probes: 20 unauthorized IPC invocations caused zero effects and preserved configuration hash. Explicit reveal/copy preserved token bytes; malformed reveal config rejected. Differential `--version` and manual serve output identical to reviewed US-01; help changed only by authorized connection guidance.
+- Installed Electron runtime smoke (hidden/headless) passed: real main/preload/renderer boot, bridge, disabled startup status, missing config, explicit synthetic-token reveal, Escape clearing, and unchanged configuration bytes. No real clipboard or startup registration was modified. Existing repository sandbox-disable behavior was used, without additional weakening. This is not visual layout proof or a real logout/login test; native Windows/macOS registration remains unavailable.
+- Review scope for remaining stories must include the externally committed controller `b61854e` plus current changes; use preceding `df8a51b` as review boundary to exclude unrelated prior README/CLAUDE/script commits. External commits are preserved. No new agent commit or publication performed.
+
+- User selected `2`: native review omitted only for the remaining candidate. Exact provider invocation returned `action: declined`, `consent: declined_this_candidate`, matching target `sha256:8831aa5bebf5e4dbe31268e02ec63607f5c26c63516fc27d4ed9bd9a92f52154`. No review approval or record is claimed; future reviews remain enabled. US-02/US-03 functional acceptance complete with 303 passing tests and isolated Electron smoke. No new agent commit/push/PR, clipboard mutation, or owner startup activation. Delivery strategy remains ask-on-risk; choose a chain strategy before an agent work-unit commit for the >400-line remaining change.
+
+- Delivery authorization: user requested one PR ("Hagamos un pr y yo luego pruebo") and explicitly approved publishing `feat/remote-servers` to `ronald32acunadev/llmtuner` against `main` using this session GitHub connection. Strategy: single-pr, size exception explicitly requested. Current full branch includes prior remote-server/client and documentation commits; scope is 51 files, 3,554 additions and 371 deletions before final bookkeeping. Fresh workspace `npm test`: 303 passed, 0 failed/skipped, exit 0. No automatic merge requested. Manual logout/login and Windows/macOS testing remain for the user.

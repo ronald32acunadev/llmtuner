@@ -28,6 +28,7 @@ try {
   await fail(error);
 }
 const env = { ...process.env };
+env.LLM_TUNER_NODE_EXEC_PATH = process.execPath;
 
 if (process.platform === 'linux') {
   try {

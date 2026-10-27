@@ -2,12 +2,16 @@ import { select } from '@inquirer/prompts';
 import { writeSettings } from '../../core/index.js';
 import { t as translate } from '../../i18n/index.js';
 import { createServerAutostart } from '../../platform/server-autostart.js';
-import { serverConfigPath } from './serve.js';
+import { serverConfigPath, readServerConfig } from './serve.js';
 import { getColors } from '../colors.js';
 import { withNav, NAV_BACK, backChoice } from '../nav.js';
 
 export async function settingsCommand(args, { lang, theme }, dependencies = {}) {
-  const { selectPrompt = select, autostart = createServerAutostart({ configPath: serverConfigPath() }) } = dependencies;
+  const {
+    selectPrompt = select,
+    autostart = createServerAutostart({ configPath: serverConfigPath() }),
+    readConfig = readServerConfig
+  } = dependencies;
   const c = getColors(theme);
   const t = (key, params) => translate(lang, key, params);
   let startupEnabled;
@@ -25,6 +29,7 @@ export async function settingsCommand(args, { lang, theme }, dependencies = {}) 
         { name: `${t('cli.settingsLanguage')}: ${lang === 'es' ? 'Español' : 'English'} (${lang})`, value: 'lang' },
         { name: `${t('cli.settingsTheme')}: ${theme.charAt(0).toUpperCase() + theme.slice(1)}`, value: 'theme' },
         { name: `${t('cli.settingsAutostart')}: ${t(startupEnabled === null ? 'cli.unknown' : startupEnabled ? 'cli.enabled' : 'cli.disabled')}`, value: 'serverAutostart' },
+        { name: t('cli.serverConnection'), value: 'serverConnection' },
         { name: t('cli.settingsExit'), value: 'exit' },
       ],
     }));
@@ -91,6 +96,23 @@ export async function settingsCommand(args, { lang, theme }, dependencies = {}) 
         } catch (e) {
           console.error(c.y(t('cli.autostartFailed', { error: e.message })));
         }
+      }
+    } else if (action === 'serverConnection') {
+      try {
+        const cfg = await readConfig();
+        if (!cfg) {
+          console.log(c.y(t('cli.serverNoConfig')));
+        } else {
+          const isValid = typeof cfg.host === 'string' && cfg.host.length > 0 &&
+                          Number.isInteger(cfg.port) && cfg.port >= 1 && cfg.port <= 65535 &&
+                          typeof cfg.token === 'string' && cfg.token.length > 0;
+          if (!isValid) {
+            throw new Error(t('cli.serverConnectionInvalid'));
+          }
+          console.log(t('cli.serverConnectionDetails', { host: cfg.host, port: cfg.port, token: cfg.token }));
+        }
+      } catch (e) {
+        console.error(c.y(t('common.error', { message: e.message })));
       }
     }
   }

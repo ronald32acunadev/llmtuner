@@ -156,6 +156,26 @@
         <button id="remove-server-btn" type="button" class="btn btn-danger-sm" data-i18n="web.removeServer" style="padding:2px 8px;font-size:11px;" hidden>Remove</button>
       </div>
     </div>
+<section id="local-server-settings" class="drawer-field" hidden>
+    <h3 data-i18n="web.localServerSettings">Local Server Settings</h3>
+
+    <label for="local-server-autostart" data-i18n="web.serverAutostartLabel">Server Autostart</label>
+    <select id="local-server-autostart" disabled>
+        <option value="enabled" data-i18n="cli.enabled">Enabled</option>
+        <option value="disabled" data-i18n="cli.disabled">Disabled</option>
+    </select>
+    <p id="local-server-status" class="small muted" aria-live="polite"></p>
+
+    <label for="server-token" data-i18n="web.serverTokenLabel">Server Token</label>
+    <div class="token-container">
+        <input id="server-token" type="password" readonly autocomplete="off" spellcheck="false" value="">
+        <button type="button" id="server-token-reveal" class="btn btn-sm" data-i18n="web.serverTokenReveal">Reveal</button>
+        <button type="button" id="server-token-copy" class="btn btn-sm" data-i18n="web.serverTokenCopy">Copy</button>
+    </div>
+
+    <p id="server-connection-info" class="small muted"></p>
+    <p id="local-server-feedback" class="small" aria-live="polite" role="status"></p>
+</section>
     <div class="drawer-field version-info">
       <span class="muted" id="version-display"></span>
       <div id="update-badge" hidden>

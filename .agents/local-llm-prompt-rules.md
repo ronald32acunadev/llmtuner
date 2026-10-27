@@ -24,3 +24,8 @@ Paste this list into the system message of every code request to a local model. 
 - JavaScript arrow-function mocks must name their parameters explicitly; never read `arguments` from an arrow function.
 - Tests for Promise-returning APIs must await results; security tests must supply real sender identities and count every forbidden dependency call, not merely assert rejection.
 - IPC authorization must compare `event.senderFrame` with `webContents.mainFrame`; comparing the destination frame with itself does not authenticate the caller.
+- For ESM file fixtures, pass the exact `new URL(relativePath, import.meta.url)` to fs APIs; do not use URL.pathname or shorten the requested directory path.
+- UI test doubles must use the exact production method names and result shapes; distinguish a disabled setting value from an HTML control being disabled.
+- New application-owned UI error messages must use the existing i18n catalog; success flags such as `copied` must be confirmed with `=== true`, not truthiness.
+- Every HTML label for a form control must include the exact matching `for` attribute; an i18n attribute is not an accessibility association.
+- Stateful test selection queues must be created once outside callbacks; use real named exports and Node assertions (`doesNotMatch`, `equal`), never invented assertion methods.

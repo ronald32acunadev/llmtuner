@@ -1,3 +1,4 @@
+import { setupServerSettings } from './server-settings.js';
 import { format } from '/i18n/core.js';
 import { initialProfile, profileOptions, profileDetailLines, profileEventLines, presetsFor, presetFor, isCurrentModel, isCurrentPlan } from './profile.js';
 
@@ -290,6 +291,7 @@ async function boot() {
   document.documentElement.lang = s.lang;
   applyStatic();
   setupDrawer();
+  await setupServerSettings({ document, bridge: window.llmTunerServer, t });
   setupMcpModal();
   api('/api/update').then((up) => {
     if (up?.currentVersion) {
