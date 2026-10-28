@@ -236,15 +236,35 @@ async function openMcpModal(engine) {
   if (title) title.textContent = t('web.mcpModalTitle', { engine: engine.name });
   if (nameInput) nameInput.value = engine.id === 'lmstudio' ? 'lmstudio' : 'ollama';
 
+  const activeSrv = (state.settings?.servers || []).find((x) => x.id === state.settings?.activeServerId);
+  const isRemote = Boolean(activeSrv && activeSrv.id !== 'local' && activeSrv.url);
+  let remoteHost = null;
+  if (isRemote) {
+    try {
+      const hostname = new URL(activeSrv.url).hostname;
+      if (hostname && hostname !== '127.0.0.1' && hostname !== 'localhost') {
+        remoteHost = engine.id === 'lmstudio' ? `http://${hostname}:1234/v1` : `http://${hostname}:11434`;
+      }
+    } catch {}
+  }
+
   if (engine.id === 'lmstudio') {
-    if (hostInput) hostInput.placeholder = 'http://127.0.0.1:1234/v1';
+    const defaultHost = remoteHost || 'http://127.0.0.1:1234/v1';
+    if (hostInput) {
+      hostInput.placeholder = defaultHost;
+      hostInput.value = remoteHost || '';
+    }
     if (apiKeyGroup) apiKeyGroup.hidden = false;
     if (apiKeyInput) {
       apiKeyInput.value = '';
       apiKeyInput.placeholder = 'sk-lm-local';
     }
   } else {
-    if (hostInput) hostInput.placeholder = 'http://127.0.0.1:11434';
+    const defaultHost = remoteHost || 'http://127.0.0.1:11434';
+    if (hostInput) {
+      hostInput.placeholder = defaultHost;
+      hostInput.value = remoteHost || '';
+    }
     if (apiKeyGroup) apiKeyGroup.hidden = true;
     if (apiKeyInput) apiKeyInput.value = '';
   }
@@ -286,6 +306,7 @@ function updateMcpAgentsList() {
 
 async function boot() {
   const s = await api('/api/settings');
+  state.settings = s;
   applyTheme(s.theme);
   ({ messages } = await api(`/api/i18n/${s.lang}`));
   document.documentElement.lang = s.lang;

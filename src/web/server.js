@@ -234,6 +234,53 @@ const routes = {
 };
 
 
+export async function getActiveRemoteServer({ options } = {}) {
+  if (options?.serverMode === true) {
+    return null;
+  }
+
+  const settings = await readSettings().catch(() => null);
+  if (!settings || !settings.activeServerId || settings.activeServerId === 'local') {
+    return null;
+  }
+
+  const server = settings.servers?.find((s) => s.id === settings.activeServerId);
+  return (server && server.url) ? server : null;
+}
+
+export async function proxyToRemote(remoteServer, req, url, res) {
+  const targetUrl = `${remoteServer.url.replace(/\/+$/, '')}${url.pathname}${url.search}`;
+  const headers = {
+    'Content-Type': req.headers['content-type'] || 'application/json',
+  };
+
+  if (remoteServer.token) {
+    headers['Authorization'] = `Bearer ${remoteServer.token}`;
+  }
+
+  let body = null;
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    body = Buffer.concat(chunks);
+  }
+
+  try {
+    const remoteRes = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body: body && body.length > 0 ? body : undefined,
+    });
+
+    const data = await remoteRes.json().catch(() => ({}));
+    return send(res, remoteRes.status, data);
+  } catch (err) {
+    return send(res, 502, { error: err.message, code: 'web.serverConnectionFailed' });
+  }
+}
+
 async function handler(req, res, options = {}) {
   const url = new URL(req.url, 'http://localhost');
   try {
@@ -263,6 +310,49 @@ async function handler(req, res, options = {}) {
 
     // A foreign website must not trigger the desktop's privileged authorizer.
     if (options.authorizeOllama && req.method === 'POST' && req.headers.origin && req.headers.origin !== `http://127.0.0.1:${req.socket.localPort}`) return send(res, 403, { error: 'Forbidden origin' });
+
+    const activeRemote = await getActiveRemoteServer({ options });
+    if (activeRemote) {
+      const ev = url.pathname.match(/^\/api\/jobs\/([\w-]+)\/events$/);
+      if (ev) {
+        try {
+          const targetUrl = `${activeRemote.url.replace(/\/+$/, '')}${url.pathname}${url.search}`;
+          const headers = {};
+          if (activeRemote.token) {
+            headers['Authorization'] = `Bearer ${activeRemote.token}`;
+          }
+
+          const remoteRes = await fetch(targetUrl, { method: 'GET', headers });
+          res.writeHead(remoteRes.status, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+          });
+
+          const reader = remoteRes.body.getReader();
+          req.on('close', () => reader.cancel().catch(() => {}));
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(value);
+            }
+          } finally {
+            res.end();
+          }
+          return;
+        } catch (err) {
+          return send(res, 502, { error: err.message, code: 'web.serverConnectionFailed' });
+        }
+      }
+
+      const PROXIED_PATHS = ['/api/state', '/api/models', '/api/plan', '/api/presets', '/api/load', '/api/chat'];
+      if (PROXIED_PATHS.includes(url.pathname)) {
+        return await proxyToRemote(activeRemote, req, url, res);
+      }
+    }
+
     // Server-Sent Events for job progress.
     const ev = url.pathname.match(/^\/api\/jobs\/([\w-]+)\/events$/);
     if (ev) {
