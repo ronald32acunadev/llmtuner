@@ -4,7 +4,7 @@ export { planCandidates, placeLayers, maxFullOffloadContext, kvTotalBytes, KV_TY
 export { Tuner, ENGINES, detectEngines, pickBest, slim } from './tuner.js';
 export { PROFILES, DEFAULT_PROFILE, normalizeProfile, QUALITY_KV_TYPES, kvTypesFor, meetsQuality, fitsFullyOnGpu, pickVariant, recommendProfile, HINT_TARGETS, variantHints, VRAM_BUSY_FRACTION, vramInUse } from './profiles.js';
 export { installPlans, runInstall, openUrl } from './installer.js';
-export { fmtBytes, configDir } from './util.js';
+export { fmtBytes, configDir, resolveConnectableHost } from './util.js';
 export { findPreset, savePreset, listPresets, presetsDir, presetPath, variantsSignature, hardwareFingerprint } from './presets.js';
 export { readSettings, writeSettings, settingsPath, THEMES, DEFAULT_THEME, normalizeTheme, getActiveServer, DEFAULT_SERVERS, DEFAULT_ACTIVE_SERVER_ID } from './settings.js';
 export { TunerError, benchError } from './errors.js';

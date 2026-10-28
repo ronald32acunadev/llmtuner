@@ -7,6 +7,7 @@ import { createOllamaAuthorizer } from '../src/platform/ollama-authorize.js';
 import { createServerAutostart } from '../src/platform/server-autostart.js';
 import { readServerConfig, serverConfigPath } from '../src/cli/commands/serve.js';
 import { createServerControls, isTrustedServerSender } from './server-controls.js';
+import { resolveConnectableHost } from '../src/core/util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -70,6 +71,7 @@ async function createWindow() {
       },
     },
     readConfig: readServerConfig,
+    resolveHost: resolveConnectableHost,
     copyText: async (text) => {
       await clipboard.writeText(text);
     },

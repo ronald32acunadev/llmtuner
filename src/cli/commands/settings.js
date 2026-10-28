@@ -1,5 +1,5 @@
 import { select } from '@inquirer/prompts';
-import { writeSettings } from '../../core/index.js';
+import { writeSettings, resolveConnectableHost } from '../../core/index.js';
 import { t as translate } from '../../i18n/index.js';
 import { createServerAutostart } from '../../platform/server-autostart.js';
 import { serverConfigPath, readServerConfig } from './serve.js';
@@ -109,7 +109,8 @@ export async function settingsCommand(args, { lang, theme }, dependencies = {}) 
           if (!isValid) {
             throw new Error(t('cli.serverConnectionInvalid'));
           }
-          console.log(t('cli.serverConnectionDetails', { host: cfg.host, port: cfg.port, token: cfg.token }));
+          const displayHost = resolveConnectableHost(cfg.host);
+          console.log(t('cli.serverConnectionDetails', { host: displayHost, port: cfg.port, token: cfg.token }));
         }
       } catch (e) {
         console.error(c.y(t('common.error', { message: e.message })));

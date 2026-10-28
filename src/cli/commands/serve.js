@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { configDir, readJson } from '../../core/util.js';
+import { configDir, readJson, resolveConnectableHost } from '../../core/util.js';
 import { startServer } from '../../web/server.js';
 
 export function serverConfigPath() {
@@ -27,7 +27,7 @@ export async function writeServerConfig(cfg) {
 
 export async function serveCommand(args = {}) {
   const host = args.host || '0.0.0.0';
-  const port = Number(args.port) || 7860;
+  const port = args.port !== undefined ? Number(args.port) : 7860;
 
   const existingConfig = await readServerConfig();
   const token = args.token || existingConfig?.token || randomBytes(32).toString('hex');
@@ -41,14 +41,19 @@ export async function serveCommand(args = {}) {
     serverMode: true,
   });
 
-  console.log(`LLM Tuner server mode running on http://${host}:${port}`);
+  const displayHost = resolveConnectableHost(host);
+  const resolvedPort = serverResult.port || port;
+  const connectableUrl = `http://${displayHost}:${resolvedPort}`;
+
+  console.log(`LLM Tuner server mode running on ${connectableUrl}`);
   console.log(`Authentication Token: ${token}`);
 
   return {
     server: serverResult.server,
-    url: serverResult.url,
-    port: serverResult.port || port,
+    url: connectableUrl,
+    port: resolvedPort,
     host,
+    connectableHost: displayHost,
     token,
   };
 }

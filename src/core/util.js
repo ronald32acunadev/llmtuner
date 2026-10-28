@@ -146,3 +146,29 @@ export function cpuBusyPercent(a, b) {
   }
   return total > 0 ? 100 * (1 - idle / total) : 0;
 }
+
+export function resolveConnectableHost(host = '127.0.0.1', networkInterfaces = os.networkInterfaces) {
+  if (host !== '0.0.0.0' && host !== '::') {
+    return host;
+  }
+
+  let interfaces;
+  if (typeof networkInterfaces === 'function') {
+    interfaces = networkInterfaces();
+  } else if (networkInterfaces && typeof networkInterfaces.networkInterfaces === 'function') {
+    interfaces = networkInterfaces.networkInterfaces();
+  } else {
+    interfaces = os.networkInterfaces();
+  }
+
+  for (const name of Object.keys(interfaces || {})) {
+    const list = interfaces[name] || [];
+    const addr = list.find((info) => (info.family === 'IPv4' || info.family === 4) && !info.internal);
+    if (addr) {
+      return addr.address;
+    }
+  }
+
+  return '127.0.0.1';
+}
+

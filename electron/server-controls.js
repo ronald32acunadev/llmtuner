@@ -1,3 +1,5 @@
+import { resolveConnectableHost } from '../src/core/util.js';
+
 export function isTrustedServerSender(event, webContents, expectedOrigin) {
   if (!event || !webContents) return false;
   const frame = event.senderFrame;
@@ -9,7 +11,7 @@ export function isTrustedServerSender(event, webContents, expectedOrigin) {
   );
 }
 
-export function createServerControls({ isTrusted, autostart, readConfig, copyText }) {
+export function createServerControls({ isTrusted, autostart, readConfig, copyText, resolveHost }) {
   const checkAuth = (event) => {
     if (!isTrusted(event)) {
       throw new Error('Local server controls are not authorized.');
@@ -50,7 +52,8 @@ export function createServerControls({ isTrusted, autostart, readConfig, copyTex
         throw new Error('Invalid server configuration');
       }
 
-      return { configured: true, host, port, token };
+      const displayHost = resolveHost ? resolveHost(host) : host;
+      return { configured: true, host: displayHost, port, token };
     },
 
     async copyToken(event) {

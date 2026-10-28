@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
-import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError, PROFILES, checkUpdate, detectAgents, installMcpServer } from '../core/index.js';
+import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError, PROFILES, checkUpdate, detectAgents, installMcpServer, resolveConnectableHost } from '../core/index.js';
 import { THEMES } from '../core/settings.js';
 import { LOCALES, messagesFor } from '../i18n/index.js';
 import { openUrl } from '../core/installer.js';
@@ -105,7 +105,12 @@ async function body(req) {
 }
 
 function send(res, status, obj) {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+  });
   res.end(JSON.stringify(obj));
 }
 
@@ -232,6 +237,16 @@ const routes = {
 async function handler(req, res, options = {}) {
   const url = new URL(req.url, 'http://localhost');
   try {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+        'Access-Control-Max-Age': '86400',
+      });
+      return res.end();
+    }
+
     const ip = req.socket?.remoteAddress;
     const loopback = isLoopback(ip);
     const isRemote = !loopback || !!options.serverMode;
@@ -253,7 +268,7 @@ async function handler(req, res, options = {}) {
     if (ev) {
       const job = jobs.get(ev[1]);
       if (!job) return send(res, 404, { error: 'job not found' });
-      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'Access-Control-Allow-Origin': '*' });
       const write = (e) => res.write(`data: ${JSON.stringify(e)}\n\n`);
       job.events.forEach(write);
       if (job.done) return res.end();
@@ -297,7 +312,8 @@ export function startServer({ port = Number(process.env.PORT) || 7860, host = '1
     server.listen(port, host, () => {
       const addr = server.address();
       const resolvedPort = typeof addr === 'string' ? addr : addr.port;
-      const url = `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${resolvedPort}`;
+      const connectableHost = resolveConnectableHost(host);
+      const url = `http://${connectableHost}:${resolvedPort}`;
       console.log(`LLM Tuner available at ${url}`);
       if (open) openUrl(url);
       resolve({ server, url, port: resolvedPort });
