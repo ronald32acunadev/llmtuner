@@ -1,5 +1,25 @@
 // Spanish catalog. Same keys and {params} as en.js.
 export default {
+  "web.localServerSettings": "Configuración del servidor local",
+  "web.serverAutostartLabel": "Iniciar servidor después del inicio de sesión",
+  "web.serverStartupEnabled": "El inicio automático del servidor está habilitado",
+  "web.serverStartupDisabled": "El inicio automático del servidor está deshabilitado",
+  "web.serverStartupUnknown": "El estado del inicio automático del servidor es desconocido",
+  "web.serverStartupSaved": "Configuración de inicio guardada para el próximo inicio de sesión",
+  "web.serverTokenLabel": "Token de autenticación del servidor",
+  "web.serverTokenReveal": "Mostrar token",
+  "web.serverTokenHide": "Ocultar token",
+  "web.serverTokenCopy": "Copiar token",
+  "web.serverTokenCopied": "Token copiado",
+  "web.serverNoConfig": "Aún no hay configuración del servidor. Ejecute /serve o habilite el inicio automático primero.",
+  "web.serverConnectionInfo": "El servidor escucha en {host}:{port}. Desde otro ordenador, use la IP LAN de este equipo con el puerto {port}, no 0.0.0.0 ni localhost.",
+  "web.serverStartupUnconfirmed": "No se pudo confirmar el estado del inicio.",
+  "web.serverTokenCopyFailed": "No se pudo confirmar la copia del token.",
+  "cli.serverConnection": "Ver detalles de conexión del servidor y token",
+  "cli.serverConnectionDetails": "Dirección de escucha: {host}:{port}; Token de autenticación: {token}; Desde otro ordenador, use la IP LAN del servidor con el puerto {port}, no 0.0.0.0 ni localhost.",
+  "cli.serverNoConfig": "Aún no hay configuración del servidor. Ejecute /serve o habilite el inicio automático primero.",
+  "cli.serverConnectionInvalid": "La configuración del servidor guardada no es válida.",
+  "cli.serverConnectionHelp": "En /settings, seleccione 'Ver detalles de conexión del servidor y token' para recuperar el token guardado. Los Ajustes de escritorio también ofrecen acciones explícitas de mostrar y copiar.",
   // Engine choice
   'engine.reason.onlyInstalled': '{name} es el único instalado.',
   'engine.reason.multiGpu': 'Tienes varias GPUs: LM Studio permite fijar el orden de GPUs y el tipo de KV por modelo.',
@@ -85,6 +105,8 @@ export default {
   'errors.unknownLocale': 'Idioma desconocido "{lang}". Valores válidos: {list}',
   'errors.unknownTheme': 'Tema desconocido "{theme}". Valores válidos: {list}',
   'errors.unknownProfile': 'Perfil desconocido "{profile}". Valores válidos: {list}',
+  'errors.unauthorized': 'No autorizado: se requiere un token Bearer válido.',
+  'errors.forbiddenRemote': 'Prohibido: esta operación no se puede ejecutar de forma remota.',
   'errors.installNotFinished': 'La instalación no terminó. Vuelve a ejecutar llm-tuner cuando acabe.',
   'errors.modelDownloadFailed': 'No se pudo descargar el modelo',
   'errors.noInstaller': 'No hay un instalador automático para este sistema.',
@@ -114,7 +136,7 @@ Comandos:
   /load                        Ajustar y cargar un modelo con la configuración óptima
   /mcp                         Conectar motor local con agentes de IA como servidor MCP
   /presets                     Listar presets guardados
-  /settings                    Menú interactivo de configuración (idioma y tema)
+  /settings                    Menú interactivo de configuración (idioma, tema e inicio del servidor)
   /help                        Mostrar esta ayuda
   /exit                        Salir del menú interactivo
 
@@ -132,6 +154,8 @@ Opciones:
   --lang <en|es>               Idioma de la interfaz (se guarda para la próxima vez)
   --theme <system|light|dark>  Tema de la interfaz (se guarda para la próxima)
 
+El inicio del servidor se habilita o deshabilita después de iniciar sesión desde /settings. Se ejecuta en el próximo inicio de sesión, no de inmediato.
+
 Los cambios del servicio de Ollama pueden solicitar autorización de administrador en la terminal.
 Si los ajustes no cambian, el servicio no se reinicia. El modo JSON/no interactivo nunca pide contraseña.
 
@@ -141,6 +165,16 @@ Los presets se guardan en {presetsDir}`,
   'cli.settingsMenu': 'Selecciona una opción para configurar:',
   'cli.settingsLanguage': 'Idioma',
   'cli.settingsTheme': 'Tema',
+  'cli.settingsAutostart': 'Inicio automático del servidor después de iniciar sesión',
+  'cli.settingsAutostartEnable': 'Habilitar',
+  'cli.settingsAutostartDisable': 'Deshabilitar',
+  'cli.enabled': 'Habilitado',
+  'cli.disabled': 'Deshabilitado',
+  'cli.unknown': 'Desconocido',
+  'cli.autostartEnabled': 'El inicio del servidor quedó habilitado para tu próximo inicio de sesión.',
+  'cli.autostartDisabled': 'El inicio del servidor quedó deshabilitado.',
+  'cli.autostartFailed': 'No se pudo actualizar el inicio automático del servidor: {error}',
+  'cli.settingsServers': 'Servidor activo',
   'cli.settingsExit': 'Guardar y volver',
   'cli.settingsSaved': 'Configuración guardada.',
   'cli.langNotSaved': 'No se pudo guardar la preferencia de idioma: {error}',
@@ -284,12 +318,25 @@ Los presets se guardan en {presetsDir}`,
   'web.mcpAlreadyConfigured': 'Configurado',
   'web.mcpSuccess': 'MCP configurado con éxito en: {agents}',
   'web.mcpSaveBtn': 'Guardar y configurar',
+  'web.servers': 'Servidores',
+  'web.addServer': 'Agregar servidor',
+  'web.removeServer': 'Eliminar',
+  'web.addServerModalTitle': 'Agregar servidor remoto',
+  'web.serverName': 'Nombre del servidor',
+  'web.serverUrl': 'URL del servidor',
+  'web.serverToken': 'Token de autenticación',
+  'web.testConnection': 'Probar conexión',
+  'web.saveServer': 'Guardar servidor',
+  'web.serverConnected': '¡Conexión exitosa!',
+  'web.serverConnectionFailed': 'No se pudo conectar al servidor: {error}',
+  'web.serverActive': 'Activo',
 
   // CLI Slash Commands
   'cli.menuTitle': 'Selecciona un comando:',
   'cli.cmdLoadDesc': 'Ajustar y cargar un modelo con la configuración óptima',
   'cli.cmdMcpDesc': 'Conectar motor local con agentes de IA como servidor MCP',
   'cli.cmdPresetsDesc': 'Ver presets de configuración guardados',
+  'cli.cmdServeDesc': 'Iniciar en modo servidor remoto con autenticación de API',
   'cli.cmdSettingsDesc': 'Configurar idioma y tema de la interfaz',
   'cli.cmdHelpDesc': 'Ver ayuda de uso y opciones',
   'cli.cmdExitDesc': 'Salir',

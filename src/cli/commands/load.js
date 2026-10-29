@@ -19,6 +19,7 @@ import { getColors } from '../colors.js';
 import { withNav, NAV_BACK, backChoice } from '../nav.js';
 import { TerminalAnimation } from '../animation.js';
 import { createOllamaAuthorizer } from '../../platform/ollama-authorize.js';
+import { TunerApiClient } from '../../core/client.js';
 
 export async function loadCommand(args, { lang, theme }) {
   const c = getColors(theme);
@@ -64,12 +65,26 @@ export async function loadCommand(args, { lang, theme }) {
     out(c.dim(`    ${t('cli.updateCommand', { cmd: 'npm install -g llm-tuner' })}\n`));
   }
 
-  const hw = await detectHardware();
-  out(c.dim(`  ${hw.cpu.brand} · ${fmtBytes(hw.ram.totalBytes)} RAM`));
-  for (const g of hw.gpus) out(c.dim(`  GPU${g.index} ${g.name} · ${fmtBytes(g.totalBytes)}${g.pcieGen ? ` · PCIe ${g.pcieGen}.0 x${g.pcieWidth}` : ''}${g.displayAttached ? t('cli.display') : ''}`));
-  if (!hw.gpus.length) out(c.y(`  ${t('cli.noGpu')}`));
+  const settings = await readSettings();
+  const isRemote = settings.activeServerId !== 'local';
+  let client = null;
+  let hw;
+  let det;
 
-  let det = await detectEngines(hw);
+  if (isRemote) {
+    client = TunerApiClient.fromSettings(settings);
+    const state = await client.getState();
+    hw = state.hw;
+    det = state;
+  } else {
+    hw = await detectHardware();
+    det = await detectEngines(hw);
+  }
+
+  const cpuTitle = hw.cpu?.brand || (hw.cpu?.physicalCores ? `${hw.cpu.physicalCores} cores` : 'CPU');
+  out(c.dim(`  ${cpuTitle} · ${fmtBytes(hw.ram?.totalBytes)} RAM`));
+  for (const g of (hw.gpus || [])) out(c.dim(`  GPU${g.index} ${g.name} · ${fmtBytes(g.totalBytes)}${g.pcieGen ? ` · PCIe ${g.pcieGen}.0 x${g.pcieWidth}` : ''}${g.displayAttached ? t('cli.display') : ''}`));
+  if (!hw.gpus?.length) out(c.y(`  ${t('cli.noGpu')}`));
   let engineId = args.engine;
   let tuner = null;
   let models = [];
@@ -105,14 +120,20 @@ export async function loadCommand(args, { lang, theme }) {
       currentStep = 2;
     }
     else if (currentStep === 2) {
-      if (!tuner || tuner.engine.id !== engineId) {
-        if (!det.engines.find((e) => e.id === engineId)?.detection.installed) {
-          await installFlow(engineId, { args, t, c });
-          det = await detectEngines(hw);
-          if (!det.engines.find((e) => e.id === engineId).detection.installed) throw new TunerError('errors.installNotFinished');
+      if (!tuner || tuner.engine?.id !== engineId) {
+        if (isRemote) {
+          const res = await client.listModels(engineId);
+          models = res.models || [];
+          tuner = { engine: { id: engineId, name: engineId } };
+        } else {
+          if (!det.engines.find((e) => e.id === engineId)?.detection.installed) {
+            await installFlow(engineId, { args, t, c });
+            det = await detectEngines(hw);
+            if (!det.engines.find((e) => e.id === engineId).detection.installed) throw new TunerError('errors.installNotFinished');
+          }
+          tuner = await Tuner.create(engineId);
+          models = await tuner.listModels();
         }
-        tuner = await Tuner.create(engineId);
-        models = await tuner.listModels();
       }
 
       if (args.model) {
@@ -290,31 +311,45 @@ export async function loadCommand(args, { lang, theme }) {
 
   let result;
   try {
-    result = await tuner.load(modelKey, ctx, {
-      authorizeOllama: createOllamaAuthorizer({
-        mode: process.stdin.isTTY && process.stderr.isTTY && !args.json ? 'terminal' : 'noninteractive',
-        beforePrompt: () => anim.stop(),
-        afterPrompt: () => anim.start(t('status.applying')),
-      }),
-      profile,
-      force: !!args.force,
-      dryRun: !!args['dry-run'],
-      maxCandidates: Number(args.candidates) || 3,
-      confirmApply: async (preview) => {
-        anim.stop();
-        out(c.b(`\n${t('cli.changes')}`));
-        if (engineId === 'lmstudio') {
-          preview.files.forEach((f) => out(`  ${f}`));
-          if (preview.restartsApp) out(c.y(`  ${t('cli.lmsRestart')}`));
-        } else {
-          out(`  ${t('cli.ollamaNewModel', { name: c.b(preview.tunedModel) })}`);
-          out(`  ${t('cli.ollamaServer', { env: Object.entries(preview.env).map(([k, v]) => `${k}=${v}`).join(' ') })}`);
-        }
-        const confirmed = args.yes || await confirm({ message: t('cli.confirmApply'), default: true });
-        if (confirmed) anim.start(t('status.applying'));
-        return confirmed;
-      },
-    });
+    if (isRemote) {
+      result = await client.loadModel({
+        engine: engineId,
+        model: modelKey,
+        ctx,
+        profile,
+        force: !!args.force,
+        candidates: Number(args.candidates) || 3,
+      }, (e) => {
+        if (e.type === 'progress') anim.update(e);
+        if (e.type === 'log') out(c.dim('  ' + e.line));
+      });
+    } else {
+      result = await tuner.load(modelKey, ctx, {
+        authorizeOllama: createOllamaAuthorizer({
+          mode: process.stdin.isTTY && process.stderr.isTTY && !args.json ? 'terminal' : 'noninteractive',
+          beforePrompt: () => anim.stop(),
+          afterPrompt: () => anim.start(t('status.applying')),
+        }),
+        profile,
+        force: !!args.force,
+        dryRun: !!args['dry-run'],
+        maxCandidates: Number(args.candidates) || 3,
+        confirmApply: async (preview) => {
+          anim.stop();
+          out(c.b(`\n${t('cli.changes')}`));
+          if (engineId === 'lmstudio') {
+            preview.files.forEach((f) => out(`  ${f}`));
+            if (preview.restartsApp) out(c.y(`  ${t('cli.lmsRestart')}`));
+          } else {
+            out(`  ${t('cli.ollamaNewModel', { name: c.b(preview.tunedModel) })}`);
+            out(`  ${t('cli.ollamaServer', { env: Object.entries(preview.env).map(([k, v]) => `${k}=${v}`).join(' ') })}`);
+          }
+          const confirmed = args.yes || await confirm({ message: t('cli.confirmApply'), default: true });
+          if (confirmed) anim.start(t('status.applying'));
+          return confirmed;
+        },
+      });
+    }
   } catch (e) {
     if (!/^errors\.ollama(?:Service|Authorization)/.test(e.code || '')) throw e;
     if (args.json) {

@@ -1,4 +1,5 @@
-import { listPresets } from '../../core/index.js';
+import { listPresets, readSettings } from '../../core/index.js';
+import { TunerApiClient } from '../../core/client.js';
 import { t as translate } from '../../i18n/index.js';
 import { getColors } from '../colors.js';
 
@@ -6,7 +7,16 @@ export async function presetsCommand(args, { lang, theme }) {
   const c = getColors(theme);
   const t = (key, params) => translate(lang, key, params);
 
-  const list = await listPresets({ engine: args.engine, modelKey: args.model });
+  const settings = await readSettings();
+  let list = [];
+  if (settings.activeServerId !== 'local') {
+    const client = TunerApiClient.fromSettings(settings);
+    const data = await client.listPresets({ engine: args.engine, model: args.model });
+    list = data.presets || [];
+  } else {
+    list = await listPresets({ engine: args.engine, modelKey: args.model });
+  }
+
   if (!list.length) {
     console.log(t('cli.noPresets'));
     return;

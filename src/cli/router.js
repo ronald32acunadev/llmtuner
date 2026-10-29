@@ -4,6 +4,7 @@ import { t as translate, LOCALES, errorText } from '../i18n/index.js';
 import { loadCommand } from './commands/load.js';
 import { mcpCommand } from './commands/mcp.js';
 import { presetsCommand } from './commands/presets.js';
+import { serveCommand } from './commands/serve.js';
 import { settingsCommand } from './commands/settings.js';
 import { helpCommand } from './commands/help.js';
 import { withNav } from './nav.js';
@@ -28,6 +29,10 @@ export function parseCliArgs(argv) {
     }
     if (a === '/presets' || a === 'presets') {
       command = 'presets';
+      continue;
+    }
+    if (a === '/serve' || a === 'serve') {
+      command = 'serve';
       continue;
     }
     if (a === '/settings' || a === 'settings' || a === '/setting' || a === 'setting') {
@@ -60,6 +65,10 @@ export function parseCliArgs(argv) {
       if (k === 'presets') {
         args.presets = true;
         command = 'presets';
+        continue;
+      }
+      if (k === 'serve') {
+        command = 'serve';
         continue;
       }
       if (k === 'help') {
@@ -131,6 +140,20 @@ export async function routeCli(argv, env = {}) {
     }
   }
 
+  if ('server' in args) {
+    const s = await readSettings();
+    const target = s.servers.find((srv) => srv.id === args.server || srv.name === args.server);
+    if (!target) {
+      console.error(`Unknown server "${args.server}". Valid servers: ${s.servers.map((x) => x.id).join(', ')}`);
+      return 1;
+    }
+    try {
+      await writeSettings({ activeServerId: target.id });
+    } catch (e) {
+      console.error(`Warning: ${e.message}`);
+    }
+  }
+
   if (command === 'version' || args.version) {
     console.log(CURRENT_VERSION);
     return 0;
@@ -138,6 +161,11 @@ export async function routeCli(argv, env = {}) {
 
   if (command === 'help' || args.help) {
     await helpCommand(args, { lang, theme });
+    return 0;
+  }
+
+  if (command === 'serve') {
+    await serveCommand(args);
     return 0;
   }
 
@@ -163,6 +191,7 @@ export async function routeCli(argv, env = {}) {
             { name: `/load     ${activeT('cli.cmdLoadDesc')}`, value: 'load' },
             { name: `/mcp      ${activeT('cli.cmdMcpDesc')}`, value: 'mcp' },
             { name: `/presets  ${activeT('cli.cmdPresetsDesc')}`, value: 'presets' },
+            { name: `/serve    ${activeT('cli.cmdServeDesc')}`, value: 'serve' },
             { name: `/settings ${activeT('cli.cmdSettingsDesc')}`, value: 'settings' },
             { name: `/help     ${activeT('cli.cmdHelpDesc')}`, value: 'help' },
             { name: `/exit     ${activeT('cli.cmdExitDesc')}`, value: 'exit' },
@@ -189,6 +218,9 @@ export async function routeCli(argv, env = {}) {
             break;
           case 'presets':
             await presetsCommand(args, { lang: currentLang, theme: currentTheme });
+            break;
+          case 'serve':
+            await serveCommand(args);
             break;
           case 'settings':
             await settingsCommand(args, { lang: currentLang, theme: currentTheme });

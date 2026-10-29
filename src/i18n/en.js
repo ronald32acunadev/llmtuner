@@ -1,5 +1,25 @@
 // English catalog: the base language. Every key here must also exist in es.js.
 export default {
+  "web.localServerSettings": "Local Server Settings",
+  "web.serverAutostartLabel": "Start server after login",
+  "web.serverStartupEnabled": "Automatic server startup is enabled",
+  "web.serverStartupDisabled": "Automatic server startup is disabled",
+  "web.serverStartupUnknown": "Automatic server startup state is unknown",
+  "web.serverStartupSaved": "Startup setting saved for next login",
+  "web.serverTokenLabel": "Server authentication token",
+  "web.serverTokenReveal": "Reveal token",
+  "web.serverTokenHide": "Hide token",
+  "web.serverTokenCopy": "Copy token",
+  "web.serverTokenCopied": "Token copied",
+  "web.serverNoConfig": "No server configuration yet. Run /serve or enable automatic startup first.",
+  "web.serverConnectionInfo": "Server listens on {host}:{port}. On another computer use this computer LAN IP with port {port}, not 0.0.0.0 or localhost.",
+  "web.serverStartupUnconfirmed": "Could not confirm startup state.",
+  "web.serverTokenCopyFailed": "Could not confirm token copy.",
+  "cli.serverConnection": "View server connection details and token",
+  "cli.serverConnectionDetails": "Listen address: {host}:{port}; Authentication Token: {token}; From another computer use the server LAN IP with port {port}, not 0.0.0.0 or localhost.",
+  "cli.serverNoConfig": "No server configuration yet. Run /serve or enable automatic startup first.",
+  "cli.serverConnectionInvalid": "Saved server configuration is invalid.",
+  "cli.serverConnectionHelp": "In /settings, select View server connection details and token to retrieve the saved token. Desktop Settings also provides explicit reveal and copy actions.",
   // Engine choice
   'engine.reason.onlyInstalled': '{name} is the only one installed.',
   'engine.reason.multiGpu': 'You have several GPUs: LM Studio lets you set the GPU order and the KV type per model.',
@@ -85,6 +105,8 @@ export default {
   'errors.unknownLocale': 'Unknown language "{lang}". Valid values: {list}',
   'errors.unknownTheme': 'Unknown theme "{theme}". Valid values: {list}',
   'errors.unknownProfile': 'Unknown profile "{profile}". Valid values: {list}',
+  'errors.unauthorized': 'Unauthorized: a valid Bearer token is required.',
+  'errors.forbiddenRemote': 'Forbidden: this operation cannot be performed remotely.',
   'errors.installNotFinished': 'The installation did not finish. Run llm-tuner again when it is done.',
   'errors.modelDownloadFailed': 'Could not download the model',
   'errors.noInstaller': 'There is no automatic installer for this system.',
@@ -114,7 +136,7 @@ Commands:
   /load                        Tune and load a model with optimal hardware settings
   /mcp                         Connect local engine to AI coding agents as MCP server
   /presets                     List saved presets
-  /settings                    Interactive settings menu (language and theme)
+  /settings                    Interactive settings menu (language, theme, and server startup)
   /help                        Show this help message
   /exit                        Exit the interactive menu
 
@@ -132,6 +154,8 @@ Options:
   --lang <en|es>               Interface language (saved for next time)
   --theme <system|light|dark>  Interface theme (saved for next time)
 
+Server startup can be enabled or disabled after login in /settings. It starts on your next login, not immediately.
+
 Ollama service changes may ask for administrator authorization in the terminal.
 Unchanged settings do not restart the service. JSON/noninteractive mode never asks for a password.
 
@@ -141,6 +165,16 @@ Presets are saved in {presetsDir}`,
   'cli.settingsMenu': 'Select an option to configure:',
   'cli.settingsLanguage': 'Language',
   'cli.settingsTheme': 'Theme',
+  'cli.settingsAutostart': 'Automatic server startup after login',
+  'cli.settingsAutostartEnable': 'Enable',
+  'cli.settingsAutostartDisable': 'Disable',
+  'cli.enabled': 'Enabled',
+  'cli.disabled': 'Disabled',
+  'cli.unknown': 'Unknown',
+  'cli.autostartEnabled': 'Server startup is enabled for your next login.',
+  'cli.autostartDisabled': 'Server startup is disabled.',
+  'cli.autostartFailed': 'Could not update automatic server startup: {error}',
+  'cli.settingsServers': 'Active Server',
   'cli.settingsExit': 'Save and return',
   'cli.settingsSaved': 'Settings saved.',
   'cli.langNotSaved': 'Could not save the language preference: {error}',
@@ -284,12 +318,25 @@ Presets are saved in {presetsDir}`,
   'web.mcpAlreadyConfigured': 'Configured',
   'web.mcpSuccess': 'Successfully configured MCP in: {agents}',
   'web.mcpSaveBtn': 'Save & Configure',
+  'web.servers': 'Servers',
+  'web.addServer': 'Add Server',
+  'web.removeServer': 'Remove',
+  'web.addServerModalTitle': 'Add Remote Server',
+  'web.serverName': 'Server Name',
+  'web.serverUrl': 'Server URL',
+  'web.serverToken': 'Authentication Token',
+  'web.testConnection': 'Test Connection',
+  'web.saveServer': 'Save Server',
+  'web.serverConnected': 'Connection successful!',
+  'web.serverConnectionFailed': 'Could not connect to server: {error}',
+  'web.serverActive': 'Active',
 
   // CLI Slash Commands
   'cli.menuTitle': 'Select a command:',
   'cli.cmdLoadDesc': 'Tune and load a model with optimal hardware settings',
   'cli.cmdMcpDesc': 'Connect local engine to AI coding agents as MCP server',
   'cli.cmdPresetsDesc': 'View saved tuning presets',
+  'cli.cmdServeDesc': 'Start remote server mode with API authentication',
   'cli.cmdSettingsDesc': 'Configure interface language and visual theme',
   'cli.cmdHelpDesc': 'View usage help and CLI flags',
   'cli.cmdExitDesc': 'Exit',
