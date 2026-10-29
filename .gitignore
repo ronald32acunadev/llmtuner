@@ -80,3 +80,9 @@ ehthumbs.db
 
 .codegraph/
 .atl/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.context/

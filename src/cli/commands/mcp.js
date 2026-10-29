@@ -1,5 +1,5 @@
 import { select, checkbox, input, Separator } from '@inquirer/prompts';
-import { detectHardware, detectEngines, detectAgents, installMcpServer } from '../../core/index.js';
+import { detectHardware, detectEngines, detectAgents, installMcpServer, readSettings } from '../../core/index.js';
 import { t as translate } from '../../i18n/index.js';
 import { getColors } from '../colors.js';
 import { withNav, NAV_BACK, backChoice } from '../nav.js';
@@ -93,11 +93,25 @@ export async function mcpCommand(args, { lang, theme }) {
   }
 
   // Install MCP server configuration
+  let targetHost = args.host;
+  if (!targetHost) {
+    const settings = await readSettings().catch(() => null);
+    const activeSrv = (settings?.servers || []).find((s) => s.id === settings?.activeServerId);
+    if (activeSrv && activeSrv.id !== 'local' && activeSrv.url) {
+      try {
+        const hostname = new URL(activeSrv.url).hostname;
+        if (hostname && hostname !== '127.0.0.1' && hostname !== 'localhost') {
+          targetHost = engineId === 'lmstudio' ? `http://${hostname}:1234/v1` : `http://${hostname}:11434`;
+        }
+      } catch {}
+    }
+  }
+
   const result = await installMcpServer({
     engineId,
     customName,
     agentIds: selectedAgents,
-    host: args.host,
+    host: targetHost,
     apiKey: args.apiKey,
   });
 

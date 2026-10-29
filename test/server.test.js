@@ -7,6 +7,7 @@ import path from 'node:path';
 
 process.env.LLM_TUNER_CONFIG_DIR = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-tuner-server-'));
 const { startServer } = await import('../src/web/server.js');
+const { DEFAULT_SERVERS, DEFAULT_ACTIVE_SERVER_ID } = await import('../src/core/settings.js');
 
 let server, url;
 before(async () => { ({ server, url } = await startServer({ port: 0 })); });
@@ -49,10 +50,21 @@ test('foreign-origin requests cannot initiate desktop administrator authorizatio
 });
 
 test('settings default to English and system theme and can be changed', async () => {
-  assert.deepEqual(await (await get('/api/settings')).json(), { lang: 'en', theme: 'system', profile: null, locales: ['en', 'es'], themes: ['system', 'light', 'dark'], profiles: ['speed', 'balanced', 'quality'] });
+  const expectedSettings = (overrides = {}) => ({
+    lang: 'en',
+    theme: 'system',
+    profile: null,
+    servers: [...DEFAULT_SERVERS],
+    activeServerId: DEFAULT_ACTIVE_SERVER_ID,
+    locales: ['en', 'es'],
+    themes: ['system', 'light', 'dark'],
+    profiles: ['speed', 'balanced', 'quality'],
+    ...overrides,
+  });
+  assert.deepEqual(await (await get('/api/settings')).json(), expectedSettings());
   const r = await post('/api/settings', { lang: 'es' });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { lang: 'es', theme: 'system', profile: null, locales: ['en', 'es'], themes: ['system', 'light', 'dark'], profiles: ['speed', 'balanced', 'quality'] });
+  assert.deepEqual(await r.json(), expectedSettings({ lang: 'es' }));
   assert.equal((await (await get('/api/settings')).json()).lang, 'es');
   await post('/api/settings', { lang: 'en' });
 });
@@ -71,7 +83,7 @@ test('an unknown or missing language is rejected and nothing changes', async () 
 test('theme can be changed via POST /api/settings', async () => {
   const r = await post('/api/settings', { theme: 'dark' });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { lang: 'en', theme: 'dark', profile: null, locales: ['en', 'es'], themes: ['system', 'light', 'dark'], profiles: ['speed', 'balanced', 'quality'] });
+  assert.deepEqual(await r.json(), { lang: 'en', theme: 'dark', profile: null, servers: [...DEFAULT_SERVERS], activeServerId: DEFAULT_ACTIVE_SERVER_ID, locales: ['en', 'es'], themes: ['system', 'light', 'dark'], profiles: ['speed', 'balanced', 'quality'] });
   assert.equal((await (await get('/api/settings')).json()).theme, 'dark');
   await post('/api/settings', { theme: 'system' });
 });
@@ -93,7 +105,7 @@ test('the load profile round-trips through the settings and an unknown one is re
   // A payload with only `profile` is a valid one.
   const r = await post('/api/settings', { profile: 'quality' });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { lang: 'en', theme: 'system', profile: 'quality', locales: ['en', 'es'], themes: ['system', 'light', 'dark'], profiles: ['speed', 'balanced', 'quality'] });
+  assert.deepEqual(await r.json(), { lang: 'en', theme: 'system', profile: 'quality', servers: [...DEFAULT_SERVERS], activeServerId: DEFAULT_ACTIVE_SERVER_ID, locales: ['en', 'es'], themes: ['system', 'light', 'dark'], profiles: ['speed', 'balanced', 'quality'] });
   assert.equal((await (await get('/api/settings')).json()).profile, 'quality');
 
   for (const profile of ['turbo', null, 42]) {

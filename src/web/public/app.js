@@ -1,3 +1,4 @@
+import { setupServerSettings } from './server-settings.js';
 import { format } from '/i18n/core.js';
 import { initialProfile, profileOptions, profileDetailLines, profileEventLines, presetsFor, presetFor, isCurrentModel, isCurrentPlan } from './profile.js';
 
@@ -235,15 +236,35 @@ async function openMcpModal(engine) {
   if (title) title.textContent = t('web.mcpModalTitle', { engine: engine.name });
   if (nameInput) nameInput.value = engine.id === 'lmstudio' ? 'lmstudio' : 'ollama';
 
+  const activeSrv = (state.settings?.servers || []).find((x) => x.id === state.settings?.activeServerId);
+  const isRemote = Boolean(activeSrv && activeSrv.id !== 'local' && activeSrv.url);
+  let remoteHost = null;
+  if (isRemote) {
+    try {
+      const hostname = new URL(activeSrv.url).hostname;
+      if (hostname && hostname !== '127.0.0.1' && hostname !== 'localhost') {
+        remoteHost = engine.id === 'lmstudio' ? `http://${hostname}:1234/v1` : `http://${hostname}:11434`;
+      }
+    } catch {}
+  }
+
   if (engine.id === 'lmstudio') {
-    if (hostInput) hostInput.placeholder = 'http://127.0.0.1:1234/v1';
+    const defaultHost = remoteHost || 'http://127.0.0.1:1234/v1';
+    if (hostInput) {
+      hostInput.placeholder = defaultHost;
+      hostInput.value = remoteHost || '';
+    }
     if (apiKeyGroup) apiKeyGroup.hidden = false;
     if (apiKeyInput) {
       apiKeyInput.value = '';
       apiKeyInput.placeholder = 'sk-lm-local';
     }
   } else {
-    if (hostInput) hostInput.placeholder = 'http://127.0.0.1:11434';
+    const defaultHost = remoteHost || 'http://127.0.0.1:11434';
+    if (hostInput) {
+      hostInput.placeholder = defaultHost;
+      hostInput.value = remoteHost || '';
+    }
     if (apiKeyGroup) apiKeyGroup.hidden = true;
     if (apiKeyInput) apiKeyInput.value = '';
   }
@@ -285,11 +306,13 @@ function updateMcpAgentsList() {
 
 async function boot() {
   const s = await api('/api/settings');
+  state.settings = s;
   applyTheme(s.theme);
   ({ messages } = await api(`/api/i18n/${s.lang}`));
   document.documentElement.lang = s.lang;
   applyStatic();
   setupDrawer();
+  await setupServerSettings({ document, bridge: window.llmTunerServer, t });
   setupMcpModal();
   api('/api/update').then((up) => {
     if (up?.currentVersion) {
@@ -337,6 +360,128 @@ async function boot() {
       alert(t('common.error', { message: err.message }));
     }
   };
+
+  function renderServerList() {
+    const sel = $('#server-select');
+    if (!sel) return;
+    sel.innerHTML = '';
+    (s.servers || []).forEach((srv) => {
+      const opt = document.createElement('option');
+      opt.value = srv.id;
+      opt.textContent = `${srv.name} (${srv.url})`;
+      if (srv.id === s.activeServerId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    const active = (s.servers || []).find((x) => x.id === s.activeServerId) || s.servers?.[0];
+    if (active) {
+      const urlSpan = $('#active-server-url');
+      if (urlSpan) urlSpan.textContent = active.url;
+      const removeBtn = $('#remove-server-btn');
+      if (removeBtn) removeBtn.hidden = (active.id === 'local');
+    }
+  }
+  renderServerList();
+
+  const serverSel = $('#server-select');
+  if (serverSel) {
+    serverSel.onchange = async () => {
+      const nextId = serverSel.value;
+      setBusy(true);
+      try {
+        await api('/api/settings', { activeServerId: nextId });
+        location.reload();
+      } catch (err) {
+        setBusy(false);
+        alert(t('common.error', { message: err.message }));
+      }
+    };
+  }
+
+  const removeServerBtn = $('#remove-server-btn');
+  if (removeServerBtn) {
+    removeServerBtn.onclick = async () => {
+      const activeId = s.activeServerId;
+      if (activeId === 'local') return;
+      const nextServers = (s.servers || []).filter((x) => x.id !== activeId);
+      setBusy(true);
+      try {
+        await api('/api/settings', { servers: nextServers, activeServerId: 'local' });
+        location.reload();
+      } catch (err) {
+        setBusy(false);
+        alert(t('common.error', { message: err.message }));
+      }
+    };
+  }
+
+  const serverModal = $('#server-modal');
+  const serverBackdrop = $('#server-backdrop');
+  function closeServerModal() {
+    if (serverModal) {
+      serverModal.hidden = true;
+      serverModal.close?.();
+    }
+    if (serverBackdrop) serverBackdrop.hidden = true;
+    $('#server-form')?.reset();
+    const fb = $('#server-test-feedback');
+    if (fb) fb.hidden = true;
+  }
+  function openServerModal() {
+    if (serverModal) {
+      serverModal.hidden = false;
+      serverModal.showModal?.();
+    }
+    if (serverBackdrop) serverBackdrop.hidden = false;
+  }
+
+  const addServerBtn = $('#add-server-btn');
+  if (addServerBtn) addServerBtn.onclick = openServerModal;
+  const serverModalClose = $('#server-modal-close');
+  if (serverModalClose) serverModalClose.onclick = closeServerModal;
+  if (serverBackdrop) serverBackdrop.onclick = closeServerModal;
+
+  const serverTestBtn = $('#server-test-btn');
+  if (serverTestBtn) {
+    serverTestBtn.onclick = async () => {
+      const url = $('#new-server-url').value.trim().replace(/\/+$/, '');
+      const token = $('#new-server-token').value.trim();
+      const fb = $('#server-test-feedback');
+      if (!fb) return;
+      fb.hidden = false;
+      fb.textContent = 'Connecting...';
+      try {
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch(`${url}/api/state`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        fb.textContent = t('web.serverConnected');
+        fb.style.color = 'var(--c-accent, green)';
+      } catch (err) {
+        fb.textContent = t('web.serverConnectionFailed', { error: err.message });
+        fb.style.color = 'var(--c-err, red)';
+      }
+    };
+  }
+
+  const serverForm = $('#server-form');
+  if (serverForm) {
+    serverForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const name = $('#new-server-name').value.trim();
+      const url = $('#new-server-url').value.trim().replace(/\/+$/, '');
+      const token = $('#new-server-token').value.trim() || null;
+      const newServer = { id: 'srv_' + Date.now(), name, url, token };
+      const nextServers = [...(s.servers || []), newServer];
+      setBusy(true);
+      try {
+        await api('/api/settings', { servers: nextServers, activeServerId: newServer.id });
+        location.reload();
+      } catch (err) {
+        setBusy(false);
+        alert(t('common.error', { message: err.message }));
+      }
+    };
+  }
+
   await init();
 }
 
@@ -346,7 +491,8 @@ async function init() {
   state.hw = s.hw;
   state.engines = s.engines;
   setBusy(s.busy);
-  $('#hw-mini').innerHTML = `<div>${esc(s.hw.cpu.brand)}</div><div>${gb(s.hw.ram.totalBytes)} RAM</div>` +
+  const cpuTitle = s.hw?.cpu?.brand || (s.hw?.cpu?.physicalCores ? `${s.hw.cpu.physicalCores} cores` : 'CPU');
+  $('#hw-mini').innerHTML = `<div>${esc(cpuTitle)}</div><div>${gb(s.hw.ram.totalBytes)} RAM</div>` +
     (s.hw.gpus.length ? s.hw.gpus.map((g) => `<div>GPU${g.index} ${esc(g.name.replace(/^NVIDIA GeForce /, ''))} · ${gb(g.totalBytes)}${g.pcieGen ? ` · PCIe ${g.pcieGen}.0 x${g.pcieWidth}` : ''}</div>`).join('') : `<div>${esc(t('web.noGpu'))}</div>`);
   $('#engine-reason').textContent = t(s.reasonCode, s.reasonParams);
   const box = $('#engines');

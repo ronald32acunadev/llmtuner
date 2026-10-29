@@ -145,6 +145,37 @@
         <option value="dark" data-i18n="web.themeDark">Dark</option>
       </select>
     </div>
+    <div class="drawer-field servers-section">
+      <label for="server-select" data-i18n="web.servers">Servers</label>
+      <div class="server-control-row" style="display:flex;gap:8px;margin-bottom:8px;">
+        <select id="server-select" style="flex:1;"></select>
+        <button id="add-server-btn" type="button" class="btn btn-sm" data-i18n="web.addServer">+ Add</button>
+      </div>
+      <div id="server-item-info" class="small muted" style="display:flex;justify-content:space-between;align-items:center;">
+        <span id="active-server-url"></span>
+        <button id="remove-server-btn" type="button" class="btn btn-danger-sm" data-i18n="web.removeServer" style="padding:2px 8px;font-size:11px;" hidden>Remove</button>
+      </div>
+    </div>
+<section id="local-server-settings" class="drawer-field" hidden>
+    <h3 data-i18n="web.localServerSettings">Local Server Settings</h3>
+
+    <label for="local-server-autostart" data-i18n="web.serverAutostartLabel">Server Autostart</label>
+    <select id="local-server-autostart" disabled>
+        <option value="enabled" data-i18n="cli.enabled">Enabled</option>
+        <option value="disabled" data-i18n="cli.disabled">Disabled</option>
+    </select>
+    <p id="local-server-status" class="small muted" aria-live="polite"></p>
+
+    <label for="server-token" data-i18n="web.serverTokenLabel">Server Token</label>
+    <div class="token-container">
+        <input id="server-token" type="password" readonly autocomplete="off" spellcheck="false" value="">
+        <button type="button" id="server-token-reveal" class="btn btn-sm" data-i18n="web.serverTokenReveal">Reveal</button>
+        <button type="button" id="server-token-copy" class="btn btn-sm" data-i18n="web.serverTokenCopy">Copy</button>
+    </div>
+
+    <p id="server-connection-info" class="small muted"></p>
+    <p id="local-server-feedback" class="small" aria-live="polite" role="status"></p>
+</section>
     <div class="drawer-field version-info">
       <span class="muted" id="version-display"></span>
       <div id="update-badge" hidden>
@@ -184,6 +215,32 @@
       <button id="mcp-save-btn" class="btn primary" type="submit" data-i18n="web.mcpSaveBtn">Save & Configure</button>
     </div>
     <p id="mcp-status" class="mcp-status" hidden></p>
+  </form>
+</dialog>
+<div id="server-backdrop" class="modal-backdrop" hidden></div>
+<dialog id="server-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="server-modal-title" hidden>
+  <div class="modal-header">
+    <h3 id="server-modal-title" data-i18n="web.addServerModalTitle">Add Remote Server</h3>
+    <button id="server-modal-close" class="modal-close" type="button" aria-label="Close">✕</button>
+  </div>
+  <form id="server-form" class="modal-body">
+    <div class="field">
+      <label for="new-server-name" data-i18n="web.serverName">Server Name</label>
+      <input id="new-server-name" type="text" required placeholder="e.g. Remote GPU Box">
+    </div>
+    <div class="field">
+      <label for="new-server-url" data-i18n="web.serverUrl">Server URL</label>
+      <input id="new-server-url" type="url" required placeholder="http://192.168.1.100:7860">
+    </div>
+    <div class="field">
+      <label for="new-server-token" data-i18n="web.serverToken">Authentication Token</label>
+      <input id="new-server-token" type="password" placeholder="Bearer Token">
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:12px;">
+      <button id="server-test-btn" type="button" class="btn" data-i18n="web.testConnection">Test Connection</button>
+      <button id="server-save-btn" type="submit" class="btn prio" data-i18n="web.saveServer">Save Server</button>
+    </div>
+    <div id="server-test-feedback" class="small muted" style="margin-top:8px;" hidden></div>
   </form>
 </dialog>
 <script src="app.js" type="module"></script>

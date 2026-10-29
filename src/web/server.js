@@ -2,11 +2,71 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { randomUUID } from 'node:crypto';
-import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError, PROFILES, checkUpdate, detectAgents, installMcpServer } from '../core/index.js';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall, slim, listPresets, readSettings, writeSettings, TunerError, PROFILES, checkUpdate, detectAgents, installMcpServer, resolveConnectableHost } from '../core/index.js';
 import { THEMES } from '../core/settings.js';
 import { LOCALES, messagesFor } from '../i18n/index.js';
 import { openUrl } from '../core/installer.js';
+
+export function sanitizeHardware(hw) {
+  if (!hw || typeof hw !== 'object') return hw;
+  return {
+    os: {
+      platform: hw.os?.platform,
+      arch: hw.os?.arch,
+    },
+    cpu: {
+      physicalCores: hw.cpu?.physicalCores,
+      threads: hw.cpu?.threads,
+      avx2: hw.cpu?.avx2,
+    },
+    gpus: (hw.gpus || []).map((gpu) => ({
+      vendor: gpu.vendor,
+      backend: gpu.backend,
+      index: gpu.index,
+      name: gpu.name,
+      totalBytes: gpu.totalBytes,
+      usedBytes: gpu.usedBytes,
+      freeBytes: gpu.freeBytes,
+      bandwidthGBps: gpu.bandwidthGBps,
+      displayAttached: gpu.displayAttached,
+      unifiedMemory: gpu.unifiedMemory,
+    })),
+    ram: {
+      totalBytes: hw.ram?.totalBytes,
+      availableBytes: hw.ram?.availableBytes,
+    },
+    ramBandwidthGBps: hw.ramBandwidthGBps,
+  };
+}
+
+export function isLoopback(ip) {
+  return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip);
+}
+
+export function verifyToken(req, expectedToken) {
+  const ip = req.socket?.remoteAddress;
+  const loopback = isLoopback(ip);
+
+  if (expectedToken === null || expectedToken === undefined) {
+    return loopback;
+  }
+
+  const authHeader = req.headers?.['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+
+  const token = authHeader.slice(7);
+  const tokenBuf = Buffer.from(token);
+  const expectedBuf = Buffer.from(expectedToken);
+
+  if (tokenBuf.length !== expectedBuf.length) {
+    return false;
+  }
+
+  return timingSafeEqual(tokenBuf, expectedBuf);
+}
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
@@ -45,7 +105,12 @@ async function body(req) {
 }
 
 function send(res, status, obj) {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+  });
   res.end(JSON.stringify(obj));
 }
 
@@ -56,7 +121,9 @@ const routes = {
 
   'POST /api/settings': async (req) => {
     const payload = await body(req);
-    if (payload?.lang === undefined && payload?.theme === undefined && payload?.profile === undefined) throw new TunerError('errors.unknownLocale', { lang: '', list: LOCALES.join(', ') });
+    if (payload?.lang === undefined && payload?.theme === undefined && payload?.profile === undefined && payload?.servers === undefined && payload?.activeServerId === undefined) {
+      throw new TunerError('errors.unknownLocale', { lang: '', list: LOCALES.join(', ') });
+    }
     const patch = {};
     if (payload.lang !== undefined) {
       if (!LOCALES.includes(payload.lang)) throw new TunerError('errors.unknownLocale', { lang: String(payload.lang ?? ''), list: LOCALES.join(', ') });
@@ -67,13 +134,16 @@ const routes = {
       patch.theme = payload.theme;
     }
     if (payload.profile !== undefined) patch.profile = knownProfile(payload.profile);
+    if (payload.servers !== undefined) patch.servers = payload.servers;
+    if (payload.activeServerId !== undefined) patch.activeServerId = payload.activeServerId;
     return { ...(await writeSettings(patch)), locales: LOCALES, themes: THEMES, profiles: PROFILES };
   },
 
-  'GET /api/state': async () => {
+  'GET /api/state': async (req, url, options) => {
     const hw = await detectHardware();
     const engines = await detectEngines(hw);
-    return { hw, ...engines, busy };
+    const safeHw = (options?.isRemote || options?.serverMode) ? sanitizeHardware(hw) : hw;
+    return { hw: safeHw, ...engines, busy };
   },
 
   'GET /api/install-plans': async (req, url) => ({ plans: await installPlans(url.searchParams.get('engine')) }),
@@ -164,17 +234,131 @@ const routes = {
 };
 
 
-async function handler(req, res, options) {
+export async function getActiveRemoteServer({ options } = {}) {
+  if (options?.serverMode === true) {
+    return null;
+  }
+
+  const settings = await readSettings().catch(() => null);
+  if (!settings || !settings.activeServerId || settings.activeServerId === 'local') {
+    return null;
+  }
+
+  const server = settings.servers?.find((s) => s.id === settings.activeServerId);
+  return (server && server.url) ? server : null;
+}
+
+export async function proxyToRemote(remoteServer, req, url, res) {
+  const targetUrl = `${remoteServer.url.replace(/\/+$/, '')}${url.pathname}${url.search}`;
+  const headers = {
+    'Content-Type': req.headers['content-type'] || 'application/json',
+  };
+
+  if (remoteServer.token) {
+    headers['Authorization'] = `Bearer ${remoteServer.token}`;
+  }
+
+  let body = null;
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    body = Buffer.concat(chunks);
+  }
+
+  try {
+    const remoteRes = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body: body && body.length > 0 ? body : undefined,
+    });
+
+    const data = await remoteRes.json().catch(() => ({}));
+    return send(res, remoteRes.status, data);
+  } catch (err) {
+    return send(res, 502, { error: err.message, code: 'web.serverConnectionFailed' });
+  }
+}
+
+async function handler(req, res, options = {}) {
   const url = new URL(req.url, 'http://localhost');
   try {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+        'Access-Control-Max-Age': '86400',
+      });
+      return res.end();
+    }
+
+    const ip = req.socket?.remoteAddress;
+    const loopback = isLoopback(ip);
+    const isRemote = !loopback || !!options.serverMode;
+
+    if (options.token || isRemote) {
+      if (!verifyToken(req, options.token)) {
+        return send(res, 401, { error: 'Unauthorized', code: 'errors.unauthorized' });
+      }
+    }
+
+    if (isRemote && req.method === 'POST' && url.pathname === '/api/install') {
+      return send(res, 403, { error: 'Forbidden', code: 'errors.forbiddenRemote' });
+    }
+
     // A foreign website must not trigger the desktop's privileged authorizer.
     if (options.authorizeOllama && req.method === 'POST' && req.headers.origin && req.headers.origin !== `http://127.0.0.1:${req.socket.localPort}`) return send(res, 403, { error: 'Forbidden origin' });
+
+    const activeRemote = await getActiveRemoteServer({ options });
+    if (activeRemote) {
+      const ev = url.pathname.match(/^\/api\/jobs\/([\w-]+)\/events$/);
+      if (ev) {
+        try {
+          const targetUrl = `${activeRemote.url.replace(/\/+$/, '')}${url.pathname}${url.search}`;
+          const headers = {};
+          if (activeRemote.token) {
+            headers['Authorization'] = `Bearer ${activeRemote.token}`;
+          }
+
+          const remoteRes = await fetch(targetUrl, { method: 'GET', headers });
+          res.writeHead(remoteRes.status, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+          });
+
+          const reader = remoteRes.body.getReader();
+          req.on('close', () => reader.cancel().catch(() => {}));
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(value);
+            }
+          } finally {
+            res.end();
+          }
+          return;
+        } catch (err) {
+          return send(res, 502, { error: err.message, code: 'web.serverConnectionFailed' });
+        }
+      }
+
+      const PROXIED_PATHS = ['/api/state', '/api/models', '/api/plan', '/api/presets', '/api/load', '/api/chat'];
+      if (PROXIED_PATHS.includes(url.pathname)) {
+        return await proxyToRemote(activeRemote, req, url, res);
+      }
+    }
+
     // Server-Sent Events for job progress.
     const ev = url.pathname.match(/^\/api\/jobs\/([\w-]+)\/events$/);
     if (ev) {
       const job = jobs.get(ev[1]);
       if (!job) return send(res, 404, { error: 'job not found' });
-      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'Access-Control-Allow-Origin': '*' });
       const write = (e) => res.write(`data: ${JSON.stringify(e)}\n\n`);
       job.events.forEach(write);
       if (job.done) return res.end();
@@ -184,7 +368,7 @@ async function handler(req, res, options) {
       return;
     }
     const route = routes[`${req.method} ${url.pathname}`];
-    if (route) return send(res, 200, await route(req, url, options));
+    if (route) return send(res, 200, await route(req, url, { ...options, isRemote }));
 
     const i18n = url.pathname.match(/^\/api\/i18n\/([\w-]+)$/);
     if (i18n && req.method === 'GET') {
@@ -210,16 +394,19 @@ async function handler(req, res, options) {
   }
 }
 
-/** Start the local UI server (bound to localhost only). */
-export function startServer({ port = Number(process.env.PORT) || 7860, open = false, authorizeOllama } = {}) {
+/** Start the local or remote server. */
+export function startServer({ port = Number(process.env.PORT) || 7860, host = '127.0.0.1', token = null, serverMode = false, open = false, authorizeOllama } = {}) {
   return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => handler(req, res, { authorizeOllama }));
+    const server = http.createServer((req, res) => handler(req, res, { authorizeOllama, token, serverMode, host }));
     server.on('error', reject);
-    server.listen(port, '127.0.0.1', () => {
-      const url = `http://127.0.0.1:${server.address().port}`;
+    server.listen(port, host, () => {
+      const addr = server.address();
+      const resolvedPort = typeof addr === 'string' ? addr : addr.port;
+      const connectableHost = resolveConnectableHost(host);
+      const url = `http://${connectableHost}:${resolvedPort}`;
       console.log(`LLM Tuner available at ${url}`);
       if (open) openUrl(url);
-      resolve({ server, url });
+      resolve({ server, url, port: resolvedPort });
     });
   });
 }
