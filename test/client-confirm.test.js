@@ -226,3 +226,16 @@ test('an API error keeps its code', async (t) => {
     server.close();
   }
 });
+
+test('a remote dying mid-stream reports a lost connection', async () => {
+  const { client, close } = await eventsServer((res) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.write(`data: ${JSON.stringify({ type: 'status' })}\n\n`);
+    setTimeout(() => res.socket.destroy(), 20);
+  });
+  try {
+    await assert.rejects(client.loadModel(request, () => {}), { name: 'TunerError', code: 'web.connectionLost' });
+  } finally {
+    close();
+  }
+});

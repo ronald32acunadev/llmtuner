@@ -113,3 +113,31 @@ test('status without a configuration', async () => {
   const status = await shared.status();
   assert.deepEqual(status, { running: false, configured: false });
 });
+
+test('a different explicit token on a running server is refused', async () => {
+  const { shared, listens } = fixture({ config: {}, listenError: null, boundPort: 1 });
+  await shared.start({ host: 'h', port: 1, token: 'a' });
+  await assert.rejects(shared.start({ host: 'h', port: 1, token: 'b' }), { code: 'errors.serverAlreadyRunning' });
+  assert.equal(listens.length, 1);
+  await shared.start({ host: 'h', port: 1, token: 'a' });
+  await shared.start({ host: 'h', port: 1 });
+  assert.equal(listens.length, 1);
+});
+
+test('a failed save closes the listener', async () => {
+  let closed = 0;
+  const shared = createSharedServer({
+    readConfig: async () => null,
+    writeConfig: async () => { throw new Error('read only'); },
+    listen: async () => ({
+      server: { close: (done) => { closed += 1; done?.(); } },
+      port: 1
+    }),
+    newToken: () => 't',
+    resolveHost: (host) => host,
+  });
+  await assert.rejects(shared.start({ host: 'h', port: 1 }), /read only/);
+  assert.equal(closed, 1);
+  const status = await shared.status();
+  assert.equal(status.running, false);
+});

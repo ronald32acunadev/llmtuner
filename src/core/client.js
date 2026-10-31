@@ -128,7 +128,8 @@ export class TunerApiClient {
       }
       throw new TunerError('web.connectionLost');
     } finally {
-      await reader.cancel();
+      // Cancelling an errored stream rejects, which would replace the real error.
+      await reader.cancel().catch(() => {});
     }
   }
 

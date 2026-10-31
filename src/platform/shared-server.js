@@ -21,9 +21,9 @@ export function createSharedServer({ readConfig, writeConfig, listen, newToken, 
     async start({ host, port, token }) {
       validate({ host, port, token });
       if (running) {
-        if (host === running.host && (port === running.requestedPort || port === running.port)) {
-          return publicStatus(running);
-        }
+        const samePort = port === running.requestedPort || port === running.port;
+        const sameToken = token === undefined || token === running.token;
+        if (host === running.host && samePort && sameToken) return publicStatus(running);
         throw new TunerError('errors.serverAlreadyRunning');
       }
       const config = await readConfig();
@@ -34,8 +34,13 @@ export function createSharedServer({ readConfig, writeConfig, listen, newToken, 
       } catch {
         throw new TunerError('errors.serverBindFailed', { host, port });
       }
-      await writeConfig({ port: started.port, host, token: chosenToken });
-      running = { server: started.server, host, port: started.port, requestedPort: port };
+      try {
+        await writeConfig({ port: started.port, host, token: chosenToken });
+      } catch (error) {
+        await new Promise((resolve) => started.server.close(resolve));
+        throw error;
+      }
+      running = { server: started.server, host, port: started.port, requestedPort: port, token: chosenToken };
       return publicStatus(running);
     },
 
