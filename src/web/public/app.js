@@ -1,4 +1,5 @@
 import { setupServerSettings } from './server-settings.js';
+import { esc, hardwareGpuHtml, gpuHeadLabel, telemetryGpuHeaderHtml, telemetryMeterWidth, planRowHtml, loadSpeedHtml } from './markup.js';
 import { setupSharedHosting } from './shared-hosting.js';
 import { buildLoadRequest, outcomeView } from './load-flow.js';
 import { addServer, removeServer, selectServer, validateServerUrl } from './saved-servers.js';
@@ -10,7 +11,6 @@ const $ = (s) => document.querySelector(s);
 const GiB = 1024 ** 3;
 const gb = (b) => (b / GiB).toFixed(1) + ' GB';
 const k = (n) => (n >= 1024 ? `${Math.round(n / 1024)}K` : String(n));
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // Messages for the chosen language (English fills any gap), loaded in boot().
 let messages = {};
@@ -522,7 +522,7 @@ async function init() {
   setBusy(s.busy);
   const cpuTitle = s.hw?.cpu?.brand || (s.hw?.cpu?.physicalCores ? `${s.hw.cpu.physicalCores} cores` : 'CPU');
   $('#hw-mini').innerHTML = `<div>${esc(cpuTitle)}</div><div>${gb(s.hw.ram.totalBytes)} RAM</div>` +
-    (s.hw.gpus.length ? s.hw.gpus.map((g) => `<div>GPU${g.index} ${esc(g.name.replace(/^NVIDIA GeForce /, ''))} · ${gb(g.totalBytes)}${g.pcieGen ? ` · PCIe ${g.pcieGen}.0 x${g.pcieWidth}` : ''}</div>`).join('') : `<div>${esc(t('web.noGpu'))}</div>`);
+    (s.hw.gpus.length ? s.hw.gpus.map((g) => hardwareGpuHtml(g, gb)).join('') : `<div>${esc(t('web.noGpu'))}</div>`);
   $('#engine-reason').textContent = t(s.reasonCode, s.reasonParams);
   const box = $('#engines');
   box.innerHTML = '';
@@ -725,7 +725,7 @@ function renderGpus(candidate) {
     const usedPct = (g.usedBytes / g.totalBytes) * 100;
     const planPct = lp ? Math.min(100 - usedPct, (lp.bytes / g.totalBytes) * 100) : 0;
     return `<div class="gpu">
-      <div class="gpu-head"><span>GPU ${g.index}</span><span class="muted">${lp ? esc(t('web.gpuLayers', { layers: lp.layers, used: gb(lp.bytes), free: gb(g.freeBytes) })) : ''}</span></div>
+      <div class="gpu-head"><span>${gpuHeadLabel(g)}</span><span class="muted">${lp ? esc(t('web.gpuLayers', { layers: lp.layers, used: gb(lp.bytes), free: gb(g.freeBytes) })) : ''}</span></div>
       <div class="meter" role="img" aria-label="${esc(t('web.vramAria', { index: g.index }))}"><i class="used" style="width:${usedPct}%"></i><i class="model" style="width:${planPct}%"></i></div>
     </div>`;
   }).join('') + `<div class="legend"><span style="--c:var(--cpu)">${esc(t('web.legendOther'))}</span><span style="--c:var(--gpu)">${esc(t('web.legendModel'))}</span></div>`;
@@ -772,10 +772,9 @@ function updateTelemetry(e) {
     const box = $('#telemetry-gpus');
     if (box) {
       box.innerHTML = e.gpus.map((g) => {
-        const name = g.name.replace(/^NVIDIA GeForce /, '');
         return `<div class="telemetry-card">
-          <div class="telemetry-header"><span>GPU ${g.index} (${esc(name)})</span> <strong>${gb(g.usedBytes)} / ${gb(g.totalBytes)} (${g.percent}%)</strong></div>
-          <div class="meter-bar"><div class="meter-fill" style="width: ${Math.min(100, Math.max(0, g.percent))}%"></div></div>
+          <div class="telemetry-header">${telemetryGpuHeaderHtml(g, gb)}</div>
+          <div class="meter-bar"><div class="meter-fill" style="width: ${telemetryMeterWidth(g.percent)}%"></div></div>
         </div>`;
       }).join('');
     }
@@ -878,7 +877,7 @@ $('#load-btn').onclick = async () => {
         $('#bench').hidden = false;
         e.candidates.forEach((c, i) => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${esc(describe(c))}</td><td>${c.gpuLayers}/${c.totalLayers}</td><td class="num">${c.predicted.tpsShort}</td><td class="num">…</td><td class="num">…</td><td class="num">…</td><td>${esc(t('web.pending'))}</td>`;
+          tr.innerHTML = planRowHtml(c, describe, t('web.pending'));
           tbody.appendChild(tr);
           rows[i] = tr;
         });
@@ -912,7 +911,7 @@ $('#load-btn').onclick = async () => {
     status.textContent = view.statusKey ? t(view.statusKey) : r.source === 'preset' ? t('web.fromPreset') : t('web.measuredLoaded');
     let html = view.noticeKey ? `<div class="notice warn">${esc(t(view.noticeKey))}</div>` : '';
     if (r.loaded?.ok) {
-      html += `<div class="best"><div><span class="big">${r.loaded.short.genTps}</span> <span class="muted">tokens/s</span></div>
+      html += `<div class="best"><div>${loadSpeedHtml(r.loaded.short.genTps)} <span class="muted">tokens/s</span></div>
       <div><b>${esc(describe(r.candidate))}</b> · ${esc(t('web.threadsCtx', { threads: r.candidate.threads, ctx: k(r.candidate.ctx) }))}${r.loaded.model ? `<br><span class="muted small">${esc(t('web.usesModel'))} <code>${esc(r.loaded.model)}</code></span>` : ''}</div></div>`;
       state.loadedModel = r.loaded.model || model;
       initChat();
