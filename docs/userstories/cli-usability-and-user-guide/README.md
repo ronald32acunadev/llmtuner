@@ -124,7 +124,7 @@ The following stories complete the revised backlog. Prior implementation and evi
   3. Match Desktop chat behavior for explicit inputs and document both entry points; do not turn this into a new general-purpose agent or model-management feature.
 - **Dependencies**: US-04.
 - **Verification method**: RED/GREEN public CLI and Desktop-handler tests using the same fake engine/client conversation, message order/history, errors and exit behavior; no real engine/remote connection.
-- **Status**: Implemented; awaiting verifier recheck and manual Desktop check.
+- **Status**: Implemented and independently verified; manual Desktop window check pending.
 - **Observed results**: `/chat` with guided loop and `--prompt`; test/cli-chat.test.js 10/10; help and guide updated. Desktop chat already existed.
 
 ## US-06: Expose Candidate Count in Desktop
@@ -136,7 +136,7 @@ The following stories complete the revised backlog. Prior implementation and evi
   3. Use equivalent labels/instructions without duplicating candidate generation in either interface.
 - **Dependencies**: US-04.
 - **Verification method**: Paired CLI/Desktop request and tuner-argument assertions for the default, valid explicit count and invalid rejected input, including no job/persistence on rejection.
-- **Status**: Implemented; awaiting verifier recheck and manual Desktop check.
+- **Status**: Implemented and independently verified; manual Desktop window check pending.
 - **Observed results**: Desktop control and CLI share parseCandidateCount; invalid values are refused before any job (test/load-flow.test.js, test/load-transaction.test.js, test/cli-remote-load.test.js).
 
 ## US-07: Support Equivalent Dry-Run Outcomes Locally and Remotely
@@ -148,7 +148,7 @@ The following stories complete the revised backlog. Prior implementation and evi
   3. Return/display a valid preview outcome instead of treating the absence of `loaded.ok` as failure. Explicit dry-run must never be ignored.
 - **Dependencies**: US-04; coordinate shared result contracts with US-08.
 - **Verification method**: Paired public CLI/Desktop tests through fake API/jobs and core spies; assert result/status, final save/apply/load call counts and unchanged persisted preset data; keep local behavior regression coverage.
-- **Status**: Implemented; awaiting verifier recheck and manual Desktop check.
+- **Status**: Implemented and independently verified; manual Desktop window check pending.
 - **Observed results**: Dry run through API, client, remote CLI and Desktop checkbox, with outcome preview inside the result.
 
 ## US-08: Confirm or Decline Application in Both Interfaces
@@ -161,7 +161,7 @@ The following stories complete the revised backlog. Prior implementation and evi
   4. Keep errors/status understandable in both interfaces and never expose credentials in the preview.
 - **Dependencies**: US-04 and US-07 shared result-outcome handling.
 - **Verification method**: Deterministic core/API/client/CLI/Desktop tests for accept/decline, unauthorized/wrong/stale/duplicate response, connection loss and single-job measurements. Independent verification for auth/shared contracts/concurrency; final implementation plan must name exact state transitions before code.
-- **Status**: Implemented; awaiting verifier recheck and manual Desktop check.
+- **Status**: Implemented and independently verified; manual Desktop window check pending.
 - **Observed results**: Accept, decline, expiry, disconnect, stale and duplicate answers verified on API and remote CLI by an independent verifier; Desktop panel renders in a browser smoke check, but a real confirmation was not run.
 
 ## US-09: Expose the Full Preset Inventory in Desktop
@@ -173,7 +173,7 @@ The following stories complete the revised backlog. Prior implementation and evi
   3. Retain existing model/context chips and do not add preset deletion, rename, import or export, which neither interface currently supports.
 - **Dependencies**: US-04.
 - **Verification method**: Paired CLI/Desktop fixture results for unfiltered/filtered inventories, metadata, empty/error cases and target routing.
-- **Status**: Implemented; awaiting verifier recheck and manual Desktop check.
+- **Status**: Implemented and independently verified; manual Desktop window check pending.
 - **Observed results**: Settings → Saved presets; test/presets-view.test.js; browser smoke shows the empty state with no console errors.
 
 ## US-10: Download the First Model from Desktop
@@ -185,7 +185,7 @@ The following stories complete the revised backlog. Prior implementation and evi
   3. Preserve the existing remote-install/download prohibition in both interfaces; instruct remote users to prepare the engine computer. Do not automatically download profile variants or add general model-library CRUD.
 - **Dependencies**: US-04.
 - **Verification method**: Fake engine executables/runner tests compare exact CLI/Desktop operations, input rejection, success/error refresh, and zero execution for unauthorized remote callers; no model download during tests.
-- **Status**: Implemented; awaiting verifier recheck and manual Desktop check.
+- **Status**: Implemented and independently verified; manual Desktop window check pending.
 - **Observed results**: Shared downloadModel for CLI and local-only route; test/model-download.test.js 8/8 and test/model-download-api.test.js 6/6; no real download was run.
 
 ## US-11: Align Saved-Computer Operations
@@ -198,7 +198,7 @@ The following stories complete the revised backlog. Prior implementation and evi
   4. Preserve existing valid scripted `--server` selection and explicit owner credential reveal; no real remote probe is authorized by this backlog alone.
 - **Dependencies**: US-04; reuse restored US-02 server manager.
 - **Verification method**: Same operation sequence through CLI prompts and Desktop handlers against isolated real settings storage; compare saved state/active ID, explicit request counts, validation/error redaction, confirmation and cancellation.
-- **Status**: Implemented; awaiting verifier recheck and manual Desktop check.
+- **Status**: Implemented and independently verified; manual Desktop window check pending.
 - **Observed results**: Desktop add no longer selects, removal confirms; validation shared with the CLI; test/saved-servers.test.js. No real remote probe.
 
 ## US-12: Configure and Start the Shared Server from Desktop
@@ -211,7 +211,7 @@ The following stories complete the revised backlog. Prior implementation and evi
   4. Keep existing autostart/reveal/copy functionality; do not add unrelated service stop/restart/remote administration features absent from both surfaces.
 - **Dependencies**: US-04.
 - **Verification method**: Fake lifecycle/IPC dependencies and isolated server config; compare CLI/Desktop host/port/token outcomes, bind/start failures and duplicate-start handling. Unauthorized renderer/frame calls must perform zero privileged operations. No real login/service registration.
-- **Status**: Implemented; awaiting verifier recheck and manual Desktop check.
+- **Status**: Implemented and independently verified; manual Desktop window check pending.
 - **Observed results**: Shared helper for `/serve` and trusted bridge; test/shared-server.test.js, test/desktop-server-controls.test.js, test/shared-hosting-ui.test.js. A real Electron window was not launched.
 
 ## US-13: Align MCP Endpoint and Configuration Status
@@ -223,7 +223,7 @@ The following stories complete the revised backlog. Prior implementation and evi
   3. Continue writing agent configuration only on the local CLI/Desktop host, using shared installers, backups and preserved unrelated settings. Remote engine execution does not imply permission to alter remote agents.
 - **Dependencies**: US-04.
 - **Verification method**: Paired CLI/Desktop endpoint/name/agent fixtures with temporary configuration paths and fake detections; assert custom-name status, backup/preserved data, shared payloads, errors and no unintended remote/engine install.
-- **Status**: Implemented; awaiting verifier recheck and manual Desktop check.
+- **Status**: Implemented and independently verified; manual Desktop window check pending.
 - **Observed results**: CLI checks the chosen custom name; the Desktop MCP button no longer needs a local engine install.
 
 ## US-14: Show Equivalent Remote Load Progress and Results
@@ -235,7 +235,7 @@ The following stories complete the revised backlog. Prior implementation and evi
   3. Handle stream errors/disconnection and selected-target identification consistently; do not introduce coordinated cancellation as a new feature.
 - **Dependencies**: US-04, US-07 and US-08 final event/result contracts.
 - **Verification method**: Deterministic mock SSE sequences through public clients and interface consumers, asserting displayed information, JSON cleanliness, errors, terminal outcome and no duplicated side effects.
-- **Status**: Implemented; awaiting verifier recheck.
+- **Status**: Complete (automated and independent checks observed).
 - **Observed results**: Remote CLI uses the same event handler as local; lost streams and failed results handled after verifier blockers B1-B5.
 
 ## Revised Backlog Review and Execution
@@ -251,3 +251,5 @@ The following stories complete the revised backlog. Prior implementation and evi
 - 2026-10-31 checkpoint: full suite 409/409 pass. Not started: US-09, US-10, US-11 Desktop semantics, US-12, and all Desktop renderer controls. US-01, US-02 and US-03 stay reopened until those exist. No 100% parity claim.
 
 - 2026-10-31: full suite 479/479. First independent verifier found 5 blockers on commit f027bca, corrected in 43412de. Recheck running. Real Electron window, GPU benchmark, model download and remote host checks not performed.
+
+- 2026-10-31: second verifier round passed B1, B2, B4, B5 and the security surfaces; B3 and a new token blocker were corrected in 65d8024 with RED/GREEN regressions, not rechecked by the verifier again. Full suite 482/482. Native review offered and declined by the user for this candidate. US-01, US-02 and US-03 stay open until the manual Desktop check. No 100% parity claim until that check.
