@@ -1,4 +1,8 @@
 import { setupServerSettings } from './server-settings.js';
+import { setupSharedHosting } from './shared-hosting.js';
+import { buildLoadRequest, outcomeView } from './load-flow.js';
+import { addServer, removeServer, selectServer, validateServerUrl } from './saved-servers.js';
+import { createConfirmationPanel, setupModelDownload, setupPresetInventory } from './desktop-panels.js';
 import { format } from '/i18n/core.js';
 import { initialProfile, profileOptions, profileDetailLines, profileEventLines, presetsFor, presetFor, isCurrentModel, isCurrentPlan } from './profile.js';
 
@@ -313,6 +317,11 @@ async function boot() {
   applyStatic();
   setupDrawer();
   await setupServerSettings({ document, bridge: window.llmTunerServer, t });
+  await setupSharedHosting({ document, bridge: window.llmTunerServer, t });
+  setupModelDownload({ $, t, api, follow, errText, getEngine: () => state.engine, onDownloaded: chooseEngine });
+  const refreshPresetInventory = setupPresetInventory({ $, esc, t, api });
+  refreshPresetInventory();
+  $('#settings-open')?.addEventListener('click', refreshPresetInventory);
   setupMcpModal();
   api('/api/update').then((up) => {
     if (up?.currentVersion) {
@@ -378,17 +387,33 @@ async function boot() {
       if (urlSpan) urlSpan.textContent = active.url;
       const removeBtn = $('#remove-server-btn');
       if (removeBtn) removeBtn.hidden = (active.id === 'local');
+      const testBtn = $('#test-server-btn');
+      if (testBtn) {
+        testBtn.hidden = active.id === 'local';
+        testBtn.onclick = async () => {
+          try {
+            const res = await fetch(`${active.url}/api/state`, { headers: active.token ? { Authorization: `Bearer ${active.token}` } : {} });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            alert(t('web.serverConnected'));
+          } catch (err) {
+            alert(t('web.serverConnectionFailed', { error: err.message }));
+          }
+        };
+      }
     }
   }
+  state.isRemoteTarget = Boolean(s.activeServerId && s.activeServerId !== 'local');
   renderServerList();
 
   const serverSel = $('#server-select');
   if (serverSel) {
     serverSel.onchange = async () => {
       const nextId = serverSel.value;
+      const selected = selectServer(s, nextId);
+      if (!selected.ok) return alert(t(selected.errorKey));
       setBusy(true);
       try {
-        await api('/api/settings', { activeServerId: nextId });
+        await api('/api/settings', selected.patch);
         location.reload();
       } catch (err) {
         setBusy(false);
@@ -401,11 +426,13 @@ async function boot() {
   if (removeServerBtn) {
     removeServerBtn.onclick = async () => {
       const activeId = s.activeServerId;
-      if (activeId === 'local') return;
-      const nextServers = (s.servers || []).filter((x) => x.id !== activeId);
+      const removed = removeServer(s, activeId);
+      if (!removed.ok) return alert(t(removed.errorKey));
+      const name = (s.servers || []).find((x) => x.id === activeId)?.name ?? activeId;
+      if (!confirm(t('cli.serverRemoveConfirm', { name }))) return;
       setBusy(true);
       try {
-        await api('/api/settings', { servers: nextServers, activeServerId: 'local' });
+        await api('/api/settings', removed.patch);
         location.reload();
       } catch (err) {
         setBusy(false);
@@ -443,11 +470,16 @@ async function boot() {
   const serverTestBtn = $('#server-test-btn');
   if (serverTestBtn) {
     serverTestBtn.onclick = async () => {
-      const url = $('#new-server-url').value.trim().replace(/\/+$/, '');
+      const url = validateServerUrl($('#new-server-url').value);
       const token = $('#new-server-token').value.trim();
       const fb = $('#server-test-feedback');
       if (!fb) return;
       fb.hidden = false;
+      if (!url) {
+        fb.textContent = t('cli.serverUrlInvalid');
+        fb.style.color = 'var(--c-err, red)';
+        return;
+      }
       fb.textContent = 'Connecting...';
       try {
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
@@ -466,14 +498,11 @@ async function boot() {
   if (serverForm) {
     serverForm.onsubmit = async (e) => {
       e.preventDefault();
-      const name = $('#new-server-name').value.trim();
-      const url = $('#new-server-url').value.trim().replace(/\/+$/, '');
-      const token = $('#new-server-token').value.trim() || null;
-      const newServer = { id: 'srv_' + Date.now(), name, url, token };
-      const nextServers = [...(s.servers || []), newServer];
+      const added = addServer(s, { name: $('#new-server-name').value, url: $('#new-server-url').value, token: $('#new-server-token').value });
+      if (!added.ok) return alert(t(added.errorKey));
       setBusy(true);
       try {
-        await api('/api/settings', { servers: nextServers, activeServerId: newServer.id });
+        await api('/api/settings', added.patch);
         location.reload();
       } catch (err) {
         setBusy(false);
@@ -510,18 +539,16 @@ async function init() {
     btn.onclick = () => chooseEngine(e);
     card.appendChild(btn);
 
-    if (d.installed) {
-      const mcpBtn = document.createElement('button');
-      mcpBtn.className = 'btn mcp-btn';
-      mcpBtn.type = 'button';
-      mcpBtn.title = t('web.addAsMcpTooltip');
-      mcpBtn.textContent = `🔗 ${t('web.addAsMcp')}`;
-      mcpBtn.onclick = (ev) => {
-        ev.stopPropagation();
-        openMcpModal(e);
-      };
-      card.appendChild(mcpBtn);
-    }
+    const mcpBtn = document.createElement('button');
+    mcpBtn.className = 'btn mcp-btn';
+    mcpBtn.type = 'button';
+    mcpBtn.title = t('web.addAsMcpTooltip');
+    mcpBtn.textContent = `🔗 ${t('web.addAsMcp')}`;
+    mcpBtn.onclick = (ev) => {
+      ev.stopPropagation();
+      openMcpModal(e);
+    };
+    card.appendChild(mcpBtn);
     box.appendChild(card);
   }
 }
@@ -539,6 +566,8 @@ async function chooseEngine(e) {
   $('#model').innerHTML = models.length
     ? models.map((m) => `<option value="${esc(m.key)}">${esc(m.name)} · ${gb(m.sizeBytes)}${m.quant ? ' · ' + esc(m.quant) : ''}</option>`).join('')
     : `<option value="">${esc(t('web.noModels'))}</option>`;
+  $('#model-download').hidden = models.length > 0 || state.isRemoteTarget;
+  $('#model-remote-hint').hidden = models.length > 0 || !state.isRemoteTarget;
   if (models.length) onModelChange();
 }
 
@@ -813,15 +842,21 @@ $('#load-btn').onclick = async () => {
     log.appendChild(line);
     log.scrollTop = log.scrollHeight;
   };
+  const confirmation = createConfirmationPanel({ $, esc, t, api });
+  confirmation.hide();
   const tbody = $('#results tbody');
   tbody.innerHTML = '';
   const rows = [];
 
   try {
-    const { jobId } = await api('/api/load', { engine: state.engine.id, model, ctx, profile, force: $('#force').checked });
+    const built = buildLoadRequest({ engine: state.engine.id, model, ctx, profile, force: $('#force').checked, candidatesRaw: $('#candidates').value, dryRun: $('#dry-run').checked });
+    if (!built.ok) throw new Error(t(built.errorKey));
+    const { jobId } = await api('/api/load', built.request);
     // Progress event before the current one: a fallback that repeats its reason is not logged twice.
     let previous = null;
     const done = await follow(jobId, (e) => {
+      if (e.type === 'confirmation-required') confirmation.show(jobId, e, (message) => addLog(message, 'warn'));
+      if (e.type === 'confirmation-resolved') confirmation.hide();
       if (e.type === 'telemetry') {
         updateTelemetry(e);
         return;
@@ -872,9 +907,10 @@ $('#load-btn').onclick = async () => {
       const idx = r.report.results.findIndex((x) => x.candidate.id === r.report.best.candidate.id);
       rows[idx]?.classList.add('best');
     }
-    status.className = 'pill ok';
-    status.textContent = r.source === 'preset' ? t('web.fromPreset') : t('web.measuredLoaded');
-    let html = '';
+    const view = outcomeView(done);
+    status.className = `pill ${view.pill}`;
+    status.textContent = view.statusKey ? t(view.statusKey) : r.source === 'preset' ? t('web.fromPreset') : t('web.measuredLoaded');
+    let html = view.noticeKey ? `<div class="notice warn">${esc(t(view.noticeKey))}</div>` : '';
     if (r.loaded?.ok) {
       html += `<div class="best"><div><span class="big">${r.loaded.short.genTps}</span> <span class="muted">tokens/s</span></div>
       <div><b>${esc(describe(r.candidate))}</b> · ${esc(t('web.threadsCtx', { threads: r.candidate.threads, ctx: k(r.candidate.ctx) }))}${r.loaded.model ? `<br><span class="muted small">${esc(t('web.usesModel'))} <code>${esc(r.loaded.model)}</code></span>` : ''}</div></div>`;

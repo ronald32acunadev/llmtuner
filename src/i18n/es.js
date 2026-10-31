@@ -160,6 +160,7 @@ Uso: llm-tuner [comando] [opciones]
 
 Comandos:
   /load                        En el equipo activo, elegir un motor y modelo, y ajustarlo y cargarlo
+  /chat                        Probar un modelo cargado con una conversación
   /mcp                         Conectar un motor local con agentes de IA como servidor MCP
   /presets                     Ver presets de configuración guardados
   /settings                    Configurar la interfaz, el inicio del servidor y los equipos guardados
@@ -176,6 +177,7 @@ Opciones:
   --candidates <n>             Configuraciones a probar al medir (3)
   --yes                        No pedir confirmación
   --dry-run                    Medir y mostrar cambios sin aplicar nada ni guardar preset
+  --prompt <texto>             Con /chat: enviar un mensaje y salir
   --presets                    Listar presets guardados (igual que /presets)
   --json                       Salida final en JSON
   --lang <en|es>               Idioma de la interfaz (se guarda para la próxima vez)

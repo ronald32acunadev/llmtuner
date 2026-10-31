@@ -12,7 +12,7 @@ Documentation revision: **2026-10-31** (restored from the 2026-10-29 approved im
 - [Tune and load a model](#load-model)
 - [Understand profiles](#profiles)
 - [Inspect saved presets](#presets)
-- [Test a model in the GUI](#gui-chat)
+- [Test a model](#gui-chat)
 - [Connect AI agents through MCP](#mcp)
 - [Change settings](#settings)
 - [Share this computer](#share-computer)
@@ -31,16 +31,16 @@ Parity target: CLI and Electron Desktop, not standalone browser usage. This inve
 | Capability | CLI entry | Desktop entry | Current acceptance state |
 |---|---|---|---|
 | Engine/model/context/profile loading | `/load` | Engine → Model and context → Load | Existing; final paired integration proof pending |
-| Candidate count | `--candidates` | Pending control | US-06 pending |
-| Local/remote dry-run | Local flag; remote currently refused | Pending choice | US-07 pending |
-| Application preview/confirmation | Local prompt; remote pending | Pending confirmation | US-08 pending |
-| Conversation testing | Pending `/chat` | Chat form | US-05 pending; command not implemented yet |
-| Full preset inventory/filtering | `/presets` | Selected-model chips only | US-09 pending |
-| First-model download | Local empty-list prompt | Pending local operation | US-10 pending |
-| Saved-computer operations | Settings manager | Settings → Servers | US-11 semantic alignment pending |
-| Configure/start shared server | `/serve` | Native hosting controls pending | US-12 pending |
-| MCP endpoint/name/agent setup | `/mcp` | Add as MCP Server | US-13 eligibility/custom-name alignment pending |
-| Remote progress/results | Partial event display | Load progress/log/telemetry | US-14 pending |
+| Candidate count | `--candidates` | **Configurations to measure** | Implemented; automated checks pass |
+| Local/remote dry-run | `--dry-run` | **Dry run** checkbox | Implemented; automated checks pass |
+| Application preview/confirmation | Prompt, local and remote; `--yes` skips it | **Apply these changes?** panel | Implemented; automated checks pass |
+| Conversation testing | `/chat`, `--prompt` | Chat form | Implemented; automated checks pass |
+| Full preset inventory/filtering | `/presets` | Settings → **Saved presets** | Implemented; automated checks pass |
+| First-model download | Local empty-list prompt | **Download a first model** form | Implemented; automated checks pass |
+| Saved-computer operations | Settings manager | Settings → Servers | Implemented; automated checks pass |
+| Configure/start shared server | `/serve` | Settings → **Share this computer** | Implemented; real Electron window check pending |
+| MCP endpoint/name/agent setup | `/mcp` | Add as MCP Server | Implemented; automated checks pass |
+| Remote progress/results | Same events as a local load | Load progress/log/telemetry | Implemented; automated checks pass |
 | Language/theme preferences | `/settings`, flags | Settings | Existing; final paired regression proof pending |
 | Local startup/credential access | `/settings` | Native Local Server Settings | Existing; privileged behavior must remain trusted/local |
 | Local engine installation | Guided engine install | Engine install controls | Existing; unauthorized remote installation remains forbidden |
@@ -90,9 +90,9 @@ To remove a saved connection, choose its remove action and confirm. Removing the
 1. Open **Settings → Servers → + Add**.
 2. Enter **Server Name**, **Server URL**, and **Authentication Token**.
 3. Use **Test Connection** to check the entered details, then **Save Server**.
-4. The GUI saves and selects the new server. The server selector switches existing targets; **Remove** removes the selected remote connection.
+4. Saving does not switch computers, the same as the CLI. Choose the server in the selector to use it. **Test connection** checks the selected computer, and **Remove** asks for confirmation first.
 
-**Expected result:** model and hardware information is refreshed for that target. Unlike the CLI add flow, GUI save also selects the new server.
+**Expected result:** after you select a server, model and hardware information is refreshed for that target. Removing the selected server returns to Local Machine.
 
 Use the local GUI as the client. Opening a protected `/serve` URL directly in an ordinary browser is not an authentication/login flow: protected requests require a Bearer authorization header, and the page has no token-login screen.
 
@@ -122,18 +122,20 @@ llm-tuner /load --engine ollama --model YOUR_MODEL_KEY --ctx 8192 --profile bala
 1. Select an **Engine**, then a **Model**.
 2. Set **Context (tokens)** and **Load profile**. Inspect the metadata and context/profile guidance.
 3. Enable **Measure again even if a preset exists** only when you want fresh measurements.
-4. Select **Load**. Follow progress, hardware telemetry, configuration rows, and the final result.
+4. Optional: set **Configurations to measure** (three when empty), or enable **Dry run** to preview without applying.
+5. Select **Load**. Follow progress, hardware telemetry and configuration rows.
+6. When **Apply these changes?** appears, review the list and select **Apply and load** or **Do not apply**. Without an answer in two minutes, or if the window disconnects, the changes are not applied.
 
-The GUI uses the default candidate count and does not expose CLI dry-run or a separate application-confirmation dialog. Do not describe these as available GUI controls.
+If the model list is empty on the local computer, use **Download a first model**. With a remote computer selected, prepare models on that computer.
 
 ### Measurement options and limitations
 
 - `--force`: measure again instead of reusing a matching preset.
-- `--candidates <n>`: limit candidate configurations considered by CLI loading; the default is three.
-- `--yes`: skip the local final apply confirmation; it does not grant unrelated administrator permissions.
+- `--candidates <n>`: limit candidate configurations; the default is three. A value that is not a positive whole number is refused before anything runs.
+- `--yes`: skip the final apply confirmation, local or remote; it does not grant unrelated administrator permissions.
 - `--json`: emit the load result as JSON and avoid interactive profile/authorization prompts. Supply engine, model, and context for predictable automation.
-- `--dry-run`: **local only**. It skips final preset persistence/application/loading, but can unload models and run real benchmarks with temporary configuration. It is not a side-effect-free preview.
-- A remote `--dry-run` is refused before update checks or model-server requests. Remove the flag only if you intend a real remote load, or select Local Machine for local dry-run behavior.
+- `--dry-run`: works on the local or the selected remote computer. It skips final preset persistence/application/loading, but can unload models and run real benchmarks with temporary configuration. It is not a side-effect-free preview.
+- Declining keeps any measurements already saved as a preset: only the final apply and load are skipped.
 
 **Recovery:** lower context if no configuration fits; inspect per-candidate errors, choose another profile, or confirm the engine is running. An empty remote model list requires downloading a model on that computer, not on the client. Disconnecting the UI or pressing Ctrl+C is not a coordinated server-job cancellation mechanism.
 
@@ -165,14 +167,28 @@ Profiles are goals, not guarantees of unchanged quality or exact performance. Pl
    ```
 3. Check contexts and recorded throughput; run `/load` with the corresponding model/context to reuse a valid result.
 
-**Expected result:** the CLI lists matching saved presets or explains that none exist. GUI preset chips/context suggestions concern the selected model, not a global administration screen. Hardware/model changes can invalidate a preset; different profiles have separate preset records.
+In Desktop, open **Settings → Saved presets** and filter by engine or model.
+
+**Expected result:** both list matching saved presets or explain that none exist. GUI preset chips/context suggestions concern the selected model, not a global administration screen. Hardware/model changes can invalidate a preset; different profiles have separate preset records.
 
 There are no built-in rename/import/export/delete preset workflows. Do not confuse removing a saved server connection with removing its presets.
 
 <a id="gui-chat"></a>
-## Test a Model in the GUI
+## Test a Model
 
-**Purpose:** verify inference after loading; this is not a CLI chat command.
+**Purpose:** verify inference after loading.
+
+### CLI
+
+1. Run `llm-tuner /chat`, choose the engine and model, and type messages. History is kept for the session.
+2. Type `/exit` to leave. The command never loads or downloads a model, and does not change settings.
+3. For one scripted message:
+
+   ```bash
+   llm-tuner /chat --engine ollama --model YOUR_MODEL_KEY --prompt "Hello"
+   ```
+
+### Desktop
 
 1. Load a model successfully.
 2. Use the GUI's **Test connection** control to verify engine reachability if needed.
@@ -204,6 +220,8 @@ llm-tuner /mcp --engine lmstudio --name my-engine --host http://192.168.1.20:123
 The option is `--apiKey`, not `--api-key`; no `--agents` flag is implemented.
 
 ### Desktop or browser
+
+The engine does not have to be installed on this computer if you enter its endpoint in the advanced options.
 
 1. Choose the engine and select **Add as MCP Server**.
 2. Set **MCP Server Name**, select agents, and expand **Advanced connection options** if needed.
@@ -244,7 +262,9 @@ The load wizard can save a selected profile. Automated CLI loads without an expl
 
 **Expected result:** the server persists its configuration and prints its URL/token. Without `--token`, it reuses a saved token when available or generates one. Supply `--token YOUR_PRIVATE_TOKEN` only intentionally; command-line arguments may be visible in shell history/process listings. Stop a foreground server with Ctrl+C when finished.
 
-`/serve` defaults to port 7860 and host `0.0.0.0`; use `--host 127.0.0.1` for loopback-only access. The built-in server uses HTTP, not TLS. Do not expose it directly to the public internet or treat a token as encryption. Remote engine installation is deliberately unavailable; perform installation on the engine computer.
+In Desktop, open **Settings → Share this computer**, set the host and port, optionally a token, and select **Start sharing**. It follows the same rules as `/serve`, and sharing stops when you close the app.
+
+A failed start keeps the saved configuration unchanged. `/serve` defaults to port 7860 and host `0.0.0.0`; use `--host 127.0.0.1` for loopback-only access. The built-in server uses HTTP, not TLS. Do not expose it directly to the public internet or treat a token as encryption. Remote engine installation is deliberately unavailable; perform installation on the engine computer.
 
 <a id="startup-credentials"></a>
 ## Automatic Server Startup and Credentials
@@ -272,6 +292,7 @@ Run `llm-tuner --help` for the installed version's current help and `llm-tuner -
 | Command/options | Usage |
 |---|---|
 | No arguments | Interactive task menu in a terminal. |
+| `/chat` | Test a loaded model; `--engine`, `--model`, `--prompt`, `--json`. Type `/exit` to leave. |
 | `/load` | Tune/load; `--engine`, `--model`, `--ctx`, `--profile`, `--candidates`, `--force`, `--yes`, `--dry-run`, `--json`. |
 | `/presets` | List presets; optional `--engine` and `--model` filters. |
 | `/mcp` | Configure agents; optional `--engine`, `--name`, `--host`, `--apiKey`; agent selection is interactive. |
@@ -302,7 +323,8 @@ Use a real saved name/ID and an installed model key. Do not use `--json` as a su
 | Ollama reports manual commands | Read and run only the appropriate authorized commands on the engine computer, then retry. |
 | MCP configured but agent cannot infer | Check the engine port/key and direct reachability from the agent computer, then reload its configuration. |
 | Startup cannot be enabled | Review the local OS error and saved server configuration; generic browser clients cannot perform native Desktop actions. |
-| CLI rejects remote dry-run | Choose local operation for local dry-run or remove the flag only if a real remote load is intended. |
+| Confirmation is no longer pending | Nothing was applied. Load again, and answer within two minutes. |
+| Lost connection during a remote load | Check the other computer and network, then load again. A job may have continued there. |
 
 <a id="data-safety"></a>
 ## Data and Safety
@@ -328,6 +350,15 @@ Maintainers must update this guide alongside user-visible changes. Record what c
 
 <a id="changes"></a>
 ## User-Visible Changes
+
+### 2026-10-31 — CLI and Desktop parity
+
+- [Test a model](#gui-chat): new CLI `/chat` command.
+- [Tune and load](#load-model): Desktop gains candidate count, dry run and an apply confirmation. The remote CLI gains dry run and confirmation, replacing the earlier refusal. Invalid `--candidates` values are now refused.
+- [Presets](#presets): Desktop lists and filters all saved presets.
+- [Choose a computer](#choose-computer): saving a server in Desktop no longer selects it, and removal asks for confirmation.
+- [Share this computer](#share-computer): Desktop can start sharing this computer.
+- [MCP](#mcp): the CLI asks for the name first and checks it against existing configuration.
 
 ### 2026-10-31 — Restore the approved implementation
 

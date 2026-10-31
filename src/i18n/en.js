@@ -160,6 +160,7 @@ Usage: llm-tuner [command] [options]
 
 Commands:
   /load                        Choose an engine and model on the active computer, then tune and load it
+  /chat                        Test a loaded model with a conversation
   /mcp                         Connect a local engine to AI coding agents as an MCP server
   /presets                     View saved tuning presets
   /settings                    Configure the interface, server startup, and saved computers
@@ -176,6 +177,7 @@ Options:
   --candidates <n>             Configurations to test when measuring (3)
   --yes                        Do not ask for confirmation
   --dry-run                    Measure and show the changes without applying anything or saving a preset
+  --prompt <text>              With /chat: send one message and exit
   --presets                    List saved presets (same as /presets)
   --json                       Final output as JSON
   --lang <en|es>               Interface language (saved for next time)
