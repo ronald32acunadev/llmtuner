@@ -109,7 +109,7 @@ Agents must resolve current library documentation using a **Cache-Aside** strate
 4. **Engram vs .context/ separation of concerns**:
    - **`.context/`**: Curated third-party API documentation and SDK guides (versioned dictionary).
    - **Engram (`mem_save`)**: Project-specific discoveries, gotchas, architecture choices, and bug root causes. Never save raw third-party doc dumps to Engram.
-5. **The dictionary is the source of every local prompt**: Local models are not experts. Build each entry from the official documentation for the exact version and record signatures, one verified example, forms the model got wrong (`WRONG: ...`), and the project's own call sites. Build the Library Context Brief from these entries. When an answer is wrong, first improve the entry or send an exact skeleton with only the missing lines to fill, then request the correction. If the exact version's documentation is unavailable, record which version was verified and treat the installed type definitions as authoritative.
+5. **The dictionary is the source of every local prompt**: Local models are not experts. Build each entry from the official documentation for the exact version, using `.agents/context-dictionary-template.md`, and record signatures, one verified example, forms the model got wrong (`WRONG: ...`), and the project's own call sites. Build the Library Context Brief from these entries. When an answer is wrong, first improve the entry or send an exact skeleton with only the missing lines to fill, then request the correction. If the exact version's documentation is unavailable, record which version was verified and treat the installed type definitions as authoritative.
 
 Every code request includes a brief with, for each library the task touches:
 
@@ -134,10 +134,15 @@ Then detail the change itself step by step: functions to add or change, behavior
   - Do NOT use: <deprecated/removed APIs>
   - Example (official docs): <short snippet>
   - Existing project usage: <verbatim call site>
+  - Wrong forms: <`WRONG:` entries from the dictionary>
+
+## Existing helpers
+<exact signature and return value of every helper the code calls>
 
 ## Task
 <approved story ID, statement, acceptance criteria, dependencies, and execution mode>
 <exact change, step by step, with inputs/outputs and edge cases>
+<when the model already failed: the complete file as a skeleton with only the missing lines marked TODO>
 
 ## Target files
 <paths + relevant existing code verbatim>
