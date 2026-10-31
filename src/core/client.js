@@ -68,10 +68,10 @@ export class TunerApiClient {
     });
   }
 
-  async loadModel({ engine, model, ctx, profile, force, candidates }, onProgress) {
+  async loadModel({ engine, model, ctx, profile, force, candidates, dryRun, confirm }, onProgress, { confirmApply } = {}) {
     const { jobId } = await this._request('/api/load', {
       method: 'POST',
-      body: { engine, model, ctx, profile, force, candidates },
+      body: { engine, model, ctx, profile, force, candidates, dryRun, confirm },
     });
 
     if (!onProgress) return { jobId };
@@ -102,6 +102,11 @@ export class TunerApiClient {
             onProgress(data);
           }
 
+          if (data.type === 'confirmation-required' && confirmApply) {
+            const accepted = await confirmApply(data.preview);
+            await this.confirmLoad(jobId, { confirmationId: data.confirmationId, accepted });
+          }
+
           if (data.type === 'finished') {
             if (data.ok === false) {
               const err = new Error(data.error || 'Job failed');
@@ -115,6 +120,13 @@ export class TunerApiClient {
     } finally {
       await reader.cancel();
     }
+  }
+
+  async confirmLoad(jobId, { confirmationId, accepted }) {
+    return this._request(`/api/jobs/${jobId}/confirm`, {
+      method: 'POST',
+      body: { confirmationId, accepted },
+    });
   }
 
   static fromSettings(settings) {

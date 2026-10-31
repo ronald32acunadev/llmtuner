@@ -7,6 +7,8 @@ import { detectHardware, detectEngines, Tuner, ENGINES, installPlans, runInstall
 import { THEMES } from '../core/settings.js';
 import { LOCALES, messagesFor } from '../i18n/index.js';
 import { openUrl } from '../core/installer.js';
+import { normalizeLoadOptions, loadOutcome } from '../core/load-options.js';
+import { createConfirmationGate } from './load-confirmation.js';
 
 export function sanitizeHardware(hw) {
   if (!hw || typeof hw !== 'object') return hw;
@@ -79,6 +81,8 @@ function errorBody(e) {
 
 // A job is a long-running task (install, tune, apply) whose events are streamed over SSE.
 const jobs = new Map();
+// Which saved server owns a proxied job, frozen when the job is created.
+const jobTargets = new Map();
 function createJob() {
   const job = { id: randomUUID(), events: [], listeners: new Set(), done: false };
   job.emit = (event) => {
@@ -185,19 +189,35 @@ const routes = {
   // The "Load" button: preset -> apply + load, or benchmark -> preset -> apply + load.
   'POST /api/load': async (req, url, { authorizeOllama } = {}) => {
     if (busy) throw new TunerError('errors.loadInProgress');
-    const { engine, model, ctx, force = false, candidates = 3, profile } = await body(req);
+    const { engine, model, ctx, force, candidates, profile, dryRun, confirm } = normalizeLoadOptions(await body(req));
     // An unknown profile is rejected before any job exists; without one the tuner uses its default.
-    const options = { force, maxCandidates: Number(candidates) };
+    const options = { force, maxCandidates: candidates, dryRun };
     if (authorizeOllama) options.authorizeOllama = authorizeOllama;
     if (profile !== undefined) options.profile = knownProfile(profile);
     const tuner = await Tuner.create(engine);
     const job = createJob();
     tuner.on('progress', (e) => job.emit(e));
+    if (confirm && !dryRun) {
+        job.gate = createConfirmationGate({ emit: job.emit });
+        options.confirmApply = (preview) => job.gate.request(preview);
+    }
     busy = true;
     tuner.load(model, Number(ctx), options)
-      .then((r) => job.finish({ ok: !!r.loaded?.ok, result: { ...r, report: r.report && { ...r.report, best: r.report.best && { candidate: slim(r.report.best.candidate), bench: r.report.best.bench } } } }))
+      .then((r) => job.finish({
+          ...loadOutcome(r, { dryRun }),
+          result: {
+              ...r,
+              report: r.report && {
+                  ...r.report,
+                  best: r.report.best && {
+                      candidate: slim(r.report.best.candidate),
+                      bench: r.report.best.bench
+                  }
+              }
+          }
+      }))
       .catch((e) => job.finish({ ok: false, ...errorBody(e) }))
-      .finally(() => { busy = false; });
+      .finally(() => { busy = false; job.gate?.cancel('finished'); });
     return { jobId: job.id };
   },
 
@@ -248,7 +268,7 @@ export async function getActiveRemoteServer({ options } = {}) {
   return (server && server.url) ? server : null;
 }
 
-export async function proxyToRemote(remoteServer, req, url, res) {
+export async function proxyToRemote(remoteServer, req, url, res, { onJson } = {}) {
   const targetUrl = `${remoteServer.url.replace(/\/+$/, '')}${url.pathname}${url.search}`;
   const headers = {
     'Content-Type': req.headers['content-type'] || 'application/json',
@@ -275,10 +295,20 @@ export async function proxyToRemote(remoteServer, req, url, res) {
     });
 
     const data = await remoteRes.json().catch(() => ({}));
+    onJson?.(data);
     return send(res, remoteRes.status, data);
   } catch (err) {
     return send(res, 502, { error: err.message, code: 'web.serverConnectionFailed' });
   }
+}
+
+async function confirmJob(req, res, jobId) {
+  const job = jobs.get(jobId);
+  if (!job) return send(res, 404, { error: 'job not found' });
+  const { confirmationId, accepted } = await body(req);
+  if (typeof accepted !== 'boolean') throw new TunerError('errors.invalidLoadOption', { option: 'accepted' });
+  const { status } = job.gate ? job.gate.resolve({ confirmationId, accepted }) : { status: 409 };
+  return send(res, status, status === 200 ? { ok: true } : { error: 'stale confirmation', code: 'errors.confirmationStale' });
 }
 
 async function handler(req, res, options = {}) {
@@ -312,51 +342,56 @@ async function handler(req, res, options = {}) {
     if (options.authorizeOllama && req.method === 'POST' && req.headers.origin && req.headers.origin !== `http://127.0.0.1:${req.socket.localPort}`) return send(res, 403, { error: 'Forbidden origin' });
 
     const activeRemote = await getActiveRemoteServer({ options });
-    if (activeRemote) {
-      const ev = url.pathname.match(/^\/api\/jobs\/([\w-]+)\/events$/);
-      if (ev) {
-        try {
-          const targetUrl = `${activeRemote.url.replace(/\/+$/, '')}${url.pathname}${url.search}`;
-          const headers = {};
-          if (activeRemote.token) {
-            headers['Authorization'] = `Bearer ${activeRemote.token}`;
-          }
+    const jobPath = url.pathname.match(/^\/api\/jobs\/([\w-]+)\/(events|confirm)$/);
+    const jobTarget = jobPath && (jobTargets.get(jobPath[1]) ?? (jobs.has(jobPath[1]) ? null : activeRemote));
+    if (jobTarget) {
+      if (jobPath[2] === 'confirm') return await proxyToRemote(jobTarget, req, url, res);
 
-          const remoteRes = await fetch(targetUrl, { method: 'GET', headers });
-          res.writeHead(remoteRes.status, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-            'Access-Control-Allow-Origin': '*',
-          });
-
-          const reader = remoteRes.body.getReader();
-          req.on('close', () => reader.cancel().catch(() => {}));
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              res.write(value);
-            }
-          } finally {
-            res.end();
-          }
-          return;
-        } catch (err) {
-          return send(res, 502, { error: err.message, code: 'web.serverConnectionFailed' });
+      try {
+        const targetUrl = `${jobTarget.url.replace(/\/+$/, '')}${url.pathname}${url.search}`;
+        const headers = {};
+        if (jobTarget.token) {
+          headers['Authorization'] = `Bearer ${jobTarget.token}`;
         }
-      }
 
+        const remoteRes = await fetch(targetUrl, { method: 'GET', headers });
+        res.writeHead(remoteRes.status, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+        });
+
+        const reader = remoteRes.body.getReader();
+        res.on('close', () => reader.cancel().catch(() => {}));
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            res.write(value);
+          }
+        } finally {
+          res.end();
+        }
+        return;
+      } catch (err) {
+        return send(res, 502, { error: err.message, code: 'web.serverConnectionFailed' });
+      }
+    }
+
+    if (activeRemote) {
       const PROXIED_PATHS = ['/api/state', '/api/models', '/api/plan', '/api/presets', '/api/load', '/api/chat'];
       if (PROXIED_PATHS.includes(url.pathname)) {
-        return await proxyToRemote(activeRemote, req, url, res);
+        const onJson = url.pathname === '/api/load' ? (data) => { if (data?.jobId) jobTargets.set(data.jobId, activeRemote); } : undefined;
+        return await proxyToRemote(activeRemote, req, url, res, { onJson });
       }
     }
 
     // Server-Sent Events for job progress.
-    const ev = url.pathname.match(/^\/api\/jobs\/([\w-]+)\/events$/);
-    if (ev) {
-      const job = jobs.get(ev[1]);
+    if (jobPath?.[2] === 'confirm' && req.method === 'POST') return await confirmJob(req, res, jobPath[1]);
+
+    if (jobPath?.[2] === 'events') {
+      const job = jobs.get(jobPath[1]);
       if (!job) return send(res, 404, { error: 'job not found' });
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'Access-Control-Allow-Origin': '*' });
       const write = (e) => res.write(`data: ${JSON.stringify(e)}\n\n`);
@@ -364,7 +399,10 @@ async function handler(req, res, options = {}) {
       if (job.done) return res.end();
       const l = (e) => { write(e); if (e.type === 'finished') res.end(); };
       job.listeners.add(l);
-      req.on('close', () => job.listeners.delete(l));
+      res.on('close', () => {
+        job.listeners.delete(l);
+        if (job.listeners.size === 0 && !job.done) job.gate?.cancel('disconnected');
+      });
       return;
     }
     const route = routes[`${req.method} ${url.pathname}`];
