@@ -110,6 +110,8 @@ async function body(req) {
 }
 
 function send(res, status, obj) {
+  // A stream already started cannot carry an error response: end it instead of crashing.
+  if (res.headersSent) return res.end();
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
@@ -204,10 +206,11 @@ const routes = {
     }
     busy = true;
     tuner.load(model, Number(ctx), options)
-      .then((r) => job.finish({
-          ...loadOutcome(r, { dryRun }),
+      .then((r) => { const view = loadOutcome(r, { dryRun }); job.finish({
+          ...view,
           result: {
               ...r,
+              outcome: view.outcome,
               report: r.report && {
                   ...r.report,
                   best: r.report.best && {
@@ -216,7 +219,7 @@ const routes = {
                   }
               }
           }
-      }))
+      }); })
       .catch((e) => job.finish({ ok: false, ...errorBody(e) }))
       .finally(() => { busy = false; job.gate?.cancel('finished'); });
     return { jobId: job.id };

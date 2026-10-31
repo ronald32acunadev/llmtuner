@@ -112,3 +112,117 @@ test('confirmLoad posts the decision', async () => {
   assert.deepEqual(response, { ok: true });
   assert.deepEqual(seen.confirm[0], { confirmationId: 'c9', accepted: true });
 });
+
+async function eventsServer(onEvents) {
+  const server = http.createServer((req, res) => {
+    if (req.url === '/api/load') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ jobId: 'j' }));
+    }
+    return onEvents(res);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const client = new TunerApiClient({ baseUrl: `http://127.0.0.1:${server.address().port}` });
+  return { client, close: () => { server.closeAllConnections(); server.close(); } };
+}
+const request = { engine: 'ollama', model: 'm', ctx: 1 };
+
+test('a failed job with a result returns that result', async () => {
+  const { client, close } = await eventsServer((res) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.write(`data: ${JSON.stringify({
+      type: 'finished',
+      ok: false,
+      outcome: 'manual',
+      result: {
+        applied: { pendingCommands: ['x'] },
+        outcome: 'manual'
+      }
+    })}\n\n`);
+    res.end();
+  });
+
+  try {
+    const result = await client.loadModel(request, () => {});
+    assert.deepEqual(result, {
+      applied: { pendingCommands: ['x'] },
+      outcome: 'manual'
+    });
+  } finally {
+    close();
+  }
+});
+
+test('a failed job without a result throws its translated code', async () => {
+  const { client, close } = await eventsServer((res) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.write(`data: ${JSON.stringify({
+      type: 'finished',
+      ok: false,
+      code: 'errors.noConfigWorked',
+      params: {}
+    })}\n\n`);
+    res.end();
+  });
+
+  try {
+    await assert.rejects(
+      client.loadModel(request, () => {}),
+      { name: 'TunerError', code: 'errors.noConfigWorked' }
+    );
+  } finally {
+    close();
+  }
+});
+
+test('a stream that ends early reports a lost connection', async (t) => {
+  const { client, close } = await eventsServer((res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ type: 'status' }) + '\n\n');
+  });
+  try {
+    await assert.rejects(
+      client.loadModel(request, () => {}),
+      { name: 'TunerError', code: 'web.connectionLost' }
+    );
+  } finally {
+    close();
+  }
+});
+
+test('a refused event stream reports the failure', async (t) => {
+  const { client, close } = await eventsServer((res) => {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ code: 'errors.unauthorized' }));
+  });
+  try {
+    await assert.rejects(
+      client.loadModel(request, () => {}),
+      { name: 'TunerError', code: 'errors.unauthorized' }
+    );
+  } finally {
+    close();
+  }
+});
+
+test('an API error keeps its code', async (t) => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      error: 'x',
+      code: 'errors.invalidCandidateCount',
+      params: {}
+    }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const client = new TunerApiClient({ baseUrl: `http://127.0.0.1:${server.address().port}` });
+  try {
+    await assert.rejects(
+      client.listModels('ollama'),
+      { name: 'TunerError', code: 'errors.invalidCandidateCount', status: 400 }
+    );
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
+});

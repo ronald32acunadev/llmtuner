@@ -201,3 +201,22 @@ test('remote json output stays clean', async (t) => {
   assert.equal(lines.length, 1);
   assert.deepEqual(JSON.parse(lines[0]), { loaded: { ok: true, short: { genTps: 12 } } });
 });
+
+test('invalid candidate count is refused before any call', async () => {
+  const values = ['abc', '0', '-1', '1.5'];
+  for (const value of values) {
+    const h = setup();
+    await assert.rejects(
+      loadCommand({
+        engine: 'ollama',
+        model: 'm1',
+        ctx: '8192',
+        profile: 'balanced',
+        yes: true,
+        candidates: value
+      }, { lang: 'en', theme: 'system' }, h.deps),
+      { code: 'errors.invalidCandidateCount' }
+    );
+    assert.deepEqual(h.calls, []);
+  }
+});

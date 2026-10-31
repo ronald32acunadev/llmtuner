@@ -1,9 +1,25 @@
 import { getActiveServer } from './settings.js';
+import { TunerError } from './errors.js';
 
 export class TunerApiClient {
   constructor({ baseUrl = 'http://127.0.0.1:7860', token = null } = {}) {
     this.baseUrl = String(baseUrl || '').replace(/\/+$/, '');
     this.token = token;
+  }
+
+  async _throwResponseError(response) {
+    let errMessage = `HTTP ${response.status}: ${response.statusText}`;
+    let errCode = null;
+    let errParams = {};
+    try {
+      const errJson = await response.json();
+      if (errJson?.error) errMessage = errJson.error;
+      if (errJson?.code) errCode = errJson.code;
+      if (errJson?.params) errParams = errJson.params;
+    } catch {}
+    const err = errCode ? new TunerError(errCode, errParams) : new Error(errMessage);
+    err.status = response.status;
+    throw err;
   }
 
   async _request(path, options = {}) {
@@ -20,19 +36,7 @@ export class TunerApiClient {
     }
 
     const response = await fetch(url, { ...options, headers });
-    if (!response.ok) {
-      let errMessage = `HTTP ${response.status}: ${response.statusText}`;
-      let errCode = null;
-      try {
-        const errJson = await response.json();
-        if (errJson?.error) errMessage = errJson.error;
-        if (errJson?.code) errCode = errJson.code;
-      } catch {}
-      const err = new Error(errMessage);
-      err.status = response.status;
-      if (errCode) err.code = errCode;
-      throw err;
-    }
+    if (!response.ok) await this._throwResponseError(response);
 
     return response.json();
   }
@@ -79,6 +83,7 @@ export class TunerApiClient {
     const response = await fetch(`${this.baseUrl}/api/jobs/${jobId}/events`, {
       headers: this.token ? { 'Authorization': `Bearer ${this.token}` } : {},
     });
+    if (!response.ok) await this._throwResponseError(response);
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -86,7 +91,13 @@ export class TunerApiClient {
 
     try {
       while (true) {
-        const { value, done } = await reader.read();
+        let chunk;
+        try {
+          chunk = await reader.read();
+        } catch {
+          throw new TunerError('web.connectionLost');
+        }
+        const { value, done } = chunk;
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -108,15 +119,14 @@ export class TunerApiClient {
           }
 
           if (data.type === 'finished') {
-            if (data.ok === false) {
-              const err = new Error(data.error || 'Job failed');
-              if (data.code) err.code = data.code;
-              throw err;
-            }
-            return data.result;
+            // A failed job that still has a result (pending commands, failed load) is shown by the caller.
+            if (data.result) return data.result;
+            if (data.code) throw new TunerError(data.code, data.params);
+            throw new Error(data.error || 'Job failed');
           }
         }
       }
+      throw new TunerError('web.connectionLost');
     } finally {
       await reader.cancel();
     }

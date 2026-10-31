@@ -23,6 +23,7 @@ import { TerminalAnimation } from '../animation.js';
 import { createOllamaAuthorizer } from '../../platform/ollama-authorize.js';
 import { TunerApiClient } from '../../core/client.js';
 import { downloadModel } from '../../core/model-download.js';
+import { parseCandidateCount } from '../../web/public/load-flow.js';
 
 export async function loadCommand(args, { lang, theme }, dependencies = {}) {
   const {
@@ -59,6 +60,10 @@ export async function loadCommand(args, { lang, theme }, dependencies = {}) {
     const e = Object.entries(peaks || {});
     return e.length ? e.map(([i, b]) => `GPU${i} ${(b / 1024 ** 3).toFixed(1)} GB`).join(' / ') : t('common.na');
   };
+
+  const candidateCount = parseCandidateCount(args.candidates);
+  if (!candidateCount.ok) throw new TunerError('errors.invalidCandidateCount');
+  const candidates = candidateCount.value ?? 3;
 
   const settings = await loadSettings();
   const isRemote = settings.activeServerId !== 'local';
@@ -377,7 +382,7 @@ export async function loadCommand(args, { lang, theme }, dependencies = {}) {
         ctx,
         profile,
         force: !!args.force,
-        candidates: Number(args.candidates) || 3,
+        candidates,
         dryRun,
         confirm: !dryRun && !args.yes,
       }, (e) => {
@@ -394,7 +399,7 @@ export async function loadCommand(args, { lang, theme }, dependencies = {}) {
         profile,
         force: !!args.force,
         dryRun,
-        maxCandidates: Number(args.candidates) || 3,
+        maxCandidates: candidates,
         confirmApply,
       });
     }

@@ -102,6 +102,7 @@ test('explicitCandidatesAndDryRunReachTunerFinishPreview', async (t) => {
   const finished = finishedOf(events);
   assert.ok(finished.ok);
   assert.equal(finished.outcome, 'preview');
+  assert.equal(finished.result.outcome, 'preview');
 });
 
 test('omittedConfirmKeepsAutoApply', async (t) => {

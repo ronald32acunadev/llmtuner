@@ -5,6 +5,7 @@ import { TunerApiClient } from '../../core/client.js';
 import { t as translate } from '../../i18n/index.js';
 import { getColors } from '../colors.js';
 import { NAV_BACK, backChoice, withNav } from '../nav.js';
+import { validateServerUrl } from '../../web/public/saved-servers.js';
 
 export async function serversCommand(args, { lang, theme }, dependencies = {}) {
   const {
@@ -120,16 +121,6 @@ export async function serversCommand(args, { lang, theme }, dependencies = {}) {
         error(c.y(t('cli.serverSaveFailed', { error: safeError(e, server.token) })));
       }
     }
-  }
-}
-
-function validateServerUrl(value) {
-  try {
-    const url = new URL(String(value || '').trim());
-    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) return null;
-    return url.toString().replace(/\/$/, '');
-  } catch {
-    return null;
   }
 }
 
