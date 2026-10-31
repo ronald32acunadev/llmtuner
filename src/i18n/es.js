@@ -20,6 +20,32 @@ export default {
   "cli.serverNoConfig": "Aún no hay configuración del servidor. Ejecute /serve o habilite el inicio automático primero.",
   "cli.serverConnectionInvalid": "La configuración del servidor guardada no es válida.",
   "cli.serverConnectionHelp": "En /settings, seleccione 'Ver detalles de conexión del servidor y token' para recuperar el token guardado. Los Ajustes de escritorio también ofrecen acciones explícitas de mostrar y copiar.",
+  'cli.serverManagement': 'Administrar equipos guardados',
+  'cli.serversMenu': 'Equipo activo: {name} ({url})',
+  'cli.serverRoleInfo': 'Conectarse a un equipo usa sus motores y modelos; /serve comparte este equipo con otros dispositivos.',
+  'cli.activeComputer': 'Equipo activo: {name} ({url})',
+  'cli.serverAdd': 'Agregar un equipo',
+  'cli.serverTest': 'Probar conexión: {name}',
+  'cli.serverSelect': 'Usar equipo: {name}',
+  'cli.serverRemove': 'Quitar equipo: {name}',
+  'cli.serverNamePrompt': 'Nombre del equipo:',
+  'cli.serverNameRequired': 'Escriba un nombre de equipo que no esté vacío.',
+  'cli.serverUrlPrompt': 'URL del equipo (HTTP o HTTPS):',
+  'cli.serverUrlInvalid': 'Escriba una URL HTTP o HTTPS válida, sin credenciales incluidas.',
+  'cli.serverTokenPrompt': 'Token de autenticación (déjelo vacío si no se usa):',
+  'cli.serverAdded': 'Se guardó {name}. No se conectará hasta que lo seleccione.',
+  'cli.serverAddedHttp': 'Se guardó {name}. HTTP no cifra el token bearer; use HTTPS en redes no confiables. No se conectará hasta seleccionarlo.',
+  'cli.serverDetails': '{name}: {url}; {active}; {transport}',
+  'cli.serverInactive': 'inactivo',
+  'cli.serverHttps': 'HTTPS cifra la conexión',
+  'cli.serverHttpWarning': 'HTTP no cifra el token bearer',
+  'cli.serverTestSuccess': 'La conexión con {name} funcionó.',
+  'cli.serverTestFailed': 'No se pudo conectar con {name}: {error}. Revise la URL y el token e inténtelo de nuevo.',
+  'cli.serverSelected': 'El equipo activo ahora es {name}.',
+  'cli.serverRemoveConfirm': '¿Quitar el equipo guardado {name}?',
+  'cli.serverRemoved': 'Se quitó {name}.',
+  'cli.serverLocalProtected': 'No se puede quitar el equipo local.',
+  'cli.serverSaveFailed': 'No se pudieron guardar los ajustes del equipo: {error}. Revise los permisos del directorio de configuración e inténtelo de nuevo.',
   // Engine choice
   'engine.reason.onlyInstalled': '{name} es el único instalado.',
   'engine.reason.multiGpu': 'Tienes varias GPUs: LM Studio permite fijar el orden de GPUs y el tipo de KV por modelo.',
@@ -133,10 +159,11 @@ export default {
 Uso: llm-tuner [comando] [opciones]
 
 Comandos:
-  /load                        Ajustar y cargar un modelo con la configuración óptima
-  /mcp                         Conectar motor local con agentes de IA como servidor MCP
-  /presets                     Listar presets guardados
-  /settings                    Menú interactivo de configuración (idioma, tema e inicio del servidor)
+  /load                        En el equipo activo, elegir un motor y modelo, y ajustarlo y cargarlo
+  /mcp                         Conectar un motor local con agentes de IA como servidor MCP
+  /presets                     Ver presets de configuración guardados
+  /settings                    Configurar la interfaz, el inicio del servidor y los equipos guardados
+  /serve                       Compartir este equipo como servidor remoto
   /help                        Mostrar esta ayuda
   /exit                        Salir del menú interactivo
 
@@ -153,6 +180,8 @@ Opciones:
   --json                       Salida final en JSON
   --lang <en|es>               Idioma de la interfaz (se guarda para la próxima vez)
   --theme <system|light|dark>  Tema de la interfaz (se guarda para la próxima)
+
+En /settings, administre los equipos guardados para conectarse a sus motores y modelos. Agregar o seleccionar un equipo no inicia una conexión automáticamente. Use /serve para compartir este equipo con otros dispositivos. Desde otro equipo, seleccione el equipo guardado para usar sus motores y modelos. HTTP no cifra el token bearer; prefiera HTTPS en redes no confiables.
 
 El inicio del servidor se habilita o deshabilita después de iniciar sesión desde /settings. Se ejecuta en el próximo inicio de sesión, no de inmediato.
 
@@ -333,17 +362,27 @@ Los presets se guardan en {presetsDir}`,
 
   // CLI Slash Commands
   'cli.menuTitle': 'Selecciona un comando:',
-  'cli.cmdLoadDesc': 'Ajustar y cargar un modelo con la configuración óptima',
+  'cli.cmdLoadDesc': 'En el equipo activo, elegir un motor y modelo, y ajustarlo y cargarlo',
   'cli.cmdMcpDesc': 'Conectar motor local con agentes de IA como servidor MCP',
   'cli.cmdPresetsDesc': 'Ver presets de configuración guardados',
-  'cli.cmdServeDesc': 'Iniciar en modo servidor remoto con autenticación de API',
-  'cli.cmdSettingsDesc': 'Configurar idioma y tema de la interfaz',
+  'cli.cmdServeDesc': 'Compartir este equipo como servidor remoto con autenticación de API',
+  'cli.cmdSettingsDesc': 'Configurar la interfaz, el inicio del servidor y los equipos guardados',
   'cli.cmdHelpDesc': 'Ver ayuda de uso y opciones',
   'cli.cmdExitDesc': 'Salir',
+  'cli.noRemoteModels': 'No hay modelos disponibles en el equipo activo para {engine}. Instale o descargue un modelo en ese equipo e inténtelo de nuevo.',
   'cli.mcpSelectEngine': '¿Qué motor quieres configurar como servidor MCP?',
   'cli.mcpSelectAgents': 'Selecciona los agentes de IA a configurar (espacio para marcar, enter para confirmar):',
   'cli.mcpServerNamePrompt': 'Nombre del servidor MCP:',
   'cli.mcpNoAgentsSelected': 'No se seleccionó ningún agente. Saliendo.',
+  'errors.invalidCandidateCount': 'La cantidad de candidatos debe ser un número entero positivo',
+  'errors.invalidLoadOption': 'Valor inválido para la opción de carga {option}',
+  'errors.confirmationStale': 'Esta confirmación ya no está pendiente',
+  'cli.chatIncomplete': 'Sin una terminal, el chat necesita --engine, --model y --prompt',
+  'cli.chatEngine': '¿Con qué motor quieres conversar?',
+  'cli.chatModel': '¿Qué modelo cargado quieres probar?',
+  'cli.chatNoModels': 'Este motor aún no tiene modelos. Descarga uno primero.',
+  'cli.chatPrompt': 'Tu mensaje (/exit para salir)',
+  'cli.cmdChatDesc': 'Probar un modelo cargado con una conversación',
   'cli.mcpSuccess': "Servidor MCP '{server}' configurado en: {agents}",
   'cli.mcpFailed': 'Error al configurar MCP en: {agents}',
   'cli.mcpStatusInstalled': 'Instalado',
