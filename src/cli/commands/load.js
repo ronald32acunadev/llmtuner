@@ -22,6 +22,7 @@ import { withNav, NAV_BACK, backChoice } from '../nav.js';
 import { TerminalAnimation } from '../animation.js';
 import { createOllamaAuthorizer } from '../../platform/ollama-authorize.js';
 import { TunerApiClient } from '../../core/client.js';
+import { downloadModel } from '../../core/model-download.js';
 
 export async function loadCommand(args, { lang, theme }, dependencies = {}) {
   const {
@@ -168,8 +169,7 @@ export async function loadCommand(args, { lang, theme }, dependencies = {}) {
         if (isRemote) throw new TunerError('cli.noRemoteModels', { engine: tuner.engine.name });
         out(c.y(`\n${t('cli.noModels', { engine: tuner.engine.name })}`));
         const name = await inputPrompt({ message: engineId === 'ollama' ? t('cli.downloadOllama') : t('cli.downloadLms') });
-        const bin = tuner.ctx.detection.bin;
-        const r = await runInstall(engineId === 'ollama' ? { cmd: bin, args: ['pull', name] } : { cmd: bin, args: ['get', name, '-y'] }, (l) => out(c.dim('  ' + l)));
+        const r = await downloadModel({ engineId, name, bin: tuner.ctx.detection.bin, onLine: (l) => out(c.dim('  ' + l)), runInstall });
         if (r.code !== 0) throw new TunerError('errors.modelDownloadFailed');
         models = await tuner.listModels();
       }

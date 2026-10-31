@@ -248,6 +248,12 @@ Los presets se guardan en {presetsDir}`,
 
   'errors.unknownInstallPlan': 'Plan de instalación desconocido',
   'errors.loadInProgress': 'Ya hay una carga en curso',
+  'errors.invalidServerHost': 'Escribe un host sin espacios',
+  'errors.invalidServerPort': 'El puerto debe ser un número entero de 0 a 65535',
+  'errors.invalidServerToken': 'El token no puede estar vacío ni tener espacios',
+  'errors.serverBindFailed': 'No se pudo iniciar el servidor compartido en {host}:{port}. Quizá otro programa usa ese puerto.',
+  'errors.serverAlreadyRunning': 'El servidor compartido ya está en marcha con otros ajustes. Cierra la app para cambiarlos.',
+  'errors.invalidModelName': 'Escribe un nombre de modelo válido, sin espacios ni guiones al inicio',
   'errors.invalidChatRequest': 'Solicitud de chat no válida',
 
   // Web UI

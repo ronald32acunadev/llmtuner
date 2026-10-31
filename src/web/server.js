@@ -9,6 +9,7 @@ import { LOCALES, messagesFor } from '../i18n/index.js';
 import { openUrl } from '../core/installer.js';
 import { normalizeLoadOptions, loadOutcome } from '../core/load-options.js';
 import { createConfirmationGate } from './load-confirmation.js';
+import { downloadModel, isValidModelName } from '../core/model-download.js';
 
 export function sanitizeHardware(hw) {
   if (!hw || typeof hw !== 'object') return hw;
@@ -221,6 +222,20 @@ const routes = {
     return { jobId: job.id };
   },
 
+  // Local only: the handler refuses remote callers and active remote targets before this runs.
+  'POST /api/models/download': async (req, url, options = {}) => {
+    const { engine, name } = await body(req);
+    if (typeof name !== 'string' || !isValidModelName(name.trim())) throw new TunerError('errors.invalidModelName');
+    const tuner = await Tuner.create(engine);
+    const bin = tuner.ctx.detection.bin;
+    if (!bin) throw new TunerError('errors.installNotFinished');
+    const job = createJob();
+    downloadModel({ engineId: engine, name, bin, onLine: (line) => job.emit({ type: 'log', line }), runInstall: options.runInstall ?? runInstall })
+      .then((r) => job.finish({ ok: r.code === 0, code: r.code === 0 ? undefined : 'errors.modelDownloadFailed' }))
+      .catch((e) => job.finish({ ok: false, ...errorBody(e) }));
+    return { jobId: job.id };
+  },
+
   'POST /api/chat': async (req) => {
     const { engine, model, messages } = await body(req);
     if (!engine || !model || !Array.isArray(messages) || messages.length === 0) {
@@ -334,14 +349,19 @@ async function handler(req, res, options = {}) {
       }
     }
 
-    if (isRemote && req.method === 'POST' && url.pathname === '/api/install') {
+    const isModelDownload = req.method === 'POST' && url.pathname === '/api/models/download';
+    if (isRemote && req.method === 'POST' && (url.pathname === '/api/install' || isModelDownload)) {
       return send(res, 403, { error: 'Forbidden', code: 'errors.forbiddenRemote' });
+    }
+    if (isModelDownload && req.headers.origin && req.headers.origin !== `http://127.0.0.1:${req.socket.localPort}`) {
+      return send(res, 403, { error: 'Forbidden origin' });
     }
 
     // A foreign website must not trigger the desktop's privileged authorizer.
     if (options.authorizeOllama && req.method === 'POST' && req.headers.origin && req.headers.origin !== `http://127.0.0.1:${req.socket.localPort}`) return send(res, 403, { error: 'Forbidden origin' });
 
     const activeRemote = await getActiveRemoteServer({ options });
+    if (isModelDownload && activeRemote) return send(res, 403, { error: 'Forbidden', code: 'errors.forbiddenRemote' });
     const jobPath = url.pathname.match(/^\/api\/jobs\/([\w-]+)\/(events|confirm)$/);
     const jobTarget = jobPath && (jobTargets.get(jobPath[1]) ?? (jobs.has(jobPath[1]) ? null : activeRemote));
     if (jobTarget) {
@@ -433,9 +453,9 @@ async function handler(req, res, options = {}) {
 }
 
 /** Start the local or remote server. */
-export function startServer({ port = Number(process.env.PORT) || 7860, host = '127.0.0.1', token = null, serverMode = false, open = false, authorizeOllama } = {}) {
+export function startServer({ port = Number(process.env.PORT) || 7860, host = '127.0.0.1', token = null, serverMode = false, open = false, authorizeOllama, runInstall: installRunner } = {}) {
   return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => handler(req, res, { authorizeOllama, token, serverMode, host }));
+    const server = http.createServer((req, res) => handler(req, res, { authorizeOllama, token, serverMode, host, runInstall: installRunner }));
     server.on('error', reject);
     server.listen(port, host, () => {
       const addr = server.address();

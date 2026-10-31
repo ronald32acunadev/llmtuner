@@ -249,6 +249,12 @@ Presets are saved in {presetsDir}`,
 
   'errors.unknownInstallPlan': 'Unknown install plan',
   'errors.loadInProgress': 'A load is already in progress',
+  'errors.invalidServerHost': 'Enter a host without spaces',
+  'errors.invalidServerPort': 'The port must be a whole number from 0 to 65535',
+  'errors.invalidServerToken': 'The token cannot be empty or contain spaces',
+  'errors.serverBindFailed': 'Could not start the shared server on {host}:{port}. Another program may be using that port.',
+  'errors.serverAlreadyRunning': 'The shared server is already running with other settings. Close the app to change them.',
+  'errors.invalidModelName': 'Enter a valid model name, without spaces or leading dashes',
   'errors.invalidChatRequest': 'Invalid chat request',
 
   // Web UI
