@@ -118,3 +118,56 @@ test('copyToken propagation and validation', async () => {
   const failControls = createServerControls(failDeps);
   await assert.rejects(async () => await failControls.copyToken(event), /Clipboard Error/);
 });
+
+function sharedFixture(trusted, startImpl) {
+  const calls = [];
+  const controls = createServerControls({
+    isTrusted: () => trusted,
+    autostart: { status: () => false, setEnabled: (value) => value },
+    readConfig: async () => null,
+    copyText: async () => {},
+    sharedServer: {
+      status: async () => { calls.push(['status']); return { running: false, configured: false }; },
+      start: async (input) => { calls.push(['start', input]); return startImpl ? startImpl(input) : { running: true, host: input.host, port: input.port, url: 'u' }; },
+    },
+  });
+  return { controls, calls };
+}
+
+test('an untrusted sender cannot start or read the shared server', async (t) => {
+  const { controls, calls } = sharedFixture(false);
+  await assert.rejects(controls.startSharedServer({}, {}), /not authorized/);
+  await assert.rejects(controls.getSharedServerStatus({}), /not authorized/);
+  assert.deepEqual(calls, []);
+});
+
+test('a trusted sender starts with only the known fields', async (t) => {
+  const { controls, calls } = sharedFixture(true);
+  const input = { host: 'h', port: 1, token: 't', extra: 'x' };
+  const result = await controls.startSharedServer({}, input);
+  assert.deepEqual(calls, [['start', { host: 'h', port: 1, token: 't' }]]);
+  assert.deepEqual(result, { running: true, host: 'h', port: 1, url: 'u' });
+});
+
+test('a domain error comes back as a value', async (t) => {
+  const startImpl = (input) => {
+    throw Object.assign(new Error('x'), { code: 'errors.serverBindFailed', params: { host: input.host, port: input.port } });
+  };
+  const { controls, calls } = sharedFixture(true, startImpl);
+  const result = await controls.startSharedServer({}, { host: 'h', port: 1, token: 't' });
+  assert.deepEqual(calls, [['start', { host: 'h', port: 1, token: 't' }]]);
+  assert.deepEqual(result, { running: false, code: 'errors.serverBindFailed', params: { host: 'h', port: 1 } });
+});
+
+test('an unexpected error is rethrown', async (t) => {
+  const startImpl = () => { throw new Error('boom'); };
+  const { controls } = sharedFixture(true, startImpl);
+  await assert.rejects(controls.startSharedServer({}, {}), /boom/);
+});
+
+test('status reaches the shared server', async (t) => {
+  const { controls, calls } = sharedFixture(true);
+  const result = await controls.getSharedServerStatus({});
+  assert.deepEqual(result, { running: false, configured: false });
+  assert.deepEqual(calls, [['status']]);
+});
