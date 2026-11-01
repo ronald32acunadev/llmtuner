@@ -171,3 +171,45 @@ test('status reaches the shared server', async (t) => {
   assert.deepEqual(result, { running: false, configured: false });
   assert.deepEqual(calls, [['status']]);
 });
+
+test('status suggests the real address when nothing is saved', async () => {
+  const STATUS = { running: false, configured: false };
+  const controls = createServerControls({
+    isTrusted: () => true,
+    autostart: { status: () => false, setEnabled: (value) => value },
+    readConfig: async () => null,
+    copyText: async () => {},
+    resolveHost: (host) => (host === '0.0.0.0' ? '192.168.1.20' : host),
+    sharedServer: { status: async () => STATUS },
+  });
+  const result = await controls.getSharedServerStatus({});
+  assert.deepEqual(result, { running: false, configured: false, suggestedHost: '192.168.1.20' });
+});
+
+test('status resolves a saved listen-all host', async () => {
+  const STATUS = { running: false, configured: true, host: '0.0.0.0', port: 1 };
+  const controls = createServerControls({
+    isTrusted: () => true,
+    autostart: { status: () => false, setEnabled: (value) => value },
+    readConfig: async () => null,
+    copyText: async () => {},
+    resolveHost: (host) => (host === '0.0.0.0' ? '192.168.1.20' : host),
+    sharedServer: { status: async () => STATUS },
+  });
+  const result = await controls.getSharedServerStatus({});
+  assert.deepEqual(result, { running: false, configured: true, host: '0.0.0.0', port: 1, suggestedHost: '192.168.1.20' });
+});
+
+test('status keeps a specific saved host', async () => {
+  const STATUS = { running: false, configured: true, host: '10.0.0.5', port: 1 };
+  const controls = createServerControls({
+    isTrusted: () => true,
+    autostart: { status: () => false, setEnabled: (value) => value },
+    readConfig: async () => null,
+    copyText: async () => {},
+    resolveHost: (host) => (host === '0.0.0.0' ? '192.168.1.20' : host),
+    sharedServer: { status: async () => STATUS },
+  });
+  const result = await controls.getSharedServerStatus({});
+  assert.deepEqual(result, { running: false, configured: true, host: '10.0.0.5', port: 1, suggestedHost: '10.0.0.5' });
+});

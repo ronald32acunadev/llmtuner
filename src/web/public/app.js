@@ -72,11 +72,11 @@ function applyTheme(theme) {
   }
 }
 
-function setupDrawer() {
-  const openBtn = $('#settings-open');
-  const closeBtn = $('#settings-close');
-  const drawer = $('#settings-drawer');
-  const backdrop = $('#settings-backdrop');
+function setupDrawer(name, onOpen = () => {}) {
+  const openBtn = $(`#${name}-open`);
+  const closeBtn = $(`#${name}-close`);
+  const drawer = $(`#${name}-drawer`);
+  const backdrop = $(`#${name}-backdrop`);
   if (!openBtn || !closeBtn || !drawer || !backdrop) return;
 
   let closing = false;
@@ -89,6 +89,7 @@ function setupDrawer() {
     drawer.classList.add('open');
     openBtn.setAttribute('aria-expanded', 'true');
     closeBtn.focus();
+    onOpen();
   }
 
   function close() {
@@ -122,9 +123,9 @@ function setupDrawer() {
     }
   });
 
-  if (location.hash === '#settings') open();
+  if (location.hash === `#${name}`) open();
   window.addEventListener('hashchange', () => {
-    if (location.hash === '#settings') open();
+    if (location.hash === `#${name}`) open();
   });
 }
 
@@ -315,13 +316,12 @@ async function boot() {
   ({ messages } = await api(`/api/i18n/${s.lang}`));
   document.documentElement.lang = s.lang;
   applyStatic();
-  setupDrawer();
+  setupDrawer('settings');
   await setupServerSettings({ document, bridge: window.llmTunerServer, t });
   await setupSharedHosting({ document, bridge: window.llmTunerServer, t });
   setupModelDownload({ $, t, api, follow, errText, getEngine: () => state.engine, onDownloaded: chooseEngine });
   const refreshPresetInventory = setupPresetInventory({ $, esc, t, api });
-  refreshPresetInventory();
-  $('#settings-open')?.addEventListener('click', refreshPresetInventory);
+  setupDrawer('presets', refreshPresetInventory);
   setupMcpModal();
   api('/api/update').then((up) => {
     if (up?.currentVersion) {

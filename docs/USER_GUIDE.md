@@ -35,7 +35,7 @@ Parity target: CLI and Electron Desktop, not standalone browser usage. This inve
 | Local/remote dry-run | `--dry-run` | **Dry run** checkbox | Implemented; automated checks pass |
 | Application preview/confirmation | Prompt, local and remote; `--yes` skips it | **Apply these changes?** panel | Implemented; automated checks pass |
 | Conversation testing | `/chat`, `--prompt` | Chat form | Implemented; automated checks pass |
-| Full preset inventory/filtering | `/presets` | Settings → **Saved presets** | Implemented; automated checks pass |
+| Full preset inventory/filtering | `/presets` | **Saved presets** in the sidebar | Implemented; automated checks pass |
 | First-model download | Local empty-list prompt | **Download a first model** form | Implemented; automated checks pass |
 | Saved-computer operations | Settings manager | Settings → Servers | Implemented; automated checks pass |
 | Configure/start shared server | `/serve` | Settings → **Share this computer** | Implemented; real Electron window check pending |
@@ -167,7 +167,7 @@ Profiles are goals, not guarantees of unchanged quality or exact performance. Pl
    ```
 3. Check contexts and recorded throughput; run `/load` with the corresponding model/context to reuse a valid result.
 
-In Desktop, open **Settings → Saved presets** and filter by engine or model.
+In Desktop, select **Saved presets** in the sidebar and filter by engine or model.
 
 **Expected result:** both list matching saved presets or explain that none exist. GUI preset chips/context suggestions concern the selected model, not a global administration screen. Hardware/model changes can invalidate a preset; different profiles have separate preset records.
 
@@ -262,7 +262,7 @@ The load wizard can save a selected profile. Automated CLI loads without an expl
 
 **Expected result:** the server persists its configuration and prints its URL/token. Without `--token`, it reuses a saved token when available or generates one. Supply `--token YOUR_PRIVATE_TOKEN` only intentionally; command-line arguments may be visible in shell history/process listings. Stop a foreground server with Ctrl+C when finished.
 
-In Desktop, open **Settings → Share this computer**, set the host and port, optionally a token, and select **Start sharing**. It follows the same rules as `/serve`, and sharing stops when you close the app.
+In Desktop, open **Settings → Share this computer**. **Host** starts with this computer's IP address; change it only if you want another interface. Set the port, optionally a token, and select **Start sharing**. It follows the same rules as `/serve`, and sharing stops when you close the app.
 
 A failed start keeps the saved configuration unchanged. `/serve` defaults to port 7860 and host `0.0.0.0`; use `--host 127.0.0.1` for loopback-only access. The built-in server uses HTTP, not TLS. Do not expose it directly to the public internet or treat a token as encryption. Remote engine installation is deliberately unavailable; perform installation on the engine computer.
 
@@ -355,7 +355,7 @@ Maintainers must update this guide alongside user-visible changes. Record what c
 
 - [Test a model](#gui-chat): new CLI `/chat` command.
 - [Tune and load](#load-model): Desktop gains candidate count, dry run and an apply confirmation. The remote CLI gains dry run and confirmation, replacing the earlier refusal. Invalid `--candidates` values are now refused.
-- [Presets](#presets): Desktop lists and filters all saved presets.
+- [Presets](#presets): Desktop lists and filters all saved presets in their own **Saved presets** panel.
 - [Choose a computer](#choose-computer): saving a server in Desktop no longer selects it, and removal asks for confirmation.
 - [Share this computer](#share-computer): Desktop can start sharing this computer.
 - [MCP](#mcp): the CLI asks for the name first and checks it against existing configuration.

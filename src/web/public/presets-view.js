@@ -17,7 +17,7 @@ export function presetSummary(p, t) {
   return {
     engine: p.engine,
     model: p.model,
-    context: `${p.ctx / 1024}K`,
+    context: `${Math.round(p.ctx / 1024)}K`,
     profile: p.profile ? `${p.profile}${variant}` : '',
     kv: p.kvType,
     offload: p.fullOffload ? t('candidate.allGpu') : t('cli.partial'),

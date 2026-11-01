@@ -68,7 +68,9 @@ export function createServerControls({ isTrusted, autostart, readConfig, copyTex
 
     async getSharedServerStatus(event) {
       checkAuth(event);
-      return await sharedServer.status();
+      const status = await sharedServer.status();
+      if (!resolveHost) return status;
+      return { ...status, suggestedHost: resolveHost(status.host ?? '0.0.0.0') };
     },
 
     async startSharedServer(event, input) {

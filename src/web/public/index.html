@@ -19,6 +19,10 @@
         <small data-i18n="web.tagline">load your model with the fastest configuration</small>
       </div>
     </div>
+    <button id="presets-open" class="settings-trigger" type="button" aria-haspopup="dialog" aria-expanded="false">
+      <span class="settings-trigger-icon">☰</span>
+      <span data-i18n="web.presetInventory">Saved presets</span>
+    </button>
     <button id="settings-open" class="settings-trigger" type="button" aria-haspopup="dialog" aria-expanded="false">
       <span class="settings-trigger-icon">⚙</span>
       <span data-i18n="web.settings">Settings</span>
@@ -143,6 +147,22 @@
     </section>
   </main>
 </div>
+<div id="presets-backdrop" class="drawer-backdrop" hidden></div>
+<aside id="presets-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="presets-title" hidden>
+  <div class="drawer-header">
+    <h3 id="presets-title" data-i18n="web.presetInventory">Saved presets</h3>
+    <button id="presets-close" class="drawer-close" type="button" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-body">
+<section class="drawer-field">
+    <label for="preset-filter-engine" data-i18n="web.presetFilterEngine">Engine</label>
+    <select id="preset-filter-engine"></select>
+    <label for="preset-filter-model" data-i18n="web.presetFilterModel">Model</label>
+    <select id="preset-filter-model"></select>
+    <ul id="preset-inventory" class="preset-inventory"></ul>
+</section>
+  </div>
+</aside>
 <div id="settings-backdrop" class="drawer-backdrop" hidden></div>
 <aside id="settings-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
   <div class="drawer-header">
@@ -177,14 +197,6 @@
         <button id="remove-server-btn" type="button" class="btn btn-danger-sm" data-i18n="web.removeServer" style="padding:2px 8px;font-size:11px;" hidden>Remove</button>
       </div>
     </div>
-<section class="drawer-field">
-    <h3 data-i18n="web.presetInventory">Saved presets</h3>
-    <label for="preset-filter-engine" data-i18n="web.presetFilterEngine">Engine</label>
-    <select id="preset-filter-engine"></select>
-    <label for="preset-filter-model" data-i18n="web.presetFilterModel">Model</label>
-    <select id="preset-filter-model"></select>
-    <ul id="preset-inventory" class="preset-inventory"></ul>
-</section>
 <section id="shared-server-section" class="drawer-field" hidden>
     <h3 data-i18n="web.sharedServerTitle">Share this computer</h3>
     <label for="shared-server-host" data-i18n="web.sharedServerHost">Host</label>

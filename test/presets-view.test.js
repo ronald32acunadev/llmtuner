@@ -99,3 +99,8 @@ test("presetSummary variant equal to model", () => {
     date: "2026-10-31 10:20",
   });
 });
+
+test('fractional contexts are rounded', () => {
+  assert.equal(presetSummary({ ...a, ctx: 24000 }, (key) => key).context, '23K');
+  assert.equal(presetSummary({ ...a, ctx: 8192 }, (key) => key).context, '8K');
+});

@@ -44,3 +44,4 @@ Paste this list into the system message of every code request to a local model. 
 - A promise that waits for a later decision must store its resolve function and stay pending; never resolve it inside `request`, and never `await` it in a test before answering.
 - Destructure injected dependencies by their public name (`detectAgents: agentDetector = detectAgents`); never read a dependency from the ambient environment when the contract injects it.
 - `withNav` takes a factory and returns the prompt result: never wrap it in another prompt call. `backChoice(t, c)` goes inside the `choices` array, and project translation helpers are `const t = (key, params) => translate(lang, key, params)`.
+- Call assertions through the imported `assert` object: `assert.equal(...)`, never a bare `equal(...)` or `t.assert`.

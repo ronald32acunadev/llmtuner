@@ -38,7 +38,7 @@ export async function setupSharedHosting({ document, bridge, t }) {
 
   try {
     const current = await bridge.getSharedServerStatus();
-    host.value = current.host ?? '0.0.0.0';
+    host.value = current.suggestedHost ?? current.host ?? '0.0.0.0';
     port.value = String(current.port ?? 7860);
     if (current.running) showRunning(current.url);
     else status.textContent = t('web.sharedServerStopped');

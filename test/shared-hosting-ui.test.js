@@ -102,4 +102,20 @@ describe('shared-hosting-ui', () => {
     assert.equal(env.elements['shared-server-status'].textContent, 'boom');
     assert.equal(env.elements['shared-server-start'].disabled, false);
   });
+
+  it('the suggested address replaces the listen-all host', async () => {
+    const status = { running: false, configured: true, host: '0.0.0.0', port: 1, suggestedHost: '192.168.1.20' };
+    const startResult = {};
+    const env = setup(fakeBridge(status, startResult));
+    await setupSharedHosting(env);
+    assert.equal(env.elements['shared-server-host'].value, '192.168.1.20');
+  });
+
+  it('a running server also shows its address', async () => {
+    const status = { running: true, configured: true, host: '0.0.0.0', port: 1, url: 'u', suggestedHost: '192.168.1.20' };
+    const startResult = {};
+    const env = setup(fakeBridge(status, startResult));
+    await setupSharedHosting(env);
+    assert.equal(env.elements['shared-server-host'].value, '192.168.1.20');
+  });
 });

@@ -253,3 +253,5 @@ The following stories complete the revised backlog. Prior implementation and evi
 - 2026-10-31: full suite 479/479. First independent verifier found 5 blockers on commit f027bca, corrected in 43412de. Recheck running. Real Electron window, GPU benchmark, model download and remote host checks not performed.
 
 - 2026-10-31: second verifier round passed B1, B2, B4, B5 and the security surfaces; B3 and a new token blocker were corrected in 65d8024 with RED/GREEN regressions, not rechecked by the verifier again. Full suite 482/482. Native review offered and declined by the user for this candidate. US-01, US-02 and US-03 stay open until the manual Desktop check. No 100% parity claim until that check.
+
+- 2026-10-31 user review of Desktop, verbatim: "La parte de presets deberia estar en otra seccion se vuelve confuso en donde esta , y el host deberia ser la ip de donde se esta ejecutando". US-09 inventory moved to its own sidebar panel; US-12 host field shows this computer's address.
