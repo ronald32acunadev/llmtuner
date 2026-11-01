@@ -38,7 +38,10 @@ Requested by the user: "Creemos un nuevo release entonces". Execution mode: one 
   2. CI results are read from the pull request, not assumed.
   3. The pull request is not merged here unless the user separately authorizes publication.
 - **Verification method**: Pull request state and checks.
-- **Status**: Pending approval.
+- **Status**: Complete. Approved by the user: "Sí, abre el PR".
+- **Observed results**:
+  - [Pull request 18](https://github.com/ronald32acunadev/llmtuner/pull/18) is open against `release`, not merged.
+  - It runs no CI checks: `ci.yml` only triggers on `main`, and the release workflow only on a push to `release`. The Node 24 test run on GitHub happens after the merge, before publishing.
 
 ## US-03: Publish
 
