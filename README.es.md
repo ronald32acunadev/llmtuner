@@ -115,6 +115,7 @@ Ejecutar `llm-tuner` sin argumentos abre un bucle de menú interactivo:
 - `/load`: Ajustar y cargar un modelo con la configuración óptima de hardware.
 - `/mcp`: Conectar el motor local con agentes de programación de IA como servidor MCP.
 - `/presets`: Ver los presets de configuración guardados.
+- `/chat`: Probar un modelo cargado con una conversación.
 - `/serve`: Iniciar en modo servidor remoto con autenticación de API.
 - `/settings`: Configurar el idioma (`en` / `es`) y el tema visual (`system` / `light` / `dark`).
 - `/help`: Ver la ayuda de uso y las opciones de la CLI.
@@ -141,6 +142,8 @@ llm-tuner-desktop
 
 > [!NOTE]
 > El entorno de ejecución de Electron se descarga en la primera ejecución si aún no está en caché. En Linux, `llm-tuner-desktop` también registra un acceso directo de escritorio en `~/.local/share/applications/llm-tuner.desktop`.
+
+La app de escritorio ofrece las mismas capacidades que el CLI, incluidas la cantidad de candidatos, el modo de prueba, una confirmación antes de aplicar cambios, la descarga del primer modelo, un panel de **presets guardados** y **Ajustes → Compartir este equipo** para iniciar el servidor compartido.
 
 ### Modo servidor remoto y daemon
 
@@ -201,17 +204,19 @@ llm-tuner --server gpu-rig --engine ollama --model llama3.1:8b --ctx 16384 --yes
 | :--- | :--- | :--- |
 | `/load`, `load` | Ajustar y cargar un modelo con la configuración óptima. | Predeterminado al pasar opciones de ajuste |
 | `/mcp`, `mcp` | Configurar LM Studio u Ollama como servidor MCP en agentes de IA. | — |
+| `/chat`, `chat` | Probar un modelo cargado. Conserva el historial hasta `/exit`; `--prompt` envía un mensaje y termina. | — |
 | `/presets`, `presets`, `--presets` | Listar los presets guardados (filtrable con `--engine` y `--model`). | — |
 | `/serve`, `serve`, `--serve` | Iniciar el modo daemon de servidor remoto con autenticación Bearer. | — |
 | `/settings`, `settings`, `--settings` | Abrir el menú interactivo de configuración (idioma y tema). | — |
 | `/help`, `help`, `-h`, `--help` | Mostrar la ayuda de uso y la ruta del directorio de presets. | — |
-| `-v`, `--version` | Mostrar la versión instalada (`0.4.4`). | — |
+| `-v`, `--version` | Mostrar la versión instalada. | — |
 | `--engine <lmstudio\|ollama>` | Motor local objetivo. | Preguntado interactivamente |
 | `--model <clave>` | Clave del modelo (LM Studio) o etiqueta (Ollama). | Preguntado interactivamente |
 | `--ctx <tokens>` | Tamaño de contexto en tokens (p. ej. `16384` o `16k`). | Preguntado interactivamente |
 | `--profile <speed\|balanced\|quality>` | Perfil de carga a optimizar. | `balanced` |
 | `--force` | Volver a medir aunque exista un preset válido. | `false` |
-| `--candidates <n>` | Número de configuraciones candidatas a probar al medir. | `3` |
+| `--candidates <n>` | Número de configuraciones candidatas a probar al medir. Debe ser un entero positivo. | `3` |
+| `--prompt <texto>` | Con `/chat`: envía un mensaje y termina. Sin terminal necesita `--engine` y `--model`. | — |
 | `--yes` | No pedir confirmación interactiva. | `false` |
 | `--dry-run` | Medir y mostrar cambios sin aplicar nada ni guardar preset. | `false` |
 | `--json` | Emitir el resultado final en formato JSON. | `false` |
