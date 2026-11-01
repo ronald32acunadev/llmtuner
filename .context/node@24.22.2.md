@@ -1,6 +1,6 @@
-# Node 26.13.0 dictionary
+# Node 24.22.2 dictionary
 
-Sources: nodejs.org/api/test.html, assert.html, http.html (page header reads v26.13.0, fetched 2026-10-31). Manifest supports Node >=22, so do not use APIs added after 22 (for example `req.signal`, added in 26.1.0).
+Sources: nodejs.org/docs/v24.22.2/api/ test.html and http.html (fetched 2026-10-31), plus assert.html for v26.13.0, whose documented behavior was not re-read for 24. The manifest requires Node >=24, so do not use APIs added after 24.0 (for example `req.signal`, added in 24.16.0).
 
 ## node:test
 - `import { test, before, after } from 'node:test';` `test(name, async (t) => {})`.

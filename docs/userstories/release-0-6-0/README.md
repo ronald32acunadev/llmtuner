@@ -24,7 +24,9 @@ Requested by the user: "Creemos un nuevo release entonces". Execution mode: one 
   - `package.json` and both root lockfile version fields read 0.6.0; `llm-tuner -v` prints 0.6.0. The staged lockfile diff has only those two lines, and the local Electron delta stays unstaged.
   - `npm test`: 496 passed, 0 failed, 0 skipped.
   - `npm pack --dry-run --json`: llm-tuner-0.6.0.tgz, 72 files, 1,595,344 unpacked bytes; no `.context/`, `odd/`, `test/`, `docs/` or `.agents/` files. All new `src/web/public` modules are included.
-  - Clean export of the commit with `npm ci --ignore-scripts` on the committed lockfile (Electron 44.9.3): 496 passed, 0 failed. Run on Node 26.13.0; Node 22, which CI uses, is not installed locally and is checked by the pull request in US-02.
+  - Clean export of the commit with `npm ci --ignore-scripts` on the committed lockfile (Electron 44.9.3): 496 passed, 0 failed. Run on Node 26.13.0; superseded by the Node 24 run below.
+  - Scope revision, user: "Node 24 deberia ser el proyecto". Minimum raised from 22 to 24 in `engines`, both workflows and the documentation; recorded as a behavior change in the release notes. Local lockfile delta still excluded.
+  - Clean export with `npm ci --ignore-scripts` on the committed lockfile, on Node 24.22.2 with plain `npm test` as CI runs it: 496 passed, 0 failed, 0 skipped.
   - READMEs updated in scope only; `-v` row no longer names a version, so it cannot go stale.
 
 ## US-02: Open the Release Pull Request

@@ -96,7 +96,7 @@ npx llm-tuner
 
 ### Requisitos previos
 
-- **Node.js**: `>= 22` (`engines.node` en [`package.json`](package.json)).
+- **Node.js**: `>= 24` (`engines.node` en [`package.json`](package.json)).
 - **Motor local**: LM Studio (0.4.25+) u Ollama instalado (o instálalo mediante el asistente integrado).
 
 ---

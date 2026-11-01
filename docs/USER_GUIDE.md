@@ -52,7 +52,7 @@ No 100% completion claim is valid while required counterparts or verification re
 
 **Purpose:** choose how to use the same tuning core: terminal, Desktop, or browser.
 
-**Prerequisites:** Node.js 22 or newer for CLI/source usage; an installed LM Studio or Ollama engine and a downloaded model on the computer that will run inference. Desktop additionally needs a working Electron runtime. Hardware and engine availability affect which configurations are possible.
+**Prerequisites:** Node.js 24 or newer for CLI/source usage; an installed LM Studio or Ollama engine and a downloaded model on the computer that will run inference. Desktop additionally needs a working Electron runtime. Hardware and engine availability affect which configurations are possible.
 
 1. For an installed CLI, run `llm-tuner`. In a checked-out, dependency-installed source tree, run `npm start`.
 2. Use `llm-tuner-desktop` for Desktop, or `npm run desktop` from the source tree.
