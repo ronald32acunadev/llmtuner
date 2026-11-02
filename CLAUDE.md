@@ -23,7 +23,7 @@ Design specs live in `docs/superpowers/specs/`; feature backlogs in `docs/userst
 
 ## Commands
 
-Node ≥ 22, ESM (`"type": "module"`). No build step, no linter, no framework on the web UI (vanilla JS).
+Node ≥ 24, ESM (`"type": "module"`). No build step, no linter, no framework on the web UI (vanilla JS).
 
 ```bash
 npm start                    # CLI wizard (src/cli/index.js)
@@ -38,7 +38,7 @@ node src/cli/index.js --engine lmstudio --model <key> --ctx 16384 --yes   # non-
 node src/cli/index.js serve [--host 0.0.0.0] [--port 7860] [--token <t>]  # daemon mode
 ```
 
-Distribution is npm only (`llm-tuner`, commands `llm-tuner` and `llm-tuner-desktop`). A push to the `release` branch publishes (`.github/workflows/release.yml`). CI (`.github/workflows/ci.yml`) runs `npm ci && npm test` on Node 22 for pushes and PRs to `main`.
+Distribution is npm only (`llm-tuner`, commands `llm-tuner` and `llm-tuner-desktop`). A push to the `release` branch publishes (`.github/workflows/release.yml`). CI (`.github/workflows/ci.yml`) runs `npm ci && npm test` on Node 24 for pushes and PRs to `main`.
 
 `.agents/skills/evaluate-profiles/` is a benchmark harness that checks the load profiles against real models on installed engines; it needs real hardware and is not part of `npm test`.
 

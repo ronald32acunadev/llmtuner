@@ -96,7 +96,7 @@ npx llm-tuner
 
 ### Prerequisites
 
-- **Node.js**: `>= 22` (`engines.node` in [`package.json`](package.json)).
+- **Node.js**: `>= 24` (`engines.node` in [`package.json`](package.json)).
 - **Local Engine**: LM Studio (0.4.25+) or Ollama installed (or install via the built-in wizard).
 
 ---
@@ -113,6 +113,7 @@ llm-tuner
 
 Running `llm-tuner` without arguments opens an interactive command loop:
 - `/load`: Tune and load a model with optimal hardware settings.
+- `/chat`: Test a loaded model with a conversation.
 - `/mcp`: Connect your local engine to AI coding agents as an MCP server.
 - `/presets`: View saved tuning presets.
 - `/serve`: Start remote server mode with API authentication.
@@ -141,6 +142,8 @@ llm-tuner-desktop
 
 > [!NOTE]
 > The Electron desktop runtime is downloaded on first launch if not already cached. On Linux, `llm-tuner-desktop` also registers a desktop entry at `~/.local/share/applications/llm-tuner.desktop`.
+
+The desktop app offers the same capabilities as the CLI, including candidate count, dry run, a confirmation before changes are applied, first-model download, a **Saved presets** panel, and **Settings → Share this computer** to start the shared server.
 
 ### Remote Server Mode & Daemon
 
@@ -200,18 +203,20 @@ llm-tuner --server gpu-rig --engine ollama --model llama3.1:8b --ctx 16384 --yes
 | Flag / Command | Description | Default |
 | :--- | :--- | :--- |
 | `/load`, `load` | Tune and load a model with optimal hardware settings. | Default when tuning flags are passed |
+| `/chat`, `chat` | Test a loaded model. Keeps history until `/exit`; `--prompt` sends one message and exits. | — |
 | `/mcp`, `mcp` | Configure LM Studio or Ollama as an MCP server for AI agents. | — |
 | `/presets`, `presets`, `--presets` | List saved tuning presets (filterable by `--engine` and `--model`). | — |
 | `/serve`, `serve`, `--serve` | Start remote server daemon mode with Bearer authentication. | — |
 | `/settings`, `settings`, `--settings` | Open the interactive settings menu (language & theme). | — |
 | `/help`, `help`, `-h`, `--help` | Show CLI usage help and presets directory path. | — |
-| `-v`, `--version` | Print the installed version (`0.4.4`). | — |
+| `-v`, `--version` | Print the installed version. | — |
 | `--engine <lmstudio\|ollama>` | Target local LLM engine. | Interactive prompt |
 | `--model <key>` | Model key (LM Studio) or model tag (Ollama). | Interactive prompt |
 | `--ctx <tokens>` | Context length in tokens (e.g., `16384` or `16k`). | Interactive prompt |
 | `--profile <speed\|balanced\|quality>` | Load profile to optimize for. | `balanced` |
 | `--force` | Re-run benchmarks even if a valid preset already exists. | `false` |
-| `--candidates <n>` | Number of top candidate configurations to benchmark. | `3` |
+| `--candidates <n>` | Number of top candidate configurations to benchmark. Must be a positive whole number. | `3` |
+| `--prompt <text>` | With `/chat`: send one message and exit. Needs `--engine` and `--model` without a terminal. | — |
 | `--yes` | Skip confirmation prompts. | `false` |
 | `--dry-run` | Measure and preview changes without applying config or saving a preset. | `false` |
 | `--json` | Emit final execution result as JSON. | `false` |

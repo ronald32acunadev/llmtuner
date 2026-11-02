@@ -19,6 +19,10 @@
         <small data-i18n="web.tagline">load your model with the fastest configuration</small>
       </div>
     </div>
+    <button id="presets-open" class="settings-trigger" type="button" aria-haspopup="dialog" aria-expanded="false">
+      <span class="settings-trigger-icon">☰</span>
+      <span data-i18n="web.presetInventory">Saved presets</span>
+    </button>
     <button id="settings-open" class="settings-trigger" type="button" aria-haspopup="dialog" aria-expanded="false">
       <span class="settings-trigger-icon">⚙</span>
       <span data-i18n="web.settings">Settings</span>
@@ -66,10 +70,22 @@
         <div id="profile-options" class="profile-options" role="radiogroup" aria-labelledby="profile-label" aria-describedby="profile-detail"></div>
         <div id="profile-detail" class="profile-detail small" aria-live="polite"></div>
       </div>
+      <form id="model-download" class="notice" hidden>
+        <b data-i18n="web.downloadTitle">Download a first model</b>
+        <div class="row wrap">
+          <label for="model-download-name" data-i18n="web.downloadName">Model name</label>
+          <input id="model-download-name" type="text" required spellcheck="false" autocomplete="off">
+          <button id="model-download-btn" class="btn primary" type="submit" data-i18n="web.downloadButton">Download</button>
+        </div>
+        <pre id="model-download-log" class="log small"></pre>
+      </form>
+      <p id="model-remote-hint" class="muted small" data-i18n="web.noRemoteModelsHint" hidden></p>
       <div id="model-meta" class="meta muted small"></div>
       <div id="gpus" class="gpus"></div>
       <div class="row wrap actions">
         <label class="check"><input type="checkbox" id="force"> <span data-i18n="web.force">Measure again even if a preset exists</span></label>
+        <label class="check"><input type="checkbox" id="dry-run"> <span data-i18n="web.dryRun">Dry run: measure and preview without applying</span></label>
+        <label class="check" for="candidates"><span data-i18n="web.candidates">Configurations to measure</span> <input id="candidates" type="number" min="1" step="1" placeholder="3" style="width:5em"></label>
         <button id="load-btn" class="btn primary" type="button" disabled data-i18n="web.loadButton">Load</button>
       </div>
     </section>
@@ -105,6 +121,14 @@
           </table>
         </div>
       </div>
+      <div id="load-confirm" class="notice warn" role="alertdialog" aria-labelledby="load-confirm-title" hidden>
+        <b id="load-confirm-title" data-i18n="web.confirmTitle">Apply these changes?</b>
+        <ul id="load-confirm-list" class="small"></ul>
+        <div class="row wrap">
+          <button id="load-confirm-accept" class="btn primary" type="button" data-i18n="web.confirmAccept">Apply and load</button>
+          <button id="load-confirm-decline" class="btn secondary" type="button" data-i18n="web.confirmDecline">Do not apply</button>
+        </div>
+      </div>
       <pre id="load-log" class="log"></pre>
       <div id="load-result" class="result"></div>
       <div id="chat-box" class="chat-box" hidden>
@@ -123,6 +147,22 @@
     </section>
   </main>
 </div>
+<div id="presets-backdrop" class="drawer-backdrop" hidden></div>
+<aside id="presets-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="presets-title" hidden>
+  <div class="drawer-header">
+    <h3 id="presets-title" data-i18n="web.presetInventory">Saved presets</h3>
+    <button id="presets-close" class="drawer-close" type="button" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-body">
+<section class="drawer-field">
+    <label for="preset-filter-engine" data-i18n="web.presetFilterEngine">Engine</label>
+    <select id="preset-filter-engine"></select>
+    <label for="preset-filter-model" data-i18n="web.presetFilterModel">Model</label>
+    <select id="preset-filter-model"></select>
+    <ul id="preset-inventory" class="preset-inventory"></ul>
+</section>
+  </div>
+</aside>
 <div id="settings-backdrop" class="drawer-backdrop" hidden></div>
 <aside id="settings-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
   <div class="drawer-header">
@@ -153,9 +193,21 @@
       </div>
       <div id="server-item-info" class="small muted" style="display:flex;justify-content:space-between;align-items:center;">
         <span id="active-server-url"></span>
+        <button id="test-server-btn" type="button" class="btn btn-sm" data-i18n="web.testServer" hidden>Test connection</button>
         <button id="remove-server-btn" type="button" class="btn btn-danger-sm" data-i18n="web.removeServer" style="padding:2px 8px;font-size:11px;" hidden>Remove</button>
       </div>
     </div>
+<section id="shared-server-section" class="drawer-field" hidden>
+    <h3 data-i18n="web.sharedServerTitle">Share this computer</h3>
+    <label for="shared-server-host" data-i18n="web.sharedServerHost">Host</label>
+    <input id="shared-server-host" type="text" spellcheck="false" autocomplete="off">
+    <label for="shared-server-port" data-i18n="web.sharedServerPort">Port</label>
+    <input id="shared-server-port" type="number" min="0" max="65535">
+    <label for="shared-server-token" data-i18n="web.sharedServerToken">Token (optional)</label>
+    <input id="shared-server-token" type="password" autocomplete="off" spellcheck="false">
+    <button type="button" id="shared-server-start" class="btn btn-sm" data-i18n="web.sharedServerStart">Start sharing</button>
+    <p id="shared-server-status" class="small muted" aria-live="polite"></p>
+</section>
 <section id="local-server-settings" class="drawer-field" hidden>
     <h3 data-i18n="web.localServerSettings">Local Server Settings</h3>
 

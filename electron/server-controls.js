@@ -11,7 +11,7 @@ export function isTrustedServerSender(event, webContents, expectedOrigin) {
   );
 }
 
-export function createServerControls({ isTrusted, autostart, readConfig, copyText, resolveHost }) {
+export function createServerControls({ isTrusted, autostart, readConfig, copyText, resolveHost, sharedServer }) {
   const checkAuth = (event) => {
     if (!isTrusted(event)) {
       throw new Error('Local server controls are not authorized.');
@@ -64,6 +64,26 @@ export function createServerControls({ isTrusted, autostart, readConfig, copyTex
       }
       await copyText(config.token);
       return { copied: true };
+    },
+
+    async getSharedServerStatus(event) {
+      checkAuth(event);
+      const status = await sharedServer.status();
+      if (!resolveHost) return status;
+      return { ...status, suggestedHost: resolveHost(status.host ?? '0.0.0.0') };
+    },
+
+    async startSharedServer(event, input) {
+      checkAuth(event);
+      const { host, port, token } = input ?? {};
+      try {
+        return await sharedServer.start({ host, port, token });
+      } catch (error) {
+        if (typeof error?.code === 'string' && error.code.startsWith('errors.')) {
+          return { running: false, code: error.code, params: error.params };
+        }
+        throw error;
+      }
     }
   };
 }

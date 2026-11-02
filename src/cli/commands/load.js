@@ -9,7 +9,9 @@ import {
   fmtBytes,
   readSettings,
   writeSettings,
+  getActiveServer,
   DEFAULT_PROFILE,
+  PROFILES,
   TunerError,
   checkUpdate,
 } from '../../core/index.js';
@@ -20,8 +22,28 @@ import { withNav, NAV_BACK, backChoice } from '../nav.js';
 import { TerminalAnimation } from '../animation.js';
 import { createOllamaAuthorizer } from '../../platform/ollama-authorize.js';
 import { TunerApiClient } from '../../core/client.js';
+import { downloadModel } from '../../core/model-download.js';
+import { parseCandidateCount } from '../../web/public/load-flow.js';
 
-export async function loadCommand(args, { lang, theme }) {
+export async function loadCommand(args, { lang, theme }, dependencies = {}) {
+  const {
+    selectPrompt = select,
+    inputPrompt = input,
+    confirmPrompt = confirm,
+    searchPrompt = search,
+    readSettings: loadSettings = readSettings,
+    saveSettings = writeSettings,
+    detectHardware: hardwareDetector = detectHardware,
+    detectEngines: engineDetector = detectEngines,
+    createTuner = (engine) => Tuner.create(engine),
+    checkUpdate: updateChecker = checkUpdate,
+    client: injectedClient,
+    clientFactory = (settings) => {
+      if (injectedClient) return injectedClient;
+      const server = getActiveServer(settings);
+      return new TunerApiClient({ baseUrl: server.url, token: server.token });
+    },
+  } = dependencies;
   const c = getColors(theme);
   const t = (key, params) => translate(lang, key, params);
 
@@ -39,7 +61,13 @@ export async function loadCommand(args, { lang, theme }) {
     return e.length ? e.map(([i, b]) => `GPU${i} ${(b / 1024 ** 3).toFixed(1)} GB`).join(' / ') : t('common.na');
   };
 
-  const updatePromise = checkUpdate().catch(() => null);
+  const candidateCount = parseCandidateCount(args.candidates);
+  if (!candidateCount.ok) throw new TunerError('errors.invalidCandidateCount');
+  const candidates = candidateCount.value ?? 3;
+
+  const settings = await loadSettings();
+  const isRemote = settings.activeServerId !== 'local';
+  const updatePromise = updateChecker().catch(() => null);
   const isTTY = Boolean(process.stdout.isTTY && !args.json);
   const anim = new TerminalAnimation(c, isTTY);
 
@@ -65,20 +93,19 @@ export async function loadCommand(args, { lang, theme }) {
     out(c.dim(`    ${t('cli.updateCommand', { cmd: 'npm install -g llm-tuner' })}\n`));
   }
 
-  const settings = await readSettings();
-  const isRemote = settings.activeServerId !== 'local';
   let client = null;
   let hw;
   let det;
 
   if (isRemote) {
-    client = TunerApiClient.fromSettings(settings);
+    client = clientFactory(settings);
     const state = await client.getState();
     hw = state.hw;
     det = state;
+    if (!args.json) out(c.dim(`  ${t('cli.activeComputer', { name: getActiveServer(settings).name, url: getActiveServer(settings).url })}`));
   } else {
-    hw = await detectHardware();
-    det = await detectEngines(hw);
+    hw = await hardwareDetector();
+    det = await engineDetector(hw);
   }
 
   const cpuTitle = hw.cpu?.brand || (hw.cpu?.physicalCores ? `${hw.cpu.physicalCores} cores` : 'CPU');
@@ -102,7 +129,7 @@ export async function loadCommand(args, { lang, theme }) {
         continue;
       }
 
-      const res = await withNav(() => select({
+      const res = await withNav(() => selectPrompt({
         message: t('cli.whichEngine'),
         default: det.recommended,
         choices: [
@@ -125,13 +152,14 @@ export async function loadCommand(args, { lang, theme }) {
           const res = await client.listModels(engineId);
           models = res.models || [];
           tuner = { engine: { id: engineId, name: engineId } };
+          if (!models.length) throw new TunerError('cli.noRemoteModels', { engine: tuner.engine.name });
         } else {
           if (!det.engines.find((e) => e.id === engineId)?.detection.installed) {
-            await installFlow(engineId, { args, t, c });
-            det = await detectEngines(hw);
+            await installFlow(engineId, { args, t, c, selectPrompt, inputPrompt, confirmPrompt });
+            det = await engineDetector(hw);
             if (!det.engines.find((e) => e.id === engineId).detection.installed) throw new TunerError('errors.installNotFinished');
           }
-          tuner = await Tuner.create(engineId);
+          tuner = await createTuner(engineId);
           models = await tuner.listModels();
         }
       }
@@ -143,15 +171,15 @@ export async function loadCommand(args, { lang, theme }) {
       }
 
       if (!models.length) {
+        if (isRemote) throw new TunerError('cli.noRemoteModels', { engine: tuner.engine.name });
         out(c.y(`\n${t('cli.noModels', { engine: tuner.engine.name })}`));
-        const name = await input({ message: engineId === 'ollama' ? t('cli.downloadOllama') : t('cli.downloadLms') });
-        const bin = tuner.ctx.detection.bin;
-        const r = await runInstall(engineId === 'ollama' ? { cmd: bin, args: ['pull', name] } : { cmd: bin, args: ['get', name, '-y'] }, (l) => out(c.dim('  ' + l)));
+        const name = await inputPrompt({ message: engineId === 'ollama' ? t('cli.downloadOllama') : t('cli.downloadLms') });
+        const r = await downloadModel({ engineId, name, bin: tuner.ctx.detection.bin, onLine: (l) => out(c.dim('  ' + l)), runInstall });
         if (r.code !== 0) throw new TunerError('errors.modelDownloadFailed');
         models = await tuner.listModels();
       }
 
-      const res = await withNav(() => search({
+      const res = await withNav(() => searchPrompt({
         message: t('cli.model'),
         source: (term) => [
           backChoice(t, c),
@@ -178,15 +206,19 @@ export async function loadCommand(args, { lang, theme }) {
         continue;
       }
 
-      const presets = await listPresets({ engine: engineId, modelKey });
-      const preview = await tuner.plan(modelKey, 8192);
-      const limit = preview.model.meta.trainContext || 131072;
+      const presets = isRemote
+        ? (await client.listPresets({ engine: engineId, model: modelKey })).presets || []
+        : await listPresets({ engine: engineId, modelKey });
+      const preview = isRemote
+        ? await client.planModel({ engine: engineId, model: modelKey, ctx: 8192 })
+        : await tuner.plan(modelKey, 8192);
+      const limit = (isRemote ? preview.meta?.trainContext : preview.model.meta.trainContext) || 131072;
       const list = Object.entries(preview.maxContext).map(([k, v]) => `KV ${k} ${v ? Math.floor(v / 1024) + 'K' : '—'}`).join(' · ');
       out(c.dim(`  ${t('cli.maxFullGpu', { list, train: Math.floor(limit / 1024) })}`));
       if (presets.length) out(c.dim(`  ${t('cli.tunedContexts', { list: presets.map((p) => `${p.ctx / 1024}K (${p.shortTps} t/s)`).join(', ') })}`));
 
       let inputBuffer = '';
-      const res = await withNav(() => input({
+      const res = await withNav(() => inputPrompt({
         message: `${t('cli.context')} ${c.dim(`(Backspace: ${t('common.back')})`)}`,
         default: String(presets.at(-1)?.ctx || Math.min(16384, limit)),
         validate: (v) => {
@@ -215,14 +247,27 @@ export async function loadCommand(args, { lang, theme }) {
         break;
       }
 
-      const plan = await tuner.profilePlan(modelKey, ctx);
-      const { profile: stored } = await readSettings();
-      for (const line of profileNotes(plan, t)) {
-        out((line.level === 'warn' ? c.y : c.dim)(`  ${line.text}`));
+      const plan = isRemote
+        ? (await client.planModel({ engine: engineId, model: modelKey, ctx })).profiles
+        : await tuner.profilePlan(modelKey, ctx);
+      const { profile: stored } = await loadSettings();
+      if (plan) {
+        for (const line of profileNotes(plan, t)) {
+          out((line.level === 'warn' ? c.y : c.dim)(`  ${line.text}`));
+        }
       }
 
-      const choicesObj = profileChoices(plan, t, { stored, mark: c.y, dim: c.dim });
-      const res = await withNav(() => select({
+      const choicesObj = plan
+        ? profileChoices(plan, t, { stored, mark: c.y, dim: c.dim })
+        : {
+          choices: PROFILES.map((choice) => ({
+            name: `${t(`profile.name.${choice}`)}  ${c.dim(t(`profile.desc.${choice}`))}`,
+            value: choice,
+            short: t(`profile.name.${choice}`),
+          })),
+          default: stored || DEFAULT_PROFILE,
+        };
+      const res = await withNav(() => selectPrompt({
         message: t('cli.profile'),
         ...choicesObj,
         choices: [
@@ -248,19 +293,21 @@ export async function loadCommand(args, { lang, theme }) {
 
       profile = res;
       try {
-        await writeSettings({ profile });
+        await saveSettings({ profile });
       } catch (e) {
         console.error(c.y(t('cli.profileNotSaved', { error: e.message })));
       }
-      const switchNote = profileSwitchNote(plan, profile, t, tuner.engine.name);
+      const switchNote = plan ? profileSwitchNote(plan, profile, t, tuner.engine.name) : null;
       if (switchNote) out(c.dim(`  ${switchNote}`));
       break;
     }
   }
 
   // 5. Load & Benchmark Execution with Desktop-style live animation
-  if (!tuner) {
-    tuner = await Tuner.create(engineId);
+  if (!tuner && isRemote) {
+    tuner = { engine: { id: engineId, name: engineId } };
+  } else if (!tuner) {
+    tuner = await createTuner(engineId);
   }
 
   const advisedByWizard = !args.profile;
@@ -268,7 +315,7 @@ export async function loadCommand(args, { lang, theme }) {
 
   anim.start(t('status.loading'));
 
-  tuner.on('progress', (e) => {
+  const onLoadEvent = (e) => {
     if (args.json) return;
 
     if (e.type === 'telemetry') {
@@ -307,7 +354,24 @@ export async function loadCommand(args, { lang, theme }) {
     if (e.type === 'preset-saved') {
       out(c.g(`\n✓ ${t('common.presetSaved', { file: e.file })}`));
     }
-  });
+  };
+  if (!isRemote) tuner.on('progress', onLoadEvent);
+
+  const dryRun = !!(args['dry-run'] || args.dryRun);
+  const confirmApply = async (preview) => {
+      anim.stop();
+      out(c.b(`\n${t('cli.changes')}`));
+      if (engineId === 'lmstudio') {
+        preview.files.forEach((f) => out(`  ${f}`));
+        if (preview.restartsApp) out(c.y(`  ${t('cli.lmsRestart')}`));
+      } else {
+        out(`  ${t('cli.ollamaNewModel', { name: c.b(preview.tunedModel) })}`);
+        out(`  ${t('cli.ollamaServer', { env: Object.entries(preview.env).map(([k, v]) => `${k}=${v}`).join(' ') })}`);
+      }
+      const confirmed = args.yes || await confirmPrompt({ message: t('cli.confirmApply'), default: true });
+      if (confirmed) anim.start(t('status.applying'));
+      return confirmed;
+  };
 
   let result;
   try {
@@ -318,11 +382,13 @@ export async function loadCommand(args, { lang, theme }) {
         ctx,
         profile,
         force: !!args.force,
-        candidates: Number(args.candidates) || 3,
+        candidates,
+        dryRun,
+        confirm: !dryRun && !args.yes,
       }, (e) => {
-        if (e.type === 'progress') anim.update(e);
         if (e.type === 'log') out(c.dim('  ' + e.line));
-      });
+        onLoadEvent(e);
+      }, { confirmApply });
     } else {
       result = await tuner.load(modelKey, ctx, {
         authorizeOllama: createOllamaAuthorizer({
@@ -332,22 +398,9 @@ export async function loadCommand(args, { lang, theme }) {
         }),
         profile,
         force: !!args.force,
-        dryRun: !!args['dry-run'],
-        maxCandidates: Number(args.candidates) || 3,
-        confirmApply: async (preview) => {
-          anim.stop();
-          out(c.b(`\n${t('cli.changes')}`));
-          if (engineId === 'lmstudio') {
-            preview.files.forEach((f) => out(`  ${f}`));
-            if (preview.restartsApp) out(c.y(`  ${t('cli.lmsRestart')}`));
-          } else {
-            out(`  ${t('cli.ollamaNewModel', { name: c.b(preview.tunedModel) })}`);
-            out(`  ${t('cli.ollamaServer', { env: Object.entries(preview.env).map(([k, v]) => `${k}=${v}`).join(' ') })}`);
-          }
-          const confirmed = args.yes || await confirm({ message: t('cli.confirmApply'), default: true });
-          if (confirmed) anim.start(t('status.applying'));
-          return confirmed;
-        },
+        dryRun,
+        maxCandidates: candidates,
+        confirmApply,
       });
     }
   } catch (e) {
@@ -363,7 +416,7 @@ export async function loadCommand(args, { lang, theme }) {
     anim.stop();
   }
 
-  if (args['dry-run']) out(c.y(`\n${t('cli.dryRun')}`));
+  if (dryRun) out(c.y(`\n${t('cli.dryRun')}`));
   if (result.applied?.backups?.length) out(c.dim(`  ${t('common.backups', { list: result.applied.backups.join(', ') })}`));
   if (result.applied?.pendingCommands?.length) {
     out(c.y(`\n${t('cli.pending')}`));
@@ -376,13 +429,13 @@ export async function loadCommand(args, { lang, theme }) {
   if (args.json) console.log(JSON.stringify(result, null, 2));
 }
 
-async function installFlow(engineId, { args, t, c }) {
+async function installFlow(engineId, { args, t, c, selectPrompt = select, inputPrompt = input, confirmPrompt = confirm }) {
   const plans = await installPlans(engineId);
   if (!plans.length) throw new TunerError('errors.noInstaller');
-  const plan = plans.length === 1 ? plans[0] : await select({ message: t('cli.installMethod'), choices: plans.map((p) => ({ name: t(p.labelCode), value: p })) });
+  const plan = plans.length === 1 ? plans[0] : await selectPrompt({ message: t('cli.installMethod'), choices: plans.map((p) => ({ name: t(p.labelCode), value: p })) });
   console.log(c.dim(`  ${plan.shell || (plan.cmd ? [plan.cmd, ...plan.args].join(' ') : plan.url)}`));
-  if (!args.yes && !(await confirm({ message: t('cli.installNow'), default: true }))) process.exit(0);
+  if (!args.yes && !(await confirmPrompt({ message: t('cli.installNow'), default: true }))) process.exit(0);
   const r = await runInstall(plan, (l) => console.log(c.dim('  ' + l)));
-  if (r.manual) await input({ message: t('cli.installManual') });
+  if (r.manual) await inputPrompt({ message: t('cli.installManual') });
   else if (r.code !== 0) throw new TunerError('errors.installerExit', { code: r.code });
 }

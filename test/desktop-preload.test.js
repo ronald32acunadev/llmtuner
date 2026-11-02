@@ -25,7 +25,7 @@ test('preload bridge wiring', async () => {
 
   const api = exposed.llmTunerServer;
   const keys = Object.keys(api).sort();
-  assert.deepEqual(keys, ['copyToken', 'getAutostartStatus', 'revealConnection', 'setAutostartEnabled'].sort());
+  assert.deepEqual(keys, ['copyToken', 'getAutostartStatus', 'getSharedServerStatus', 'revealConnection', 'setAutostartEnabled', 'startSharedServer'].sort());
 
   const res1 = await api.getAutostartStatus();
   const res2 = await api.setAutostartEnabled(true);

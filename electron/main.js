@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { startServer } from '../src/web/server.js';
 import { createOllamaAuthorizer } from '../src/platform/ollama-authorize.js';
 import { createServerAutostart } from '../src/platform/server-autostart.js';
-import { readServerConfig, serverConfigPath } from '../src/cli/commands/serve.js';
+import { createDefaultSharedServer, readServerConfig, serverConfigPath } from '../src/cli/commands/serve.js';
 import { createServerControls, isTrustedServerSender } from './server-controls.js';
 import { resolveConnectableHost } from '../src/core/util.js';
 
@@ -24,6 +24,8 @@ if (process.platform === 'win32') {
 
 // The desktop app is the web UI in a native window, served on a random local port.
 let server;
+// The shared listener other computers connect to; separate from the private window port above.
+const sharedServer = createDefaultSharedServer();
 
 async function createWindow() {
   const started = await startServer({ port: 0, authorizeOllama: createOllamaAuthorizer({ mode: 'desktop' }) });
@@ -71,6 +73,7 @@ async function createWindow() {
       },
     },
     readConfig: readServerConfig,
+    sharedServer,
     resolveHost: resolveConnectableHost,
     copyText: async (text) => {
       await clipboard.writeText(text);
@@ -81,16 +84,22 @@ async function createWindow() {
   ipcMain.handle('llm-tuner:server-autostart-set', (event, enabled) => controls.setAutostartEnabled(event, enabled));
   ipcMain.handle('llm-tuner:server-connection-reveal', (event) => controls.revealConnection(event));
   ipcMain.handle('llm-tuner:server-token-copy', (event) => controls.copyToken(event));
+  ipcMain.handle('llm-tuner:shared-server-status', (event) => controls.getSharedServerStatus(event));
+  ipcMain.handle('llm-tuner:shared-server-start', (event, input) => controls.startSharedServer(event, input));
 
   win.on('closed', () => {
     ipcMain.removeHandler('llm-tuner:server-autostart-status');
     ipcMain.removeHandler('llm-tuner:server-autostart-set');
     ipcMain.removeHandler('llm-tuner:server-connection-reveal');
     ipcMain.removeHandler('llm-tuner:server-token-copy');
+    ipcMain.removeHandler('llm-tuner:shared-server-status');
+    ipcMain.removeHandler('llm-tuner:shared-server-start');
   });
 
   await win.loadURL(started.url);
 }
+
+app.on('before-quit', () => { sharedServer.close(); });
 
 app.whenReady().then(async () => {
   if (process.platform === 'darwin' && app.dock) {

@@ -7,6 +7,15 @@ Instructions for every AI coding agent working in this repository (Antigravity, 
 - **English by default**: All source code, identifiers, function and variable names, comments, documentation (`docs/`, READMEs, architecture/planning docs), and commit messages MUST be written in English.
 - **Translations**: Translations are the only exception (e.g., `README.es.md` or dedicated i18n localization catalogs). In multi-language applications, internal code, identifiers, and core error/status codes remain strictly in English, while user-facing localized strings go through dedicated i18n catalogs.
 
+## CLI and Desktop Feature Parity (MANDATORY)
+
+- Every new or changed user-facing capability must be implemented and maintained in **both the CLI and Electron Desktop**. In this project, GUI means Electron Desktop; standalone browser usage is not a parity target. This does not authorize removing browser behavior or weakening existing protections.
+- Plan both entry points in the same user story. Reuse the shared core/API instead of duplicating business logic, and provide equivalent capabilities, inputs, outcomes, errors, confirmations, and local/remote target semantics. Presentation may differ; existing scripted CLI behavior must remain supported.
+- Include acceptance checks for **both interfaces**, update CLI help and the English/Spanish localization catalogs, and maintain the instructions and bidirectional capability inventory in `docs/USER_GUIDE.md` alongside the behavior change.
+- A capability is incomplete while either interface or its required verification is missing. Do not claim 100% parity while the inventory contains an unapproved gap or pending proof.
+- Platform/security restrictions require a secure equivalent or an explicit user-approved exception. Never silently waive an interface or bypass authentication, trusted IPC senders, privilege boundaries, or remote-operation authorization to appear equivalent.
+- Do not invent capabilities absent from both interfaces merely to fill the inventory. `CLAUDE.md` imports this file; keep this as the single policy source.
+
 ## Backlog Approval and Execution (MANDATORY)
 
 Before implementing a requested change, the planning agent must:
@@ -93,13 +102,14 @@ Local models have fixed knowledge cutoffs and no internet or repository access. 
 Agents must resolve current library documentation using a **Cache-Aside** strategy:
 
 1. **Resolve version from lockfile/manifest**: The orchestrating agent checks the project's lockfile (`package-lock.json`, `pnpm-lock.yaml`, `Cargo.lock`, `pyproject.toml`, `go.mod`, etc.) for the exact installed version. Never query documentation without an exact version.
-2. **Check local cache (`.context/`)**: Look for `.context/<library>@<version>.md` (ignored by Git in `.gitignore`):
+2. **Check local cache (`.context/`)**: Look for `.context/<library>@<version>.md` (versioned in Git, so the curated dictionary survives clones and clean checkouts):
    - **Cache Hit**: Read reference documentation directly from disk with zero network latency.
    - **Cache Miss**: Query Context7 (or official docs/type definitions) for that exact version, save the result to `.context/<library>@<version>.md`, and proceed.
 3. **Curate the brief**: The orchestrator extracts only the signatures, options, and minimal examples needed for the task into the Library Context Brief. Never dump whole raw documentation files into the local model's prompt.
 4. **Engram vs .context/ separation of concerns**:
-   - **`.context/`**: Raw third-party API documentation and SDK guides (local cache).
+   - **`.context/`**: Curated third-party API documentation and SDK guides (versioned dictionary).
    - **Engram (`mem_save`)**: Project-specific discoveries, gotchas, architecture choices, and bug root causes. Never save raw third-party doc dumps to Engram.
+5. **The dictionary is the source of every local prompt**: Local models are not experts. Build each entry from the official documentation for the exact version, using `.agents/context-dictionary-template.md`, and record signatures, one verified example, forms the model got wrong (`WRONG: ...`), and the project's own call sites. Build the Library Context Brief from these entries. When an answer is wrong, first improve the entry or send an exact skeleton with only the missing lines to fill, then request the correction. If the exact version's documentation is unavailable, record which version was verified and treat the installed type definitions as authoritative.
 
 Every code request includes a brief with, for each library the task touches:
 
@@ -124,10 +134,15 @@ Then detail the change itself step by step: functions to add or change, behavior
   - Do NOT use: <deprecated/removed APIs>
   - Example (official docs): <short snippet>
   - Existing project usage: <verbatim call site>
+  - Wrong forms: <`WRONG:` entries from the dictionary>
+
+## Existing helpers
+<exact signature and return value of every helper the code calls>
 
 ## Task
 <approved story ID, statement, acceptance criteria, dependencies, and execution mode>
 <exact change, step by step, with inputs/outputs and edge cases>
+<when the model already failed: the complete file as a skeleton with only the missing lines marked TODO>
 
 ## Target files
 <paths + relevant existing code verbatim>
