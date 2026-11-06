@@ -3,12 +3,15 @@ import { writeSettings, resolveConnectableHost } from '../../core/index.js';
 import { t as translate } from '../../i18n/index.js';
 import { createServerAutostart } from '../../platform/server-autostart.js';
 import { serverConfigPath, readServerConfig } from './serve.js';
+import { serversCommand } from './servers.js';
 import { getColors } from '../colors.js';
 import { withNav, NAV_BACK, backChoice } from '../nav.js';
 
 export async function settingsCommand(args, { lang, theme }, dependencies = {}) {
   const {
     selectPrompt = select,
+    manageServers = serversCommand,
+    serverDependencies = {},
     autostart = createServerAutostart({ configPath: serverConfigPath() }),
     readConfig = readServerConfig
   } = dependencies;
@@ -31,6 +34,7 @@ export async function settingsCommand(args, { lang, theme }, dependencies = {}) 
         { name: `${t('cli.settingsAutostart')}: ${t(startupEnabled === null ? 'cli.unknown' : startupEnabled ? 'cli.enabled' : 'cli.disabled')}`, value: 'serverAutostart' },
         { name: t('cli.serverConnection'), value: 'serverConnection' },
         { name: t('cli.settingsExit'), value: 'exit' },
+        { name: t('cli.serverManagement'), value: 'serverManagement' },
       ],
     }));
 
@@ -115,6 +119,8 @@ export async function settingsCommand(args, { lang, theme }, dependencies = {}) 
       } catch (e) {
         console.error(c.y(t('common.error', { message: e.message })));
       }
+    } else if (action === 'serverManagement') {
+      await manageServers({}, { lang, theme }, serverDependencies);
     }
   }
 }

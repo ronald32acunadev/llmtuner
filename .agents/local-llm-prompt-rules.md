@@ -29,3 +29,19 @@ Paste this list into the system message of every code request to a local model. 
 - New application-owned UI error messages must use the existing i18n catalog; success flags such as `copied` must be confirmed with `=== true`, not truthiness.
 - Every HTML label for a form control must include the exact matching `for` attribute; an i18n attribute is not an accessibility association.
 - Stateful test selection queues must be created once outside callbacks; use real named exports and Node assertions (`doesNotMatch`, `equal`), never invented assertion methods.
+- Inquirer `input` and `password` validators return `true` on success; a normalized URL string is not a successful validation result.
+- Track editable text with the supported `input.transformer`; never invent password callbacks, and suppress Backspace navigation when a masked value cannot be tracked while preserving Escape cancellation.
+- Treat an unavailable optional remote plan as absent; do not pass a partial placeholder to helpers that require a complete plan.
+- Each node:test owns fresh dependency counters; use await assert.rejects for rejected APIs, increment counted fakes, and assert exact persisted arguments.
+- When using ask_local_llm.py --code-out, request exactly one fenced code block; never simultaneously require unfenced output. Unchanged raw model text may be extracted mechanically when provenance and content are reviewed.
+- Node assert.throws/assert.rejects validation callbacks must return literal true; prefer an error property matcher such as { code: expectedCode } when checking only fields.
+- ESM command tests import named exports and pass the documented dependency object as the third argument; never require() or overwrite imported module exports.
+- Test factories must return every capture/fake they expose; local/remote mode and input queues must be independent explicit fixtures, not inferred from isInteractive.
+- For IPv6 URL tests assert brackets explicitly; failed-bind tests must use valid host/port and a throwing listener, and capture exact writeConfig payload rather than calling fakewrite as setup.
+- node:test call data lives under `.mock`: `fn.mock.callCount()`, `fn.mock.calls[0].arguments`; a mock of a factory returns the object the factory would create.
+- `req.on('close')` means the request completed, not that the client left: detect a disconnect with `res.on('close')` and `res.writableFinished`.
+- Use existing helpers exactly as the request's verbatim signatures show; never guess a helper's arguments or return value.
+- A promise that waits for a later decision must store its resolve function and stay pending; never resolve it inside `request`, and never `await` it in a test before answering.
+- Destructure injected dependencies by their public name (`detectAgents: agentDetector = detectAgents`); never read a dependency from the ambient environment when the contract injects it.
+- `withNav` takes a factory and returns the prompt result: never wrap it in another prompt call. `backChoice(t, c)` goes inside the `choices` array, and project translation helpers are `const t = (key, params) => translate(lang, key, params)`.
+- Call assertions through the imported `assert` object: `assert.equal(...)`, never a bare `equal(...)` or `t.assert`.

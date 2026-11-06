@@ -398,4 +398,4 @@ td .err { color: var(--bad); white-space: normal; }
 .mcp-status { margin: 4px 0 0; font-size: .85rem; }
 .mcp-status.good { color: var(--accent); }
 .mcp-status.bad { color: var(--bad); }
-
+.preset-inventory { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }

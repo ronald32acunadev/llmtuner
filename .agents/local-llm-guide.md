@@ -17,11 +17,48 @@ Prompt and answer share the 32k window. Estimate 1 token per 4 characters of Eng
 
 About 16,000 tokens of answer is a file of roughly 600-800 lines; aim for half that. If the existing code alone is over 8,000 tokens, send signatures and docstrings of what the change calls, not whole files.
 
+## Build the dictionary first
+
+Local models are not experts and cannot browse. Their quality depends on what the agent sends, so any agent with internet access prepares the facts before asking for code.
+
+1. Read the exact version from the lockfile and the runtime.
+2. Fetch the official docs for that version (Context7, the project's docs site, then the installed type definitions).
+3. Save a curated entry to `.context/<library>@<version>.md`, using `.agents/context-dictionary-template.md`. Commit it: the dictionary is shared by every agent and must survive clean checkouts.
+4. Paste only the relevant sections into each request.
+5. When the model gets something wrong, add the wrong form to the entry as `WRONG: ...`, and add a rule to `.agents/local-llm-prompt-rules.md` if it applies beyond one library.
+
+## Ladder when an answer is wrong
+
+Improve the instructions before changing implementer. Each step costs seconds; a hosted fallback costs far more and teaches the local route nothing.
+
+1. **Behavior spec**: signatures, inputs, outputs, exact values. Enough for simple modules.
+2. **Dictionary sections**: the verified API forms and wrong forms for what the task touches.
+3. **Verbatim helpers**: the exact signature and return value of every helper a test or module calls. Models guess whatever you omit.
+4. **Skeleton with TODOs**: the complete file, with only the missing lines marked `// TODO: ...`. This fixes almost everything else, including patterns the model misuses.
+5. **Hosted fallback**: only after a focused correction also fails, as the provider order below says.
+
+Keep these request shapes reliable:
+
+- Ask for exactly one fenced code block. Do not nest fences inside a multi-block answer: the model may echo the request instead of answering. Send one block per request.
+- Wrap each call in a timeout (`timeout 180 python3 scripts/ask_local_llm.py ...`): a looping model otherwise runs until the script's own limit. A stuck request is a reason to tighten the prompt, not to wait.
+- Copy mechanical fixes yourself (a rename, a fixed import, one wrong expected value). Send logic back to the model.
+
+## Trust nothing because it passes
+
+A model can encode its own bug in its own test. One answer resolved a confirmation immediately, and its test awaited that result before answering, so everything passed while the guard was gone.
+
+- Review logic against the contract, not only the test status.
+- Observe RED by applying the test before the implementation.
+- Read the test for what it proves: an assertion before the action, or a count checked before the call, proves nothing.
+- Run the suite and read its result before committing. Never chain a commit after a test command in the same shell line.
+- Run tests with a timeout: an unmocked prompt or an open server hangs the whole suite.
+- Before writing a platform fact into a rule, check it in the docs. Assumptions from memory are often out of date.
+
 ## One request, one unit
 
 - Start only after the user approves the complete backlog and chooses all stories or one at a time. Include the current story ID and acceptance criteria in each request; a story may require several bounded requests.
 - One file per request, or one function or class when the file is large. Two files at once is where small models start dropping requirements.
-- Send the tests first, then ask for the implementation that passes them. Tests are the most precise spec a small model can follow.
+- For implementation requests, send the existing tests and their criterion or regression-risk references first. For test-generation requests, send approved criteria, scenarios, and required observable assertions; preexisting test code is not required.
 - Ask for the full file when it is under about 300 lines; above that, ask for an exact replacement block with the lines before and after it.
 
 ## Structure of every request
@@ -40,13 +77,22 @@ USER
   - API: <signatures used>
   - Use <new>, not <old>; do NOT use <removed APIs>
   - Existing usage: <verbatim call site>
+  - Wrong forms: <WRONG entries from the dictionary>
+
+## Existing helpers
+<exact signature and return value of each helper the code calls>
 
 ## Task
 <approved story ID, acceptance criteria, dependencies, and execution mode>
 <names, signatures, exact values, behavior per input, error cases>
 
-## Tests it must pass
-<test names and assertions, verbatim>
+## Verification contract
+<story-scoped criterion IDs such as US-01 / AC-01>
+<preconditions, inputs, action, expected outputs/errors and applicable state effects>
+<change-related regression risks; verification level and existing runner>
+<implementation request: existing test names and assertions, verbatim>
+<test-generation request: approved scenarios and required assertions; map each test to a criterion or change-related risk>
+<relevant success, negative, and boundary cases; no invented requirements or fixed scenario quotas>
 
 ## Final checklist before you answer
 1. <the rule this task most needs>
@@ -61,10 +107,10 @@ Put the three rules the task most needs at the very end: small models weigh the 
 
 ## Review and the rules file
 
-1. Run the tests. Read the diff for invented imports, real-filesystem calls where values are injected, swallowed exceptions, and dropped requirements.
+1. Check each new or changed test against its approved criterion or change-related regression risk. Assert observable behavior, including applicable rejection and unchanged state, not merely mock calls. Run applicable checks using the existing runner with deterministic isolated state; follow the test-first policy in `AGENTS.md` when meaningful runnable tests exist. Read the diff for invented imports, real-filesystem calls where values are injected, swallowed exceptions, and dropped requirements.
 2. Send one focused correction request naming the defect and the correct API. If still incorrect, report the blocker. Do not silently make the planning model the code writer; use the routing and explicit authorization rules in `AGENTS.md`.
 3. Every defect that could repeat becomes one line in `.agents/local-llm-prompt-rules.md`: the rule only, no history, imperative, under 25 words. Keep the file under 300 words; merge or drop rules that never fire.
-4. Record the implementer and verification outcome in the story report or existing task log. Corrections improve future prompts; they do not retrain model weights automatically.
+4. Record the implementer and criterion-to-check mapping in the existing story file, with actual test file/name or reproducible manual steps and observed results. Missing, failed, skipped, or blocked required proof prevents completion; document manual-only verification honestly. No separate tracker or retroactive labeling of unrelated historical tests or helpers is required. Approved scope revisions update affected checks and preserve still-valid evidence. Corrections improve future prompts; they do not retrain model weights automatically.
 5. In one-at-a-time mode, show the story's changes and checks, then wait for explicit approval before starting the next story. In all-stories mode, continue within the approved backlog unless blocked.
 
 ## Choosing and calling the model

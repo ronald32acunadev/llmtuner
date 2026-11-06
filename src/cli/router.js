@@ -3,6 +3,7 @@ import { readSettings, writeSettings, THEMES, PROFILES, CURRENT_VERSION } from '
 import { t as translate, LOCALES, errorText } from '../i18n/index.js';
 import { loadCommand } from './commands/load.js';
 import { mcpCommand } from './commands/mcp.js';
+import { chatCommand } from './commands/chat.js';
 import { presetsCommand } from './commands/presets.js';
 import { serveCommand } from './commands/serve.js';
 import { settingsCommand } from './commands/settings.js';
@@ -25,6 +26,10 @@ export function parseCliArgs(argv) {
     }
     if (a === '/mcp' || a === 'mcp') {
       command = 'mcp';
+      continue;
+    }
+    if (a === '/chat' || a === 'chat') {
+      command = 'chat';
       continue;
     }
     if (a === '/presets' || a === 'presets') {
@@ -189,6 +194,7 @@ export async function routeCli(argv, env = {}) {
           message: activeT('cli.menuTitle'),
           choices: [
             { name: `/load     ${activeT('cli.cmdLoadDesc')}`, value: 'load' },
+            { name: `/chat     ${activeT('cli.cmdChatDesc')}`, value: 'chat' },
             { name: `/mcp      ${activeT('cli.cmdMcpDesc')}`, value: 'mcp' },
             { name: `/presets  ${activeT('cli.cmdPresetsDesc')}`, value: 'presets' },
             { name: `/serve    ${activeT('cli.cmdServeDesc')}`, value: 'serve' },
@@ -212,6 +218,9 @@ export async function routeCli(argv, env = {}) {
         switch (selectedCommand) {
           case 'load':
             await loadCommand(args, { lang: currentLang, theme: currentTheme });
+            break;
+          case 'chat':
+            await chatCommand(args, { lang: currentLang, theme: currentTheme });
             break;
           case 'mcp':
             await mcpCommand(args, { lang: currentLang, theme: currentTheme });
@@ -250,6 +259,9 @@ export async function routeCli(argv, env = {}) {
     switch (command) {
       case 'load':
         await loadCommand(args, { lang, theme });
+        return 0;
+      case 'chat':
+        await chatCommand(args, { lang, theme });
         return 0;
       case 'mcp':
         await mcpCommand(args, { lang, theme });

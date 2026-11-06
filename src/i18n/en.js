@@ -20,6 +20,32 @@ export default {
   "cli.serverNoConfig": "No server configuration yet. Run /serve or enable automatic startup first.",
   "cli.serverConnectionInvalid": "Saved server configuration is invalid.",
   "cli.serverConnectionHelp": "In /settings, select View server connection details and token to retrieve the saved token. Desktop Settings also provides explicit reveal and copy actions.",
+  'cli.serverManagement': 'Manage saved computers',
+  'cli.serversMenu': 'Active computer: {name} ({url})',
+  'cli.serverRoleInfo': 'Connecting to a computer uses its engines and models; /serve shares this computer with other devices.',
+  'cli.activeComputer': 'Active computer: {name} ({url})',
+  'cli.serverAdd': 'Add a computer',
+  'cli.serverTest': 'Test connection: {name}',
+  'cli.serverSelect': 'Use computer: {name}',
+  'cli.serverRemove': 'Remove computer: {name}',
+  'cli.serverNamePrompt': 'Computer name:',
+  'cli.serverNameRequired': 'Enter a non-empty computer name.',
+  'cli.serverUrlPrompt': 'Computer URL (HTTP or HTTPS):',
+  'cli.serverUrlInvalid': 'Enter a valid HTTP or HTTPS URL without embedded credentials.',
+  'cli.serverTokenPrompt': 'Authentication token (leave blank if none):',
+  'cli.serverAdded': 'Saved {name}. It is not connected until you select it.',
+  'cli.serverAddedHttp': 'Saved {name}. HTTP does not encrypt the bearer token; use HTTPS on untrusted networks. It is not connected until selected.',
+  'cli.serverDetails': '{name}: {url}; {active}; {transport}',
+  'cli.serverInactive': 'not active',
+  'cli.serverHttps': 'HTTPS encrypts the connection',
+  'cli.serverHttpWarning': 'HTTP does not encrypt the bearer token',
+  'cli.serverTestSuccess': 'Connection to {name} succeeded.',
+  'cli.serverTestFailed': 'Could not reach {name}: {error}. Check the URL and token, then try again.',
+  'cli.serverSelected': 'Active computer is now {name}.',
+  'cli.serverRemoveConfirm': 'Remove saved computer {name}?',
+  'cli.serverRemoved': 'Removed {name}.',
+  'cli.serverLocalProtected': 'The local computer cannot be removed.',
+  'cli.serverSaveFailed': 'Could not save computer settings: {error}. Check the settings directory permissions and try again.',
   // Engine choice
   'engine.reason.onlyInstalled': '{name} is the only one installed.',
   'engine.reason.multiGpu': 'You have several GPUs: LM Studio lets you set the GPU order and the KV type per model.',
@@ -133,10 +159,12 @@ export default {
 Usage: llm-tuner [command] [options]
 
 Commands:
-  /load                        Tune and load a model with optimal hardware settings
-  /mcp                         Connect local engine to AI coding agents as MCP server
-  /presets                     List saved presets
-  /settings                    Interactive settings menu (language, theme, and server startup)
+  /load                        Choose an engine and model on the active computer, then tune and load it
+  /chat                        Test a loaded model with a conversation
+  /mcp                         Connect a local engine to AI coding agents as an MCP server
+  /presets                     View saved tuning presets
+  /settings                    Configure the interface, server startup, and saved computers
+  /serve                       Share this computer as a remote server
   /help                        Show this help message
   /exit                        Exit the interactive menu
 
@@ -149,10 +177,13 @@ Options:
   --candidates <n>             Configurations to test when measuring (3)
   --yes                        Do not ask for confirmation
   --dry-run                    Measure and show the changes without applying anything or saving a preset
+  --prompt <text>              With /chat: send one message and exit
   --presets                    List saved presets (same as /presets)
   --json                       Final output as JSON
   --lang <en|es>               Interface language (saved for next time)
   --theme <system|light|dark>  Interface theme (saved for next time)
+
+In /settings, manage saved computers to connect to their engines and models. Adding or selecting a computer does not connect automatically. Use /serve to share this computer with other devices. On another computer, select the saved computer to use its engines and models. HTTP does not encrypt the token (bearer token); prefer HTTPS on untrusted networks.
 
 Server startup can be enabled or disabled after login in /settings. It starts on your next login, not immediately.
 
@@ -188,6 +219,7 @@ Presets are saved in {presetsDir}`,
   'cli.notInstalled': 'not installed · will be installed',
   'cli.recommended': 'recommended',
   'cli.noModels': '{engine} has no downloaded models.',
+  'cli.noRemoteModels': 'No models are available on the active computer for {engine}. Install or download a model on that computer, then try again.',
   'cli.downloadOllama': 'Model to download (e.g. qwen2.5-coder:14b):',
   'cli.downloadLms': 'Model to download (e.g. qwen/qwen2.5-coder-14b):',
   'cli.model': 'Model:',
@@ -219,6 +251,12 @@ Presets are saved in {presetsDir}`,
 
   'errors.unknownInstallPlan': 'Unknown install plan',
   'errors.loadInProgress': 'A load is already in progress',
+  'errors.invalidServerHost': 'Enter a host without spaces',
+  'errors.invalidServerPort': 'The port must be a whole number from 0 to 65535',
+  'errors.invalidServerToken': 'The token cannot be empty or contain spaces',
+  'errors.serverBindFailed': 'Could not start the shared server on {host}:{port}. Another program may be using that port.',
+  'errors.serverAlreadyRunning': 'The shared server is already running with other settings. Close the app to change them.',
+  'errors.invalidModelName': 'Enter a valid model name, without spaces or leading dashes',
   'errors.invalidChatRequest': 'Invalid chat request',
 
   // Web UI
@@ -241,6 +279,33 @@ Presets are saved in {presetsDir}`,
   'web.profileNotSaved': 'Could not save the profile preference: {error}',
   'web.loadButton': 'Load',
   'web.force': 'Measure again even if a preset exists',
+  'web.loadPreviewStatus': 'Preview only',
+  'web.loadPreviewNotice': 'Dry run: nothing was applied, loaded or saved as a preset.',
+  'web.loadDeclinedStatus': 'Not applied',
+  'web.loadDeclinedNotice': 'You declined the changes, so they were not applied and the model was not loaded. Measurements already saved as a preset stay available.',
+  'web.candidates': 'Configurations to measure',
+  'web.dryRun': 'Dry run: measure and preview without applying',
+  'web.confirmTitle': 'Apply these changes?',
+  'web.confirmAccept': 'Apply and load',
+  'web.confirmDecline': 'Do not apply',
+  'web.downloadTitle': 'Download a first model',
+  'web.downloadName': 'Model name',
+  'web.downloadButton': 'Download',
+  'web.noRemoteModelsHint': 'Prepare models on that computer: downloads run only on the local computer.',
+  'web.presetInventory': 'Saved presets',
+  'web.presetFilterEngine': 'Engine',
+  'web.presetFilterModel': 'Model',
+  'web.presetFilterAll': 'All',
+  'web.sharedServerTitle': 'Share this computer',
+  'web.sharedServerHost': 'Host',
+  'web.sharedServerPort': 'Port',
+  'web.sharedServerToken': 'Token (optional)',
+  'web.sharedServerStart': 'Start sharing',
+  'web.sharedServerStopped': 'Sharing is off.',
+  'web.sharedServerRunning': 'Sharing at {url}. Other computers connect with this address and the token above.',
+  'web.testServer': 'Test connection',
+  'web.serverAddedHint': 'Saved. Choose it in the list to use it.',
+  'cli.serverNotFound': 'That saved computer no longer exists.',
   'web.loading': 'Loading',
   'web.inProgress': 'in progress',
   'web.benchIntro': 'There is no preset for this context and profile: several configurations are tested on your hardware. It takes a few minutes and only happens once.',
@@ -333,17 +398,26 @@ Presets are saved in {presetsDir}`,
 
   // CLI Slash Commands
   'cli.menuTitle': 'Select a command:',
-  'cli.cmdLoadDesc': 'Tune and load a model with optimal hardware settings',
+  'cli.cmdLoadDesc': 'On the active computer, choose an engine and model, then tune and load it',
   'cli.cmdMcpDesc': 'Connect local engine to AI coding agents as MCP server',
   'cli.cmdPresetsDesc': 'View saved tuning presets',
-  'cli.cmdServeDesc': 'Start remote server mode with API authentication',
-  'cli.cmdSettingsDesc': 'Configure interface language and visual theme',
+  'cli.cmdServeDesc': 'Share this computer as a remote server with API authentication',
+  'cli.cmdSettingsDesc': 'Configure interface, server startup, and saved computers',
   'cli.cmdHelpDesc': 'View usage help and CLI flags',
   'cli.cmdExitDesc': 'Exit',
   'cli.mcpSelectEngine': 'Which engine do you want to configure as an MCP server?',
   'cli.mcpSelectAgents': 'Select AI agents to configure (space to toggle, enter to confirm):',
   'cli.mcpServerNamePrompt': 'MCP server name:',
   'cli.mcpNoAgentsSelected': 'No agents selected. Exiting.',
+  'errors.invalidCandidateCount': 'The candidate count must be a positive whole number',
+  'errors.invalidLoadOption': 'Invalid value for the load option {option}',
+  'errors.confirmationStale': 'This confirmation is no longer pending, so nothing was applied. Load again to retry.',
+  'cli.chatIncomplete': 'Without a terminal, chat needs --engine, --model and --prompt',
+  'cli.chatEngine': 'Which engine do you want to chat with?',
+  'cli.chatModel': 'Which loaded model do you want to test?',
+  'cli.chatNoModels': 'This engine has no models yet. Download one first.',
+  'cli.chatPrompt': 'Your message (/exit to leave)',
+  'cli.cmdChatDesc': 'Test a loaded model with a conversation',
   'cli.mcpSuccess': "Configured MCP server '{server}' in: {agents}",
   'cli.mcpFailed': 'Failed to configure MCP in: {agents}',
   'cli.mcpStatusInstalled': 'Installed',

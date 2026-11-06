@@ -4,5 +4,7 @@ contextBridge.exposeInMainWorld('llmTunerServer', Object.freeze({
   getAutostartStatus: () => ipcRenderer.invoke('llm-tuner:server-autostart-status'),
   setAutostartEnabled: (enabled) => ipcRenderer.invoke('llm-tuner:server-autostart-set', enabled),
   revealConnection: () => ipcRenderer.invoke('llm-tuner:server-connection-reveal'),
-  copyToken: () => ipcRenderer.invoke('llm-tuner:server-token-copy')
+  copyToken: () => ipcRenderer.invoke('llm-tuner:server-token-copy'),
+  getSharedServerStatus: () => ipcRenderer.invoke('llm-tuner:shared-server-status'),
+  startSharedServer: (input) => ipcRenderer.invoke('llm-tuner:shared-server-start', input)
 }));
