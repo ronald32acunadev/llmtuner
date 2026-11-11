@@ -1,7 +1,7 @@
 # User Stories: Engine Management Tabs (Ollama & LM Studio)
 
 Feature: `engine-management-tabs`
-Status: Pending Backlog Approval
+Status: Complete (All 5 Stories Verified)
 Design Spec: [`docs/superpowers/specs/2026-11-10-engine-management-tabs-design.md`](file:///run/media/pumba/Proyects2/Personal/DeskStop/llmtuner/docs/superpowers/specs/2026-11-10-engine-management-tabs-design.md)
 Implementation Plan: [`docs/superpowers/plans/2026-11-10-engine-management-tabs.md`](file:///run/media/pumba/Proyects2/Personal/DeskStop/llmtuner/docs/superpowers/plans/2026-11-10-engine-management-tabs.md)
 
@@ -82,7 +82,7 @@ Implementation Plan: [`docs/superpowers/plans/2026-11-10-engine-management-tabs.
 | `US-04 / AC-01` | `test/engine-storage.test.js` - `GET /api/engines/:engine/storage returns current path` | Passed (`GET /api/engines/:engine/storage returns current storage path`) |
 | `US-04 / AC-02` | `test/engine-storage.test.js` - `POST /api/engines/:engine/storage updates directory and flags restart` | Passed (`LM Studio setModelsDir updates settings.json downloadsFolder`) |
 | `US-04 / AC-03` | `test/engine-storage.test.js` - `POST /api/engines/:engine/storage rejects invalid directory` | Passed (`POST /api/engines/:engine/storage rejects missing path`) |
-| `US-05 / AC-01` | `test/web-engine-panels.test.js` - `renders active models table with unload trigger` | Pending approval |
-| `US-05 / AC-02` | `test/web-engine-panels.test.js` - `renders disk models table with load, tune, delete` | Pending approval |
-| `US-05 / AC-03` | `test/i18n.test.js` - `all engineMgmt keys exist in en and es` | Pending approval |
-| Regression Risk: Wizard load flow | `test/core.test.js` & `test/tuner.test.js` - `existing tuner load wizard remains unaffected` | Pending approval |
+| `US-05 / AC-01` | `test/web-engine-panels.test.js` - `renders active models table with unload trigger` | Passed (`setupEngineDashboard initializes and fetches status, ps, models, and storage`) |
+| `US-05 / AC-02` | `test/web-engine-panels.test.js` - `renders disk models table with load, tune, delete` | Passed (`setupEngineDashboard renders disk models with load, tune, delete`) |
+| `US-05 / AC-03` | `test/i18n.test.js` - `all engineMgmt keys exist in en and es` | Passed (`catalogs have the same keys and the same params per key`) |
+| Regression Risk: Wizard load flow | `test/core.test.js` & `test/tuner.test.js` - `existing tuner load wizard remains unaffected` | Passed (`512 tests passed, 0 failed`) |

@@ -1,4 +1,5 @@
 import { createNavController } from './navigation.js';
+import { setupEngineDashboard } from './engine-management.js';
 import { setupServerSettings } from './server-settings.js';
 import { esc, hardwareGpuHtml, gpuHeadLabel, telemetryGpuHeaderHtml, telemetryMeterWidth, planRowHtml, loadSpeedHtml } from './markup.js';
 import { setupSharedHosting } from './shared-hosting.js';
@@ -317,6 +318,38 @@ async function boot() {
   ({ messages } = await api(`/api/i18n/${s.lang}`));
   document.documentElement.lang = s.lang;
   applyStatic();
+
+  const onTuneModel = (engineId, modelKey) => {
+    nav.select('tuner');
+    const eng = state.engines.find((e) => e.id === engineId);
+    if (eng) chooseEngine(eng);
+    setTimeout(() => {
+      const sel = $('#model');
+      if (sel) {
+        sel.value = modelKey;
+        sel.dispatchEvent(new Event('change'));
+      }
+    }, 200);
+  };
+
+  const ollamaDashboard = setupEngineDashboard({
+    engineId: 'ollama',
+    container: $('#view-ollama'),
+    api,
+    t,
+    esc,
+    onTuneModel,
+  });
+
+  const lmstudioDashboard = setupEngineDashboard({
+    engineId: 'lmstudio',
+    container: $('#view-lmstudio'),
+    api,
+    t,
+    esc,
+    onTuneModel,
+  });
+
   const nav = createNavController({
     tabs: Array.from(document.querySelectorAll('#primary-nav .nav-tab')),
     views: {
@@ -326,6 +359,18 @@ async function boot() {
     },
     onTabChange: (tab) => {
       window.dispatchEvent(new CustomEvent('nav-tab-change', { detail: { tab } }));
+      if (tab === 'ollama') {
+        ollamaDashboard.refresh();
+        ollamaDashboard.startPolling();
+        lmstudioDashboard.stopPolling();
+      } else if (tab === 'lmstudio') {
+        lmstudioDashboard.refresh();
+        lmstudioDashboard.startPolling();
+        ollamaDashboard.stopPolling();
+      } else {
+        ollamaDashboard.stopPolling();
+        lmstudioDashboard.stopPolling();
+      }
     }
   });
   window.__nav = nav;
