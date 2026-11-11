@@ -84,6 +84,8 @@ export default {
 
   // Errors
   'errors.unknownEngine': 'Unknown engine: {engine}',
+  'errors.missingModelName': 'A model name is required',
+  'errors.missingStoragePath': 'A storage directory path is required',
   'errors.noConfigWorked': 'No configuration worked with this context. Try a smaller one.',
   'errors.ggufNotFound': 'Cannot find the GGUF file for {key}',
   'errors.lmstudioOpen': 'LM Studio is open; close it before applying the configuration.',

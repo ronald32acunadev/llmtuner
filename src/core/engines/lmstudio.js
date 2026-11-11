@@ -82,6 +82,79 @@ export const lmstudio = {
       .sort((a, b) => (a.sizeBytes ?? 0) - (b.sizeBytes ?? 0) || (a.name || '').localeCompare(b.name || ''));
   },
 
+  async ps(ctx) {
+    const url = apiUrl();
+    const server = await fetchJson(`${url}/api/v0/models`, { timeout: 2000 });
+    if (server?.ok && Array.isArray(server.json?.data)) {
+      return server.json.data
+        .filter((m) => m.state === 'loaded')
+        .map((m) => ({
+          name: m.id,
+          model: m.id,
+          sizeBytes: null,
+          sizeVram: null,
+          arch: m.arch,
+          quant: m.quantization,
+          loadedContextLength: m.loaded_context_length,
+          expiresAt: null,
+        }));
+    }
+    if (ctx.detection?.bin) {
+      const r = await run(ctx.detection.bin, ['ps', '--json']);
+      if (r.code === 0) {
+        try {
+          const list = JSON.parse(r.stdout);
+          return (Array.isArray(list) ? list : []).map((m) => ({
+            name: m.identifier || m.id || m.modelKey,
+            model: m.identifier || m.id || m.modelKey,
+            sizeBytes: m.sizeBytes ?? null,
+            sizeVram: m.sizeVram ?? null,
+            arch: m.architecture,
+            quant: m.quantization,
+            loadedContextLength: m.contextLength,
+            expiresAt: null,
+          }));
+        } catch { /* parse error */ }
+      }
+    }
+    return [];
+  },
+
+  async unload(ctx, model) {
+    if (!model) throw new TunerError('errors.missingModelName');
+    if (ctx.detection?.bin) {
+      const r = await run(ctx.detection.bin, ['unload', model]);
+      return { ok: r.code === 0, unloaded: model };
+    }
+    const url = apiUrl();
+    const r = await fetchJson(`${url}/api/v0/models/unload`, {
+      method: 'POST',
+      body: { model },
+      timeout: 10000,
+    });
+    return { ok: !!r?.ok, unloaded: model };
+  },
+
+  async deleteModel(ctx, model) {
+    if (!model) throw new TunerError('errors.missingModelName');
+    if (ctx.detection?.bin) {
+      const r = await run(ctx.detection.bin, ['delete', model]);
+      return { ok: r.code === 0, deleted: model };
+    }
+    return { ok: false, error: 'lms CLI required to delete models' };
+  },
+
+  async setModelsDir(ctx, newPath) {
+    if (!newPath) throw new TunerError('errors.missingStoragePath');
+    const targetDir = path.resolve(newPath);
+    const home = ctx.detection?.home || await lmsHome();
+    const settingsPath = path.join(home, 'settings.json');
+    const settings = await readJson(settingsPath, {});
+    settings.downloadsFolder = targetDir;
+    await writeJsonWithBackup(settingsPath, settings);
+    return { ok: true, path: targetDir, requiresRestart: false };
+  },
+
   /** Resolve the GGUF file behind a model key using LM Studio's model index. */
   async resolveModelFile(ctx, key) {
     const home = ctx.detection.home;

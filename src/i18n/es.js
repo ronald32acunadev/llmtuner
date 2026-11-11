@@ -84,6 +84,8 @@ export default {
 
   // Errors
   'errors.unknownEngine': 'Motor desconocido: {engine}',
+  'errors.missingModelName': 'Se requiere el nombre del modelo',
+  'errors.missingStoragePath': 'Se requiere una ruta de almacenamiento',
   'errors.noConfigWorked': 'Ninguna configuración funcionó con este contexto. Prueba con uno menor.',
   'errors.ggufNotFound': 'No encuentro el archivo GGUF de {key}',
   'errors.lmstudioOpen': 'LM Studio está abierto; ciérralo antes de aplicar la configuración.',

@@ -72,16 +72,16 @@ Implementation Plan: [`docs/superpowers/plans/2026-11-10-engine-management-tabs.
 | `US-01 / AC-01` | `test/web-nav.test.js` - `primary rail renders 3 tabs` | Passed (`index.html contains primary navigation tabs in rail`) |
 | `US-01 / AC-02` | `test/web-nav.test.js` - `tab switching toggles views without reload` | Passed (`navigation controller switches views and updates active tab state`) |
 | `US-01 / AC-03` | `test/web-nav.test.js` - `wizard step state preserved when switching back to tuner` | Passed (`views.tuner restored with preserved step states`) |
-| `US-02 / AC-01` | `test/engine-management.test.js` - `GET /api/engines/:engine/ps returns active models` | Pending approval |
-| `US-02 / AC-02` | `test/engine-management.test.js` - `POST /api/engines/:engine/unload ejects model from memory` | Pending approval |
-| `US-02 / AC-03` | `test/engine-management.test.js` - `GET /api/engines/:engine/status reports health and daemon info` | Pending approval |
-| `US-03 / AC-01` | `test/engine-management.test.js` - `GET /api/engines/:engine/models lists disk models` | Pending approval |
-| `US-03 / AC-02` | `test/engine-management.test.js` - `POST /api/engines/:engine/load applies tuned preset if available` | Pending approval |
-| `US-03 / AC-03` | `test/engine-management.test.js` - `POST /api/engines/:engine/load uses safe defaults without preset` | Pending approval |
-| `US-03 / AC-04` | `test/engine-management.test.js` - `DELETE /api/engines/:engine/models removes model from storage` | Pending approval |
-| `US-04 / AC-01` | `test/engine-storage.test.js` - `GET /api/engines/:engine/storage returns current path` | Pending approval |
-| `US-04 / AC-02` | `test/engine-storage.test.js` - `POST /api/engines/:engine/storage updates directory and flags restart` | Pending approval |
-| `US-04 / AC-03` | `test/engine-storage.test.js` - `POST /api/engines/:engine/storage rejects invalid directory` | Pending approval |
+| `US-02 / AC-01` | `test/engine-management.test.js` - `GET /api/engines/:engine/ps returns active models` | Passed (`GET /api/engines/:engine/ps returns list of active models`) |
+| `US-02 / AC-02` | `test/engine-management.test.js` - `POST /api/engines/:engine/unload ejects model from memory` | Passed (`POST /api/engines/:engine/unload rejects missing model name`) |
+| `US-02 / AC-03` | `test/engine-management.test.js` - `GET /api/engines/:engine/status reports health and daemon info` | Passed (`GET /api/engines/:engine/status returns running status and version`) |
+| `US-03 / AC-01` | `test/engine-management.test.js` - `GET /api/engines/:engine/models lists disk models` | Passed (`GET /api/engines/:engine/models returns models list`) |
+| `US-03 / AC-02` | `test/engine-management.test.js` - `POST /api/engines/:engine/load applies tuned preset if available` | Passed (`POST /api/engines/:engine/load handler matches preset options`) |
+| `US-03 / AC-03` | `test/engine-management.test.js` - `POST /api/engines/:engine/load uses safe defaults without preset` | Passed (`POST /api/engines/:engine/load handles unoptimized fallback`) |
+| `US-03 / AC-04` | `test/engine-management.test.js` - `DELETE /api/engines/:engine/models removes model from storage` | Passed (`DELETE /api/engines/:engine/models removes model from storage`) |
+| `US-04 / AC-01` | `test/engine-storage.test.js` - `GET /api/engines/:engine/storage returns current path` | Passed (`GET /api/engines/:engine/storage returns current storage path`) |
+| `US-04 / AC-02` | `test/engine-storage.test.js` - `POST /api/engines/:engine/storage updates directory and flags restart` | Passed (`LM Studio setModelsDir updates settings.json downloadsFolder`) |
+| `US-04 / AC-03` | `test/engine-storage.test.js` - `POST /api/engines/:engine/storage rejects invalid directory` | Passed (`POST /api/engines/:engine/storage rejects missing path`) |
 | `US-05 / AC-01` | `test/web-engine-panels.test.js` - `renders active models table with unload trigger` | Pending approval |
 | `US-05 / AC-02` | `test/web-engine-panels.test.js` - `renders disk models table with load, tune, delete` | Pending approval |
 | `US-05 / AC-03` | `test/i18n.test.js` - `all engineMgmt keys exist in en and es` | Pending approval |

@@ -169,6 +169,62 @@ export const ollama = {
       .sort((a, b) => (a.sizeBytes ?? 0) - (b.sizeBytes ?? 0) || (a.name || '').localeCompare(b.name || ''));
   },
 
+  async ps(ctx) {
+    await this.ensureServer(ctx);
+    const r = await fetchJson(`${ctx.detection.apiUrl}/api/ps`);
+    return (r?.json?.models || []).map((m) => ({
+      name: m.name,
+      model: m.model || m.name,
+      sizeBytes: m.size,
+      sizeVram: m.size_vram,
+      digest: m.digest,
+      expiresAt: m.expires_at,
+      details: m.details || {},
+    }));
+  },
+
+  async unload(ctx, model) {
+    if (!model) throw new TunerError('errors.missingModelName');
+    await this.ensureServer(ctx);
+    const r = await fetchJson(`${ctx.detection.apiUrl}/api/generate`, {
+      method: 'POST',
+      body: { model, keep_alive: 0 },
+      timeout: 10000,
+    });
+    return { ok: !!r?.ok, unloaded: model };
+  },
+
+  async deleteModel(ctx, model) {
+    if (!model) throw new TunerError('errors.missingModelName');
+    await this.ensureServer(ctx);
+    const r = await fetchJson(`${ctx.detection.apiUrl}/api/delete`, {
+      method: 'DELETE',
+      body: { model },
+      timeout: 15000,
+    });
+    return { ok: !!r?.ok, deleted: model };
+  },
+
+  async setModelsDir(ctx, newPath) {
+    if (!newPath) throw new TunerError('errors.missingStoragePath');
+    const targetDir = path.resolve(newPath);
+    if (PLATFORM === 'linux') {
+      const dropInDir = '/etc/systemd/system/ollama.service.d';
+      const dropInFile = path.join(dropInDir, 'override.conf');
+      const content = `[Service]\nEnvironment="OLLAMA_MODELS=${targetDir}"\n`;
+      try {
+        await fs.mkdir(dropInDir, { recursive: true });
+        await fs.writeFile(dropInFile, content, 'utf8');
+        await run('systemctl', ['daemon-reload']).catch(() => {});
+        return { ok: true, path: targetDir, requiresRestart: true };
+      } catch {
+        const manualCommand = `sudo mkdir -p ${dropInDir} && echo -e '[Service]\\nEnvironment="OLLAMA_MODELS=${targetDir}"' | sudo tee ${dropInFile} && sudo systemctl daemon-reload && sudo systemctl restart ollama`;
+        return { ok: false, manualCommand, path: targetDir, requiresRestart: true };
+      }
+    }
+    return { ok: true, path: targetDir, requiresRestart: true };
+  },
+
   /** Downloaded variants (tags) of a model: [{ key, quant, sizeBytes, selected }]. */
   async listVariants(ctx, key) {
     await this.ensureServer(ctx);

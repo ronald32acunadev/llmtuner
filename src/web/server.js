@@ -428,6 +428,85 @@ async function handler(req, res, options = {}) {
       });
       return;
     }
+
+    const engineRoute = url.pathname.match(/^\/api\/engines\/([\w-]+)\/(status|ps|unload|load|models|storage)$/);
+    if (engineRoute) {
+      const [, engineId, action] = engineRoute;
+      const engineObj = ENGINES[engineId];
+      if (!engineObj) throw new TunerError('errors.unknownEngine', { engine: engineId });
+      const hw = await detectHardware();
+      const detection = await engineObj.detect(hw);
+      const ctx = { detection, hw };
+
+      if (req.method === 'GET' && action === 'status') {
+        return send(res, 200, {
+          engine: engineId,
+          name: engineObj.name,
+          running: !!(detection.serverRunning || detection.appRunning),
+          version: detection.version,
+          apiUrl: detection.apiUrl,
+          modelsDir: detection.modelsDir || detection.home || null,
+          systemd: !!detection.systemd,
+          bin: detection.bin,
+        });
+      }
+
+      if (req.method === 'GET' && action === 'ps') {
+        const models = typeof engineObj.ps === 'function' ? await engineObj.ps(ctx) : [];
+        return send(res, 200, { engine: engineId, models });
+      }
+
+      if (req.method === 'POST' && action === 'unload') {
+        if (busy) throw new TunerError('errors.loadInProgress');
+        const payload = await body(req);
+        if (!payload?.model) throw new TunerError('errors.missingModelName');
+        const result = typeof engineObj.unload === 'function' ? await engineObj.unload(ctx, payload.model) : { ok: false };
+        return send(res, 200, result);
+      }
+
+      if (req.method === 'GET' && action === 'models') {
+        const tuner = await Tuner.create(engineId);
+        return send(res, 200, { engine: engineId, models: await tuner.listModels() });
+      }
+
+      if (req.method === 'POST' && action === 'load') {
+        if (busy) throw new TunerError('errors.loadInProgress');
+        const payload = await body(req);
+        if (!payload?.model) throw new TunerError('errors.missingModelName');
+        const tuner = await Tuner.create(engineId);
+        const presets = await listPresets({ engine: engineId, modelKey: payload.model });
+        const preset = presets[0];
+        const ctxVal = payload.ctx || preset?.context || 8192;
+        const profile = payload.profile || preset?.profile || 'balanced';
+        const loadOpts = { force: false, maxCandidates: 1, dryRun: false, profile };
+        const outcome = await tuner.load(payload.model, ctxVal, () => {}, loadOpts);
+        return send(res, 200, { ok: true, loaded: outcome });
+      }
+
+      if (req.method === 'DELETE' && action === 'models') {
+        if (busy) throw new TunerError('errors.loadInProgress');
+        const payload = await body(req);
+        if (!payload?.model) throw new TunerError('errors.missingModelName');
+        const result = typeof engineObj.deleteModel === 'function' ? await engineObj.deleteModel(ctx, payload.model) : { ok: false };
+        return send(res, 200, result);
+      }
+
+      if (req.method === 'GET' && action === 'storage') {
+        const modelsDir = detection.modelsDir || detection.home || null;
+        return send(res, 200, { engine: engineId, modelsDir, canEdit: true });
+      }
+
+      if (req.method === 'POST' && action === 'storage') {
+        const payload = await body(req);
+        if (!payload?.path) throw new TunerError('errors.missingStoragePath');
+        if (typeof engineObj.setModelsDir === 'function') {
+          const result = await engineObj.setModelsDir(ctx, payload.path);
+          return send(res, 200, result);
+        }
+        return send(res, 200, { ok: true, path: payload.path, requiresRestart: true });
+      }
+    }
+
     const route = routes[`${req.method} ${url.pathname}`];
     if (route) return send(res, 200, await route(req, url, { ...options, isRemote }));
 
