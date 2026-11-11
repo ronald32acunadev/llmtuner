@@ -1,3 +1,4 @@
+import { createNavController } from './navigation.js';
 import { setupServerSettings } from './server-settings.js';
 import { esc, hardwareGpuHtml, gpuHeadLabel, telemetryGpuHeaderHtml, telemetryMeterWidth, planRowHtml, loadSpeedHtml } from './markup.js';
 import { setupSharedHosting } from './shared-hosting.js';
@@ -316,6 +317,18 @@ async function boot() {
   ({ messages } = await api(`/api/i18n/${s.lang}`));
   document.documentElement.lang = s.lang;
   applyStatic();
+  const nav = createNavController({
+    tabs: Array.from(document.querySelectorAll('#primary-nav .nav-tab')),
+    views: {
+      tuner: $('#view-tuner'),
+      ollama: $('#view-ollama'),
+      lmstudio: $('#view-lmstudio'),
+    },
+    onTabChange: (tab) => {
+      window.dispatchEvent(new CustomEvent('nav-tab-change', { detail: { tab } }));
+    }
+  });
+  window.__nav = nav;
   setupDrawer('settings');
   await setupServerSettings({ document, bridge: window.llmTunerServer, t });
   await setupSharedHosting({ document, bridge: window.llmTunerServer, t });
