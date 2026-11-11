@@ -2,6 +2,9 @@ import { select } from '@inquirer/prompts';
 import { readSettings, writeSettings, THEMES, PROFILES, CURRENT_VERSION } from '../core/index.js';
 import { t as translate, LOCALES, errorText } from '../i18n/index.js';
 import { loadCommand } from './commands/load.js';
+import { psCommand } from './commands/ps.js';
+import { unloadCommand } from './commands/unload.js';
+import { enginesCommand } from './commands/engines.js';
 import { mcpCommand } from './commands/mcp.js';
 import { chatCommand } from './commands/chat.js';
 import { presetsCommand } from './commands/presets.js';
@@ -22,6 +25,21 @@ export function parseCliArgs(argv) {
     // Slash commands or positional aliases
     if (a === '/load' || a === 'load') {
       command = 'load';
+      continue;
+    }
+    if (a === '/ps' || a === 'ps') {
+      command = 'ps';
+      continue;
+    }
+    if (a === '/unload' || a === 'unload') {
+      command = 'unload';
+      if (argv[i + 1] && !argv[i + 1].startsWith('-') && !argv[i + 1].startsWith('/')) {
+        args.model = argv[++i];
+      }
+      continue;
+    }
+    if (a === '/engines' || a === 'engines') {
+      command = 'engines';
       continue;
     }
     if (a === '/mcp' || a === 'mcp') {
@@ -174,6 +192,21 @@ export async function routeCli(argv, env = {}) {
     return 0;
   }
 
+  if (command === 'ps') {
+    await psCommand(args, { lang, theme });
+    return 0;
+  }
+
+  if (command === 'unload') {
+    await unloadCommand(args, { lang, theme });
+    return 0;
+  }
+
+  if (command === 'engines') {
+    await enginesCommand(args, { lang, theme });
+    return 0;
+  }
+
   // Interactive menu mode when run bare (persistent loop until /exit)
   if (command === 'menu') {
     const isInteractive = process.stdin.isTTY || env.forceInteractive;
@@ -194,6 +227,9 @@ export async function routeCli(argv, env = {}) {
           message: activeT('cli.menuTitle'),
           choices: [
             { name: `/load     ${activeT('cli.cmdLoadDesc')}`, value: 'load' },
+            { name: `/ps       ${activeT('cli.cmdPsDesc')}`, value: 'ps' },
+            { name: `/unload   ${activeT('cli.cmdUnloadDesc')}`, value: 'unload' },
+            { name: `/engines  ${activeT('cli.cmdEnginesDesc')}`, value: 'engines' },
             { name: `/chat     ${activeT('cli.cmdChatDesc')}`, value: 'chat' },
             { name: `/mcp      ${activeT('cli.cmdMcpDesc')}`, value: 'mcp' },
             { name: `/presets  ${activeT('cli.cmdPresetsDesc')}`, value: 'presets' },
@@ -218,6 +254,15 @@ export async function routeCli(argv, env = {}) {
         switch (selectedCommand) {
           case 'load':
             await loadCommand(args, { lang: currentLang, theme: currentTheme });
+            break;
+          case 'ps':
+            await psCommand(args, { lang: currentLang, theme: currentTheme });
+            break;
+          case 'unload':
+            await unloadCommand(args, { lang: currentLang, theme: currentTheme });
+            break;
+          case 'engines':
+            await enginesCommand(args, { lang: currentLang, theme: currentTheme });
             break;
           case 'chat':
             await chatCommand(args, { lang: currentLang, theme: currentTheme });

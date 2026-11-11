@@ -5,6 +5,13 @@ import { parseCliArgs } from '../src/cli/router.js';
 test('parseCliArgs - slash commands', () => {
   assert.equal(parseCliArgs(['/load']).command, 'load');
   assert.equal(parseCliArgs(['load']).command, 'load');
+  assert.equal(parseCliArgs(['/ps']).command, 'ps');
+  assert.equal(parseCliArgs(['ps']).command, 'ps');
+  assert.equal(parseCliArgs(['/unload', 'llama3']).command, 'unload');
+  assert.equal(parseCliArgs(['/unload', 'llama3']).model, 'llama3');
+  assert.equal(parseCliArgs(['unload']).command, 'unload');
+  assert.equal(parseCliArgs(['/engines']).command, 'engines');
+  assert.equal(parseCliArgs(['engines']).command, 'engines');
   assert.equal(parseCliArgs(['/mcp']).command, 'mcp');
   assert.equal(parseCliArgs(['mcp']).command, 'mcp');
   assert.equal(parseCliArgs(['/presets']).command, 'presets');

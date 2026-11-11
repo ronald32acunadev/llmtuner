@@ -162,6 +162,9 @@ Uso: llm-tuner [comando] [opciones]
 
 Comandos:
   /load                        En el equipo activo, elegir un motor y modelo, y ajustarlo y cargarlo
+  /ps                          Ver modelos cargados en memoria (VRAM)
+  /unload [modelo]             Expulsar un modelo de la memoria para liberar VRAM
+  /engines                     Auditar motores y configurar rutas de guardado
   /chat                        Probar un modelo cargado con una conversación
   /mcp                         Conectar un motor local con agentes de IA como servidor MCP
   /presets                     Ver presets de configuración guardados
@@ -213,6 +216,16 @@ Los presets se guardan en {presetsDir}`,
   'cli.langNotSaved': 'No se pudo guardar la preferencia de idioma: {error}',
   'cli.themeNotSaved': 'No se pudo guardar la preferencia de tema: {error}',
   'cli.noPresets': 'No hay presets guardados.',
+  'cli.noActiveModels': 'No hay modelos cargados en memoria actualmente (VRAM libre).',
+  'cli.cmdPsDesc': 'Ver modelos cargados en memoria (VRAM)',
+  'cli.cmdUnloadDesc': 'Expulsar un modelo de la memoria para liberar VRAM',
+  'cli.cmdEnginesDesc': 'Gestionar motores locales y rutas de almacenamiento',
+  'cli.selectModelToUnload': 'Seleccioná el modelo a descargar de la memoria:',
+  'cli.modelUnloadedSuccess': 'El modelo {model} fue expulsado exitosamente de {engine}.',
+  'cli.modelNotFound': 'No se encontró el modelo {model} en ejecución en ningún motor.',
+  'cli.storagePathTitle': 'Ruta de almacenamiento de {engine}: {path}',
+  'cli.storagePathUpdated': 'Ruta de almacenamiento actualizada a: {path}',
+  'cli.restartRequiredNotice': 'Reiniciá el servicio de {engine} para que los cambios surtan efecto.',
   'cli.partial': 'parcial',
   'cli.display': ' · pantalla',
   'cli.noGpu': 'Sin GPU compatible: se usará solo CPU.',

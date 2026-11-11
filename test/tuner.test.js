@@ -153,7 +153,9 @@ function setup({ engine = 'fake', variantSelect = true, variants = [], failFullO
   state.hwAfterPrepare = hwAfterPrepare;
   const tuner = new Tuner(engine, { installed: true }, hw);
   pinHardware(tuner);
-  tuner.on('progress', (e) => events.push(e));
+  tuner.on('progress', (e) => {
+    if (e.type !== 'telemetry') events.push(e);
+  });
   return tuner;
 }
 

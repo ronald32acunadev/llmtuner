@@ -162,6 +162,9 @@ Usage: llm-tuner [command] [options]
 
 Commands:
   /load                        Choose an engine and model on the active computer, then tune and load it
+  /ps                          View models currently loaded in memory (VRAM)
+  /unload [model]              Eject a model from memory to free VRAM
+  /engines                     Inspect engines and configure model storage paths
   /chat                        Test a loaded model with a conversation
   /mcp                         Connect a local engine to AI coding agents as an MCP server
   /presets                     View saved tuning presets
@@ -213,6 +216,16 @@ Presets are saved in {presetsDir}`,
   'cli.langNotSaved': 'Could not save the language preference: {error}',
   'cli.themeNotSaved': 'Could not save the theme preference: {error}',
   'cli.noPresets': 'No saved presets.',
+  'cli.noActiveModels': 'No models currently loaded in memory (VRAM free).',
+  'cli.cmdPsDesc': 'View models currently loaded in memory (VRAM)',
+  'cli.cmdUnloadDesc': 'Eject a model from memory to free VRAM',
+  'cli.cmdEnginesDesc': 'Manage local engines and storage paths',
+  'cli.selectModelToUnload': 'Select a model to unload from memory:',
+  'cli.modelUnloadedSuccess': 'Model {model} was successfully unloaded from {engine}.',
+  'cli.modelNotFound': 'Model {model} was not found running in any engine.',
+  'cli.storagePathTitle': 'Storage path for {engine}: {path}',
+  'cli.storagePathUpdated': 'Storage path updated to: {path}',
+  'cli.restartRequiredNotice': 'Please restart the {engine} service for changes to take effect.',
   'cli.partial': 'partial',
   'cli.display': ' · display',
   'cli.noGpu': 'No compatible GPU: only the CPU will be used.',
