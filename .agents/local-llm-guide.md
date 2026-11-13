@@ -17,43 +17,6 @@ Prompt and answer share the 32k window. Estimate 1 token per 4 characters of Eng
 
 About 16,000 tokens of answer is a file of roughly 600-800 lines; aim for half that. If the existing code alone is over 8,000 tokens, send signatures and docstrings of what the change calls, not whole files.
 
-## Build the dictionary first
-
-Local models are not experts and cannot browse. Their quality depends on what the agent sends, so any agent with internet access prepares the facts before asking for code.
-
-1. Read the exact version from the lockfile and the runtime.
-2. Fetch the official docs for that version (Context7, the project's docs site, then the installed type definitions).
-3. Save a curated entry to `.context/<library>@<version>.md`, using `.agents/context-dictionary-template.md`. Commit it: the dictionary is shared by every agent and must survive clean checkouts.
-4. Paste only the relevant sections into each request.
-5. When the model gets something wrong, add the wrong form to the entry as `WRONG: ...`, and add a rule to `.agents/local-llm-prompt-rules.md` if it applies beyond one library.
-
-## Ladder when an answer is wrong
-
-Improve the instructions before changing implementer. Each step costs seconds; a hosted fallback costs far more and teaches the local route nothing.
-
-1. **Behavior spec**: signatures, inputs, outputs, exact values. Enough for simple modules.
-2. **Dictionary sections**: the verified API forms and wrong forms for what the task touches.
-3. **Verbatim helpers**: the exact signature and return value of every helper a test or module calls. Models guess whatever you omit.
-4. **Skeleton with TODOs**: the complete file, with only the missing lines marked `// TODO: ...`. This fixes almost everything else, including patterns the model misuses.
-5. **Hosted fallback**: only after a focused correction also fails, as the provider order below says.
-
-Keep these request shapes reliable:
-
-- Ask for exactly one fenced code block. Do not nest fences inside a multi-block answer: the model may echo the request instead of answering. Send one block per request.
-- Wrap each call in a timeout (`timeout 180 python3 scripts/ask_local_llm.py ...`): a looping model otherwise runs until the script's own limit. A stuck request is a reason to tighten the prompt, not to wait.
-- Copy mechanical fixes yourself (a rename, a fixed import, one wrong expected value). Send logic back to the model.
-
-## Trust nothing because it passes
-
-A model can encode its own bug in its own test. One answer resolved a confirmation immediately, and its test awaited that result before answering, so everything passed while the guard was gone.
-
-- Review logic against the contract, not only the test status.
-- Observe RED by applying the test before the implementation.
-- Read the test for what it proves: an assertion before the action, or a count checked before the call, proves nothing.
-- Run the suite and read its result before committing. Never chain a commit after a test command in the same shell line.
-- Run tests with a timeout: an unmocked prompt or an open server hangs the whole suite.
-- Before writing a platform fact into a rule, check it in the docs. Assumptions from memory are often out of date.
-
 ## One request, one unit
 
 - Start only after the user approves the complete backlog and chooses all stories or one at a time. Include the current story ID and acceptance criteria in each request; a story may require several bounded requests.
@@ -77,10 +40,6 @@ USER
   - API: <signatures used>
   - Use <new>, not <old>; do NOT use <removed APIs>
   - Existing usage: <verbatim call site>
-  - Wrong forms: <WRONG entries from the dictionary>
-
-## Existing helpers
-<exact signature and return value of each helper the code calls>
 
 ## Task
 <approved story ID, acceptance criteria, dependencies, and execution mode>
