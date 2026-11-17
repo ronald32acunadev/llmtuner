@@ -513,7 +513,7 @@ async function handler(req, res, options = {}) {
         const payload = await body(req);
         if (!payload?.path) throw new TunerError('errors.missingStoragePath');
         if (typeof engineObj.setModelsDir === 'function') {
-          const result = await engineObj.setModelsDir(ctx, payload.path);
+          const result = await engineObj.setModelsDir(ctx, payload.path, { password: payload.password });
           return send(res, 200, result);
         }
         return send(res, 200, { ok: true, path: payload.path, requiresRestart: true });

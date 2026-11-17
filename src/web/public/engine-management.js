@@ -20,6 +20,7 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
   let busy = false;
   let pollTimer = null;
   let loadNotice = '';
+  let storageNoticeHtml = '';
 
   const refresh = async () => {
     if (busy) return;
@@ -200,7 +201,7 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
         <input type="text" name="path" style="flex-grow:1;min-width:240px;padding:6px 10px;font-family:monospace" value="${esc(storagePath)}" ${canEdit ? '' : 'disabled'} required>
         <button class="btn secondary" type="submit" ${canEdit ? '' : 'disabled'}>${esc(t('web.saveStoragePath'))}</button>
       </form>
-      <div id="storage-notice" style="margin-top:8px"></div>
+      <div id="storage-notice" style="margin-top:8px">${storageNoticeHtml}</div>
     `;
     container.appendChild(storageSection);
 
@@ -267,37 +268,85 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
     });
 
     const storageForm = storageSection.querySelector('#storage-form');
+    const noticeDiv = storageSection.querySelector('#storage-notice');
+
+    async function renderStorageResult(res, currentPath) {
+      noticeDiv.innerHTML = '';
+      if (res?.restarted) {
+        storageNoticeHtml = `<p class="notice">${esc(t('web.storageUpdatedAndRestarted'))}</p>`;
+        noticeDiv.innerHTML = storageNoticeHtml;
+        await refresh();
+        return;
+      }
+
+      if (res?.ok) {
+        if (res.requiresRestart) {
+          const p = document.createElement('p');
+          p.className = 'notice';
+          p.textContent = t('web.pathUpdatedRestartNotice');
+          noticeDiv.appendChild(p);
+        }
+      } else if (res?.requiresPassword) {
+        const wrap = document.createElement('div');
+        wrap.className = 'notice warn';
+        wrap.style.marginTop = '8px';
+        wrap.innerHTML = `
+          <p style="margin-bottom:8px">${esc(t('web.enterSudoPassword'))}</p>
+          <form id="sudo-form" class="row wrap" style="gap:8px;align-items:center">
+            <input type="password" name="sudoPassword" style="flex-grow:1;max-width:240px;padding:6px 10px;font-family:monospace" placeholder="sudo password" required autocomplete="current-password">
+            <button type="submit" class="btn primary">${esc(t('web.confirmSudo'))}</button>
+          </form>
+        `;
+        noticeDiv.appendChild(wrap);
+
+        const sudoForm = wrap.querySelector('#sudo-form');
+        sudoForm.addEventListener('submit', async (ev) => {
+          ev.preventDefault();
+          const passInput = sudoForm.querySelector('input[name="sudoPassword"]');
+          const passwordVal = passInput?.value || '';
+          if (passInput) passInput.value = '';
+          noticeDiv.innerHTML = `<p class="notice">${esc(t('web.readingModels'))}</p>`;
+          try {
+            const sudoRes = await api(`/api/engines/${engineId}/storage`, { path: currentPath, password: passwordVal });
+            await renderStorageResult(sudoRes, currentPath);
+          } catch (err) {
+            await renderStorageResult({ requiresPassword: true, error: err.message, manualCommand: res.manualCommand }, currentPath);
+          }
+        });
+      } else if (res?.manualCommand) {
+        const p = document.createElement('p');
+        p.className = 'notice warn';
+        p.textContent = t('web.storagePrivilegedNotice');
+        noticeDiv.appendChild(p);
+
+        const pre = document.createElement('pre');
+        pre.className = 'log';
+        pre.textContent = res.manualCommand;
+        noticeDiv.appendChild(pre);
+      }
+
+      if (res?.error) {
+        const errP = document.createElement('p');
+        errP.className = 'notice warn';
+        errP.textContent = esc(res.error);
+        noticeDiv.appendChild(errP);
+      }
+
+      if (res?.warning) {
+        const p = document.createElement('p');
+        p.className = 'notice warn';
+        p.textContent = t(res.warning.replace(/^cli\./, 'web.'), { path: res.path || currentPath });
+        noticeDiv.appendChild(p);
+      }
+    }
+
     storageForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const input = storageForm.querySelector('input[name="path"]');
-      const noticeDiv = storageSection.querySelector('#storage-notice');
       noticeDiv.innerHTML = '';
       try {
         const res = await api(`/api/engines/${engineId}/storage`, { path: input.value });
-        if (res?.ok) {
-          if (res.requiresRestart) {
-            const p = document.createElement('p');
-            p.className = 'notice';
-            p.textContent = t('web.pathUpdatedRestartNotice');
-            noticeDiv.appendChild(p);
-          }
-        } else if (res?.manualCommand) {
-          const p = document.createElement('p');
-          p.className = 'notice warn';
-          p.textContent = t('web.storagePrivilegedNotice');
-          noticeDiv.appendChild(p);
-
-          const pre = document.createElement('pre');
-          pre.className = 'log';
-          pre.textContent = res.manualCommand;
-          noticeDiv.appendChild(pre);
-        }
-        if (res?.warning) {
-          const p = document.createElement('p');
-          p.className = 'notice warn';
-          p.textContent = t(res.warning.replace(/^cli\./, 'web.'), { path: res.path || input.value });
-          noticeDiv.appendChild(p);
-        }
+        await renderStorageResult(res, input.value);
       } catch (err) {
         noticeDiv.innerHTML = `<p class="notice warn">${esc(err.message)}</p>`;
       }

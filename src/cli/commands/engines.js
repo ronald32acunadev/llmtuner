@@ -1,4 +1,4 @@
-import { select, input } from '@inquirer/prompts';
+import { select, input, password } from '@inquirer/prompts';
 import { withNav, isNavBack, backChoice } from '../nav.js';
 import { ENGINES, detectHardware } from '../../core/index.js';
 import { t as translate } from '../../i18n/index.js';
@@ -13,7 +13,8 @@ export async function enginesCommand(
     engines = ENGINES,
     detectHw = detectHardware,
     selectPrompt = select,
-    inputPrompt = input
+    inputPrompt = input,
+    passwordPrompt = password
   } = {}
 ) {
   const c = getColors(theme);
@@ -34,16 +35,27 @@ export async function enginesCommand(
     }
 
     const detection = await engine.detect(hw);
-    const res = typeof engine.setModelsDir === 'function'
+    let res = typeof engine.setModelsDir === 'function'
       ? await engine.setModelsDir({ detection, hw }, args.path)
       : { ok: true, path: args.path, requiresRestart: true };
+
+    if (res?.requiresPassword && !args.json && (process.stdin.isTTY || interactive) && typeof passwordPrompt === 'function') {
+      try {
+        const pwd = await passwordPrompt({ message: t('cli.enterSudoPassword') });
+        if (pwd) {
+          res = await engine.setModelsDir({ detection, hw }, args.path, { password: pwd });
+        }
+      } catch { /* cancelled */ }
+    }
 
     if (args.json) {
       console.log(JSON.stringify({ ok: res.ok, engine: targetEngine, ...res }));
       return res;
     }
 
-    if (res?.ok) {
+    if (res?.restarted) {
+      console.log(c.g(t('cli.storageUpdatedAndRestarted')));
+    } else if (res?.ok) {
       console.log(t('cli.storagePathUpdated', { path: res.path || args.path }));
       if (res.requiresRestart) {
         console.log(c.y(t('cli.restartRequiredNotice', { engine: engine.name || targetEngine })));
@@ -167,10 +179,22 @@ export async function enginesCommand(
 
         if (!isNavBack(newPath) && newPath?.trim()) {
           const trimmedPath = newPath.trim();
-          const res = typeof engine.setModelsDir === 'function'
+          let res = typeof engine.setModelsDir === 'function'
             ? await engine.setModelsDir({ detection, hw }, trimmedPath)
             : { ok: true, path: trimmedPath, requiresRestart: true };
-          if (res?.ok) {
+
+          if (res?.requiresPassword && (process.stdin.isTTY || interactive) && typeof passwordPrompt === 'function') {
+            try {
+              const pwd = await passwordPrompt({ message: t('cli.enterSudoPassword') });
+              if (pwd) {
+                res = await engine.setModelsDir({ detection, hw }, trimmedPath, { password: pwd });
+              }
+            } catch { /* cancelled */ }
+          }
+
+          if (res?.restarted) {
+            console.log(c.g(t('cli.storageUpdatedAndRestarted')));
+          } else if (res?.ok) {
             console.log(t('cli.storagePathUpdated', { path: res.path || trimmedPath }));
             if (res.requiresRestart) {
               console.log(c.y(t('cli.restartRequiredNotice', { engine: engine.name || pickedEngineId })));

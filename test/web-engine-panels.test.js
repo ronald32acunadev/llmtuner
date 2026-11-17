@@ -451,3 +451,56 @@ test('Storage panel renders privileged notice and omits restart notice when res.
   assert.ok(container.innerHTML.includes('web.storagePermissionWarning'), 'Must show permission warning');
   dashboard.stopPolling();
 });
+
+test('Storage panel renders sudo password prompt when requiresPassword is true and submits password', async () => {
+  const container = createMockElement('div');
+  const apiCalls = [];
+  const mockApi = async (path, body) => {
+    apiCalls.push({ path, body });
+    if (path.endsWith('/status')) return { name: 'Ollama', running: true };
+    if (path.endsWith('/ps')) return { models: [] };
+    if (path.endsWith('/models')) return { models: [] };
+    if (path.endsWith('/storage') && !body) return { modelsDir: '/test/models', canEdit: true };
+    if (path.endsWith('/storage') && body && !body.password) {
+      return { ok: false, requiresPassword: true };
+    }
+    if (path.endsWith('/storage') && body && body.password) {
+      return { ok: true, restarted: true, path: body.path };
+    }
+    return {};
+  };
+
+  const dashboard = setupEngineDashboard({
+    engineId: 'ollama',
+    container,
+    api: mockApi,
+    t: (k) => k,
+    esc: (s) => String(s),
+    onTuneModel: () => {}
+  });
+
+  await dashboard.refresh();
+
+  const form = container.querySelector('#storage-form');
+  const input = container.querySelector('input[name="path"]');
+  input.value = '/var/lib/ollama/models';
+  input.attributes['value'] = '/var/lib/ollama/models';
+  await form.dispatchEvent({ type: 'submit' });
+
+  assert.ok(container.innerHTML.includes('web.enterSudoPassword'), 'Must show sudo password prompt');
+  const sudoForm = container.querySelector('#sudo-form');
+  assert.ok(sudoForm, 'Must render #sudo-form');
+
+  const passInput = container.querySelector('input[name="sudoPassword"]');
+  assert.ok(passInput, 'Must render sudoPassword input');
+  passInput.value = 'mysecret';
+  passInput.attributes['value'] = 'mysecret';
+
+  await sudoForm.dispatchEvent({ type: 'submit' });
+
+  const privilegedCall = apiCalls.find((c) => c.path === '/api/engines/ollama/storage' && c.body?.password === 'mysecret');
+  assert.ok(privilegedCall, 'Must submit sudo password to storage API');
+  assert.strictEqual(privilegedCall.body.path, '/var/lib/ollama/models');
+  assert.ok(container.innerHTML.includes('web.storageUpdatedAndRestarted'), 'Must show success and restarted notice');
+  dashboard.stopPolling();
+});
