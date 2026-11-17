@@ -504,3 +504,91 @@ test('Storage panel renders sudo password prompt when requiresPassword is true a
   assert.ok(container.innerHTML.includes('web.storageUpdatedAndRestarted'), 'Must show success and restarted notice');
   dashboard.stopPolling();
 });
+
+test('Dashboard updates in-place across refreshes preserving element identity and filter input', async () => {
+  const container = createMockElement('div');
+  let pollCount = 0;
+  const mockApi = async (path) => {
+    if (path.endsWith('/status')) return { name: 'Ollama', running: true, version: `0.40.${pollCount}` };
+    if (path.endsWith('/ps')) return { models: [] };
+    if (path.endsWith('/models')) return { models: [{ name: 'llama3:8b', sizeBytes: 4 * 1024 ** 3 }] };
+    if (path.endsWith('/storage')) return { modelsDir: '/test/models', canEdit: true };
+    return {};
+  };
+
+  const dashboard = setupEngineDashboard({
+    engineId: 'ollama',
+    container,
+    api: mockApi,
+    t: (k) => k,
+    esc: (s) => String(s),
+    onTuneModel: () => {}
+  });
+
+  await dashboard.refresh();
+
+  const headerBefore = container.querySelector('header');
+  const filterInput = container.querySelector('#model-filter');
+  assert.ok(headerBefore, 'Header must exist');
+  assert.ok(filterInput, 'Filter input must exist');
+
+  filterInput.value = 'llama3';
+  filterInput.attributes['value'] = 'llama3';
+
+  pollCount++;
+  await dashboard.refresh();
+
+  const headerAfter = container.querySelector('header');
+  assert.strictEqual(headerBefore, headerAfter, 'Header element must be preserved in-place without container recreation');
+  assert.strictEqual(container.querySelector('#model-filter').value, 'llama3', 'Filter input value must be preserved across refreshes');
+  dashboard.stopPolling();
+});
+
+test('Storage input value and active sudo prompt are preserved during background refreshes', async () => {
+  const container = createMockElement('div');
+  const mockApi = async (path, body) => {
+    if (path.endsWith('/status')) return { name: 'Ollama', running: true };
+    if (path.endsWith('/ps')) return { models: [] };
+    if (path.endsWith('/models')) return { models: [] };
+    if (path.endsWith('/storage') && !body) return { modelsDir: '/original/path', canEdit: true };
+    if (path.endsWith('/storage') && body) return { ok: false, requiresPassword: true };
+    return {};
+  };
+
+  const dashboard = setupEngineDashboard({
+    engineId: 'ollama',
+    container,
+    api: mockApi,
+    t: (k) => k,
+    esc: (s) => String(s),
+    onTuneModel: () => {}
+  });
+
+  await dashboard.refresh();
+
+  const pathInput = container.querySelector('input[name="path"]');
+  assert.strictEqual(pathInput.value, '/original/path');
+
+  // User modifies path and focuses
+  pathInput.value = '/user/typed/path';
+  await pathInput.dispatchEvent({ type: 'focus' });
+  await pathInput.dispatchEvent({ type: 'input' });
+
+  // Background refresh occurs
+  await dashboard.refresh();
+
+  // Path must NOT be overwritten with /original/path
+  assert.strictEqual(pathInput.value, '/user/typed/path', 'Edited path input must NOT be overwritten on background refresh');
+
+  // User submits to trigger sudo prompt
+  const storageForm = container.querySelector('#storage-form');
+  await storageForm.dispatchEvent({ type: 'submit' });
+
+  assert.ok(container.querySelector('#sudo-form'), 'Sudo form must be rendered');
+
+  // Another background poll arrives while user is contemplating password
+  await dashboard.refresh();
+
+  assert.ok(container.querySelector('#sudo-form'), 'Sudo form must NOT be destroyed by background refresh');
+  dashboard.stopPolling();
+});
