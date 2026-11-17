@@ -407,6 +407,47 @@ test('Storage panel disables input when canEdit is false and submits path', asyn
   const storagePost = apiCalls.find((c) => c.path === '/api/engines/ollama/storage' && c.body);
   assert.ok(storagePost, 'Must submit storage path via api');
   assert.ok(container.innerHTML.includes('web.pathUpdatedRestartNotice'), 'Must show restart notice');
-  assert.ok(container.innerHTML.includes('systemctl restart ollama'), 'Must show manual command');
+  dashboard.stopPolling();
+});
+
+test('Storage panel renders privileged notice and omits restart notice when res.ok is false', async () => {
+  const container = createMockElement('div');
+  const mockApi = async (path, body) => {
+    if (path.endsWith('/status')) return { name: 'Ollama', running: true };
+    if (path.endsWith('/ps')) return { models: [] };
+    if (path.endsWith('/models')) return { models: [] };
+    if (path.endsWith('/storage') && !body) return { modelsDir: '/test/models', canEdit: true };
+    if (path.endsWith('/storage') && body) {
+      return {
+        ok: false,
+        requiresRestart: true,
+        manualCommand: 'sudo systemctl restart ollama',
+        warning: 'cli.storagePermissionWarning'
+      };
+    }
+    return {};
+  };
+
+  const dashboard = setupEngineDashboard({
+    engineId: 'ollama',
+    container,
+    api: mockApi,
+    t: (k) => k,
+    esc: (s) => String(s),
+    onTuneModel: () => {}
+  });
+
+  await dashboard.refresh();
+
+  const form = container.querySelector('#storage-form');
+  const input = container.querySelector('input[name="path"]');
+  input.value = '/home/user/models';
+  input.attributes['value'] = '/home/user/models';
+  await form.dispatchEvent({ type: 'submit' });
+
+  assert.ok(!container.innerHTML.includes('web.pathUpdatedRestartNotice'), 'Must NOT show false success restart notice');
+  assert.ok(container.innerHTML.includes('web.storagePrivilegedNotice'), 'Must show privileged notice');
+  assert.ok(container.innerHTML.includes('sudo systemctl restart ollama'), 'Must show manual command');
+  assert.ok(container.innerHTML.includes('web.storagePermissionWarning'), 'Must show permission warning');
   dashboard.stopPolling();
 });

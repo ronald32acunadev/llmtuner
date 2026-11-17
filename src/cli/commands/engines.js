@@ -43,12 +43,17 @@ export async function enginesCommand(
       return res;
     }
 
-    console.log(t('cli.storagePathUpdated', { path: res.path || args.path }));
-    if (res.requiresRestart) {
-      console.log(c.y(t('cli.restartRequiredNotice', { engine: engine.name || targetEngine })));
+    if (res?.ok) {
+      console.log(t('cli.storagePathUpdated', { path: res.path || args.path }));
+      if (res.requiresRestart) {
+        console.log(c.y(t('cli.restartRequiredNotice', { engine: engine.name || targetEngine })));
+      }
+    } else if (res?.manualCommand) {
+      console.log(c.y(t('cli.storagePrivilegedNotice')));
+      console.log(c.dim(`\n  ${res.manualCommand}\n`));
     }
-    if (res.manualCommand) {
-      console.log(c.dim(res.manualCommand));
+    if (res?.warning) {
+      console.log(c.y(t(res.warning, { path: res.path || args.path })));
     }
     return res;
   }
@@ -165,12 +170,17 @@ export async function enginesCommand(
           const res = typeof engine.setModelsDir === 'function'
             ? await engine.setModelsDir({ detection, hw }, trimmedPath)
             : { ok: true, path: trimmedPath, requiresRestart: true };
-          console.log(t('cli.storagePathUpdated', { path: res.path || trimmedPath }));
-          if (res.requiresRestart) {
-            console.log(c.y(t('cli.restartRequiredNotice', { engine: engine.name || pickedEngineId })));
+          if (res?.ok) {
+            console.log(t('cli.storagePathUpdated', { path: res.path || trimmedPath }));
+            if (res.requiresRestart) {
+              console.log(c.y(t('cli.restartRequiredNotice', { engine: engine.name || pickedEngineId })));
+            }
+          } else if (res?.manualCommand) {
+            console.log(c.y(t('cli.storagePrivilegedNotice')));
+            console.log(c.dim(`\n  ${res.manualCommand}\n`));
           }
-          if (res.manualCommand) {
-            console.log(c.dim(res.manualCommand));
+          if (res?.warning) {
+            console.log(c.y(t(res.warning, { path: res.path || trimmedPath })));
           }
         }
       }

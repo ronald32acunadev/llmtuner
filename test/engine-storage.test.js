@@ -88,5 +88,36 @@ test('Ollama setModelsDir validates path and returns requiresRestart or manualCo
   const res = await ollama.setModelsDir({ detection: { systemd: false } }, newOllamaDir);
   assert.strictEqual(res.path, newOllamaDir);
   assert.strictEqual(res.requiresRestart, true);
+  if (process.platform === 'linux') {
+    // When unprivileged, writing to /etc/systemd/system fails, returning manualCommand
+    assert.strictEqual(res.ok, false);
+    assert.ok(res.manualCommand.includes('sudo mkdir -p /etc/systemd/system/ollama.service.d'));
+    assert.ok(res.manualCommand.includes('sudo chown -R ollama:ollama'));
+    assert.ok(res.manualCommand.includes('systemctl restart ollama'));
+  }
   await fs.rm(newOllamaDir, { recursive: true, force: true }).catch(() => {});
+});
+
+test('Ollama setModelsDir warns when path is located under /home', async () => {
+  const homeTarget = path.join(os.homedir(), `ollama-test-models-${Date.now()}`);
+  try {
+    const res = await ollama.setModelsDir({ detection: { systemd: true } }, homeTarget);
+    if (process.platform === 'linux') {
+      assert.strictEqual(res.warning, 'cli.storagePermissionWarning');
+    }
+  } finally {
+    await fs.rm(homeTarget, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+test('Ollama detect resolves modelsDir with R_OK when directory exists', async () => {
+  const detection = await ollama.detect();
+  assert.ok(detection);
+  if (process.platform === 'linux') {
+    // Should resolve path (e.g. /usr/share/ollama/.ollama/models) instead of null
+    const exists = await fs.stat('/usr/share/ollama/.ollama/models').catch(() => null);
+    if (exists) {
+      assert.strictEqual(detection.modelsDir, '/usr/share/ollama/.ollama/models');
+    }
+  }
 });

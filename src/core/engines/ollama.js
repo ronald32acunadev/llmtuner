@@ -43,13 +43,26 @@ async function systemdModelsDir() {
 
 /** Where the models live (needed to start a private benchmark server). */
 async function modelsDir() {
-  const candidates = [process.env.OLLAMA_MODELS, await systemdModelsDir(), path.join(homeDir(), '.ollama', 'models')].filter(Boolean);
-  if (PLATFORM === 'linux') candidates.push('/usr/share/ollama/.ollama/models', '/var/lib/ollama/.ollama/models');
-  for (const c of candidates) {
+  const explicit = [process.env.OLLAMA_MODELS, await systemdModelsDir()].filter(Boolean);
+  for (const dir of explicit) {
     try {
-      await fs.access(path.join(c, 'manifests'), fs.constants.R_OK | fs.constants.W_OK);
-      return c;
+      const st = await fs.stat(dir);
+      if (st.isDirectory()) return dir;
     } catch { /* next */ }
+  }
+
+  const defaultCandidates = [path.join(homeDir(), '.ollama', 'models')];
+  if (PLATFORM === 'linux') defaultCandidates.push('/usr/share/ollama/.ollama/models', '/var/lib/ollama/.ollama/models');
+  for (const c of defaultCandidates) {
+    try {
+      await fs.access(path.join(c, 'manifests'), fs.constants.R_OK);
+      return c;
+    } catch {
+      try {
+        const st = await fs.stat(c);
+        if (st.isDirectory()) return c;
+      } catch { /* next */ }
+    }
   }
   return null;
 }
@@ -244,6 +257,10 @@ export const ollama = {
         throw new TunerError('errors.invalidStoragePath');
       }
     }
+    const warning = (PLATFORM === 'linux' && targetDir.startsWith('/home/'))
+      ? 'cli.storagePermissionWarning'
+      : null;
+
     if (PLATFORM === 'linux') {
       const dropInDir = '/etc/systemd/system/ollama.service.d';
       const dropInFile = path.join(dropInDir, 'models.conf');
@@ -252,13 +269,13 @@ export const ollama = {
         await fs.mkdir(dropInDir, { recursive: true });
         await fs.writeFile(dropInFile, content, 'utf8');
         await run('systemctl', ['daemon-reload']).catch(() => {});
-        return { ok: true, path: targetDir, requiresRestart: true };
+        return { ok: true, path: targetDir, requiresRestart: true, warning };
       } catch {
-        const manualCommand = `sudo mkdir -p ${dropInDir} && printf '[Service]\\nEnvironment="OLLAMA_MODELS=%s"\\n' "${targetDir}" | sudo tee ${dropInFile} && sudo systemctl daemon-reload && sudo systemctl restart ollama`;
-        return { ok: false, manualCommand, path: targetDir, requiresRestart: true };
+        const manualCommand = `sudo mkdir -p ${dropInDir} && printf '[Service]\\nEnvironment="OLLAMA_MODELS=%s"\\n' "${targetDir}" | sudo tee ${dropInFile} && sudo chown -R ollama:ollama "${targetDir}" 2>/dev/null || true && sudo systemctl daemon-reload && sudo systemctl restart ollama`;
+        return { ok: false, manualCommand, path: targetDir, requiresRestart: true, warning };
       }
     }
-    return { ok: true, path: targetDir, requiresRestart: true };
+    return { ok: true, path: targetDir, requiresRestart: true, warning };
   },
 
   /** Downloaded variants (tags) of a model: [{ key, quant, sizeBytes, selected }]. */

@@ -111,7 +111,44 @@ test('enginesCommand (US-03 / AC-02) updates storage path via setModelsDir', asy
     const output = logs.join('\n');
     assert.match(output, /\/data\/ollama-models/);
     assert.match(output, /restart/i);
+  } finally {
+    console.log = origLog;
+  }
+});
+
+test('enginesCommand prints privileged notice and omits updated notice when res.ok is false', async () => {
+  const logs = [];
+  const origLog = console.log;
+  console.log = (msg) => logs.push(msg);
+
+  const mockEngines = {
+    ollama: {
+      name: 'Ollama',
+      detect: async () => ({ installed: true }),
+      setModelsDir: async (ctx, p) => ({
+        ok: false,
+        path: p,
+        requiresRestart: true,
+        manualCommand: 'sudo systemctl restart ollama',
+        warning: 'cli.storagePermissionWarning'
+      })
+    }
+  };
+
+  try {
+    const res = await enginesCommand({ path: '/data/ollama-models', engine: 'ollama' }, {
+      lang: 'en',
+      theme: 'dark',
+      engines: mockEngines,
+      detectHw: async () => ({ gpus: [] })
+    });
+
+    assert.strictEqual(res.ok, false);
+    const output = logs.join('\n');
+    assert.doesNotMatch(output, /Storage path updated to:/);
+    assert.match(output, /Administrator permissions required/);
     assert.match(output, /sudo systemctl restart ollama/);
+    assert.match(output, /Warning: The Ollama service user/);
   } finally {
     console.log = origLog;
   }

@@ -274,17 +274,29 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
       noticeDiv.innerHTML = '';
       try {
         const res = await api(`/api/engines/${engineId}/storage`, { path: input.value });
-        if (res?.requiresRestart) {
+        if (res?.ok) {
+          if (res.requiresRestart) {
+            const p = document.createElement('p');
+            p.className = 'notice';
+            p.textContent = t('web.pathUpdatedRestartNotice');
+            noticeDiv.appendChild(p);
+          }
+        } else if (res?.manualCommand) {
           const p = document.createElement('p');
-          p.className = 'notice';
-          p.textContent = t('web.pathUpdatedRestartNotice');
+          p.className = 'notice warn';
+          p.textContent = t('web.storagePrivilegedNotice');
           noticeDiv.appendChild(p);
-        }
-        if (res?.manualCommand) {
+
           const pre = document.createElement('pre');
           pre.className = 'log';
           pre.textContent = res.manualCommand;
           noticeDiv.appendChild(pre);
+        }
+        if (res?.warning) {
+          const p = document.createElement('p');
+          p.className = 'notice warn';
+          p.textContent = t(res.warning.replace(/^cli\./, 'web.'), { path: res.path || input.value });
+          noticeDiv.appendChild(p);
         }
       } catch (err) {
         noticeDiv.innerHTML = `<p class="notice warn">${esc(err.message)}</p>`;
