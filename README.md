@@ -153,7 +153,7 @@ llm-tuner-desktop
 
 The desktop app offers the same capabilities as the CLI, organized into three top-level sidebar tabs:
 - **Tuner**: Hardware-aware optimization wizard with candidate count, dry run, confirmation before applying changes, first-model download, and a **Saved presets** drawer.
-- **Ollama & LM Studio Dashboards**: Real-time monitoring of active models in VRAM with one-click unload, disk model inventory with quick load (using saved presets or safe defaults), "Tune in Tuner" shortcut, model deletion, and model storage directory configuration.
+- **Ollama & LM Studio Dashboards**: Real-time monitoring of active models in VRAM with one-click unload, disk model inventory with quick load (using saved presets or safe defaults), "Tune in Tuner" shortcut, model deletion, and model storage directory configuration. Telemetry polls non-destructively in the background every 5 seconds, preserving search filters, input focus, and active dialogs.
 - **Settings**: Language, theme, automatic server startup after login, **Share this computer** (shared server hosting), and saved remote computers.
 
 ### Remote Server Mode & Daemon
@@ -339,7 +339,7 @@ npm start
 # Launch the Electron desktop application
 npm run desktop
 
-# Run the automated Node.js test suite
+# Run the automated Node.js test suite (542 tests across 28 suites)
 npm test
 ```
 
@@ -349,7 +349,10 @@ npm test
 
 - **First Desktop Launch (`llm-tuner-desktop`)**: The Electron binary is downloaded on initial install/run. If Electron cannot start, run `llm-tuner` in the terminal—it works without the desktop runtime.
 - **Linux Sandbox on NTFS/exFAT or Non-Root Mounts**: `electron/launch.js` automatically checks `chrome-sandbox` permissions on Linux and sets `ELECTRON_DISABLE_SANDBOX=1` when SUID root (`04755`) is unavailable on the filesystem.
-- **Ollama Service Authorization**: Updating Ollama server environment variables (`OLLAMA_KV_CACHE_TYPE`, `OLLAMA_FLASH_ATTENTION`) on Linux may prompt for administrator authorization (`sudo` or `pkexec`). If settings are already up to date, the service is not restarted. Non-interactive (`--json`) runs never block on password prompts.
+- **Ollama Service & Storage Authorization on Linux**:
+  - **Tuning parameters**: Updating Ollama server environment variables (`OLLAMA_KV_CACHE_TYPE`, `OLLAMA_FLASH_ATTENTION`) on Linux may prompt for administrator authorization (`sudo` or `pkexec`). If settings are already up to date, the service is not restarted. Non-interactive (`--json`) runs never block on password prompts.
+  - **Custom model storage directory**: Configuring a custom storage path creates or updates `/etc/systemd/system/ollama.service.d/models.conf` with `Environment="OLLAMA_MODELS=<path>"`. This requires root privileges; both the Web/Desktop UI and CLI prompt interactively for `sudo` password elevation to write the drop-in, assign ownership (`chown -R ollama:ollama <path>`), and reload and restart `ollama.service`.
+  - **Filesystem traversal permissions under `/home/`**: When pointing Ollama storage to a path inside a user's home directory (e.g., `/home/<username>/models`), parent directories must grant execute/traversal permissions to the system `ollama` user (e.g., `chmod o+x /home/<username>` or POSIX ACL `setfacl -m u:ollama:rx /home/<username>`), otherwise the daemon will fail to access downloaded models.
 - **LM Studio Must Be Closed Before Applying**: LM Studio overwrites its configuration files on exit; close LM Studio before applying a new hardware configuration if prompted.
 
 ---
