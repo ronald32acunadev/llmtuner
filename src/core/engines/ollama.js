@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { run, which, exists, fetchJson, freePort, spawnLogged, killProcess, sleep, PLATFORM, homeDir, timestamp } from '../util.js';
@@ -43,13 +44,26 @@ async function systemdModelsDir() {
 
 /** Where the models live (needed to start a private benchmark server). */
 async function modelsDir() {
-  const candidates = [process.env.OLLAMA_MODELS, await systemdModelsDir(), path.join(homeDir(), '.ollama', 'models')].filter(Boolean);
-  if (PLATFORM === 'linux') candidates.push('/usr/share/ollama/.ollama/models', '/var/lib/ollama/.ollama/models');
-  for (const c of candidates) {
+  const explicit = [process.env.OLLAMA_MODELS, await systemdModelsDir()].filter(Boolean);
+  for (const dir of explicit) {
     try {
-      await fs.access(path.join(c, 'manifests'), fs.constants.R_OK | fs.constants.W_OK);
-      return c;
+      const st = await fs.stat(dir);
+      if (st.isDirectory()) return dir;
     } catch { /* next */ }
+  }
+
+  const defaultCandidates = [path.join(homeDir(), '.ollama', 'models')];
+  if (PLATFORM === 'linux') defaultCandidates.push('/usr/share/ollama/.ollama/models', '/var/lib/ollama/.ollama/models');
+  for (const c of defaultCandidates) {
+    try {
+      await fs.access(path.join(c, 'manifests'), fs.constants.R_OK);
+      return c;
+    } catch {
+      try {
+        const st = await fs.stat(c);
+        if (st.isDirectory()) return c;
+      } catch { /* next */ }
+    }
   }
   return null;
 }
@@ -132,6 +146,38 @@ export function ollamaVariants(models, key) {
     (m.digest !== self.digest && group.findIndex((x) => x.digest === m.digest) === i)
   ).map(toVariant);
 }
+
+export const ollamaExecIO = {
+  runSudo: (script, password) => {
+    return new Promise((resolve, reject) => {
+      const child = spawn('/usr/bin/sudo', ['-S', '-p', '', '/bin/sh', '-c', script], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let stderr = '';
+      let stdout = '';
+
+      child.stdout?.on('data', (d) => { stdout += d; });
+      child.stderr?.on('data', (d) => { stderr += d; });
+
+      child.on('error', (err) => reject(err));
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve({ stdout, stderr });
+        } else {
+          if (/incorrect password|authentication failure|sorry, try again/i.test(stderr)) {
+            reject(new TunerError('errors.invalidSudoPassword'));
+          } else {
+            reject(new Error(stderr.trim() || `Sudo command failed with code ${code}`));
+          }
+        }
+      });
+
+      child.stdin?.write(`${password}\n`);
+      child.stdin?.end();
+    });
+  },
+};
 
 export const ollama = {
   id: 'ollama',
@@ -232,7 +278,7 @@ export const ollama = {
     return { ok: !!r?.ok, deleted: model };
   },
 
-  async setModelsDir(ctx, newPath) {
+  async setModelsDir(ctx, newPath, options = {}) {
     if (!newPath || typeof newPath !== 'string' || !newPath.trim()) throw new TunerError('errors.missingStoragePath');
     const targetDir = path.resolve(newPath.trim());
     const st = await fs.stat(targetDir).catch(() => null);
@@ -241,24 +287,58 @@ export const ollama = {
       try {
         await fs.mkdir(targetDir, { recursive: true });
       } catch {
-        throw new TunerError('errors.invalidStoragePath');
+        // Unprivileged mkdir may fail if directory is outside user space
       }
     }
+    const warning = (PLATFORM === 'linux' && targetDir.startsWith('/home/'))
+      ? 'cli.storagePermissionWarning'
+      : null;
+
     if (PLATFORM === 'linux') {
       const dropInDir = '/etc/systemd/system/ollama.service.d';
       const dropInFile = path.join(dropInDir, 'models.conf');
       const content = `[Service]\nEnvironment="OLLAMA_MODELS=${targetDir}"\n`;
+
+      // 1. Try unprivileged write first
       try {
         await fs.mkdir(dropInDir, { recursive: true });
         await fs.writeFile(dropInFile, content, 'utf8');
         await run('systemctl', ['daemon-reload']).catch(() => {});
-        return { ok: true, path: targetDir, requiresRestart: true };
-      } catch {
-        const manualCommand = `sudo mkdir -p ${dropInDir} && printf '[Service]\\nEnvironment="OLLAMA_MODELS=%s"\\n' "${targetDir}" | sudo tee ${dropInFile} && sudo systemctl daemon-reload && sudo systemctl restart ollama`;
-        return { ok: false, manualCommand, path: targetDir, requiresRestart: true };
+        return { ok: true, path: targetDir, requiresRestart: true, warning };
+      } catch { /* requires elevation */ }
+
+      // 2. If password provided, execute privileged setup and restart service
+      if (options?.password) {
+        const safeTarget = targetDir.replace(/'/g, "'\\''");
+        const script = [
+          'set -e',
+          `mkdir -p '${dropInDir}'`,
+          `printf '[Service]\\nEnvironment="OLLAMA_MODELS=%s"\\n' '${safeTarget}' > '${dropInFile}'`,
+          `mkdir -p '${safeTarget}'`,
+          `chown -R ollama:ollama '${safeTarget}' 2>/dev/null || true`,
+          `chmod 755 '${safeTarget}' 2>/dev/null || true`,
+          'systemctl daemon-reload',
+          'systemctl restart ollama.service',
+        ].join(' && ');
+
+        await ollamaExecIO.runSudo(script, options.password);
+
+        // Wait for Ollama service to become ready after restart
+        const apiUrl = ctx?.detection?.apiUrl || baseUrl();
+        for (let i = 0; i < 30; i++) {
+          await sleep(500);
+          const v = await fetchJson(`${apiUrl}/api/version`, { timeout: 1000 }).catch(() => null);
+          if (v?.ok) break;
+        }
+
+        return { ok: true, path: targetDir, restarted: true, warning };
       }
+
+      // 3. No password provided: prompt caller for elevation
+      const manualCommand = `sudo mkdir -p ${dropInDir} && printf '[Service]\\nEnvironment="OLLAMA_MODELS=%s"\\n' "${targetDir}" | sudo tee ${dropInFile} && sudo chown -R ollama:ollama "${targetDir}" 2>/dev/null || true && sudo systemctl daemon-reload && sudo systemctl restart ollama`;
+      return { ok: false, requiresPassword: true, manualCommand, path: targetDir, requiresRestart: true, warning };
     }
-    return { ok: true, path: targetDir, requiresRestart: true };
+    return { ok: true, path: targetDir, requiresRestart: true, warning };
   },
 
   /** Downloaded variants (tags) of a model: [{ key, quant, sizeBytes, selected }]. */

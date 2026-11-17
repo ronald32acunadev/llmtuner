@@ -111,7 +111,84 @@ test('enginesCommand (US-03 / AC-02) updates storage path via setModelsDir', asy
     const output = logs.join('\n');
     assert.match(output, /\/data\/ollama-models/);
     assert.match(output, /restart/i);
+  } finally {
+    console.log = origLog;
+  }
+});
+
+test('enginesCommand prints privileged notice and omits updated notice when res.ok is false', async () => {
+  const logs = [];
+  const origLog = console.log;
+  console.log = (msg) => logs.push(msg);
+
+  const mockEngines = {
+    ollama: {
+      name: 'Ollama',
+      detect: async () => ({ installed: true }),
+      setModelsDir: async (ctx, p) => ({
+        ok: false,
+        path: p,
+        requiresRestart: true,
+        manualCommand: 'sudo systemctl restart ollama',
+        warning: 'cli.storagePermissionWarning'
+      })
+    }
+  };
+
+  try {
+    const res = await enginesCommand({ path: '/data/ollama-models', engine: 'ollama' }, {
+      lang: 'en',
+      theme: 'dark',
+      engines: mockEngines,
+      detectHw: async () => ({ gpus: [] })
+    });
+
+    assert.strictEqual(res.ok, false);
+    const output = logs.join('\n');
+    assert.doesNotMatch(output, /Storage path updated to:/);
+    assert.match(output, /Administrator permissions required/);
     assert.match(output, /sudo systemctl restart ollama/);
+    assert.match(output, /Warning: The Ollama service user/);
+  } finally {
+    console.log = origLog;
+  }
+});
+
+test('enginesCommand prompts for sudo password when requiresPassword is true and prints restarted notice', async () => {
+  const logs = [];
+  const origLog = console.log;
+  console.log = (msg) => logs.push(msg);
+
+  let capturedPassword = null;
+  const mockEngines = {
+    ollama: {
+      name: 'Ollama',
+      detect: async () => ({ installed: true }),
+      setModelsDir: async (ctx, p, opts) => {
+        if (!opts?.password) {
+          return { ok: false, requiresPassword: true, path: p };
+        }
+        capturedPassword = opts.password;
+        return { ok: true, restarted: true, path: p };
+      }
+    }
+  };
+
+  try {
+    const res = await enginesCommand({ path: '/data/ollama-models', engine: 'ollama' }, {
+      lang: 'en',
+      theme: 'dark',
+      interactive: true,
+      engines: mockEngines,
+      detectHw: async () => ({ gpus: [] }),
+      passwordPrompt: async () => 'test-sudo-pwd'
+    });
+
+    assert.strictEqual(res.ok, true);
+    assert.strictEqual(res.restarted, true);
+    assert.strictEqual(capturedPassword, 'test-sudo-pwd');
+    const output = logs.join('\n');
+    assert.match(output, /Storage path configured and Ollama service restarted successfully!/);
   } finally {
     console.log = origLog;
   }

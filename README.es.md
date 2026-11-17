@@ -153,7 +153,7 @@ llm-tuner-desktop
 
 La aplicación de escritorio ofrece las mismas capacidades que la CLI, organizadas en tres pestañas principales en la barra lateral:
 - **Tuner**: Asistente de optimización guiado por hardware con cantidad de candidatos, modo de prueba, confirmación antes de aplicar cambios, descarga del primer modelo y panel de **presets guardados**.
-- **Paneles de Ollama y LM Studio**: Monitoreo en tiempo real de modelos activos en VRAM con expulsión en un clic, inventario de modelos en disco con carga rápida (usando presets guardados o valores seguros por defecto), acceso directo a «Optimizar en Tuner», eliminación de modelos y configuración del directorio de almacenamiento.
+- **Paneles de Ollama y LM Studio**: Monitoreo en tiempo real de modelos activos en VRAM con expulsión en un clic, inventario de modelos en disco con carga rápida (usando presets guardados o valores seguros por defecto), acceso directo a «Optimizar en Tuner», eliminación de modelos y configuración del directorio de almacenamiento. La telemetría se actualiza periódicamente en segundo plano (cada 5 segundos) de forma no destructiva, conservando el foco de entrada, los filtros de búsqueda y los cuadros de diálogo abiertos.
 - **Configuración**: Idioma, tema, inicio automático del servidor tras iniciar sesión, **Compartir este equipo** y gestión de equipos remotos guardados.
 
 ### Modo servidor remoto y daemon
@@ -339,7 +339,7 @@ npm start
 # Iniciar la aplicación de escritorio con Electron
 npm run desktop
 
-# Ejecutar la suite de pruebas automatizadas de Node.js
+# Ejecutar la suite de pruebas automatizadas de Node.js (542 pruebas en 28 suites)
 npm test
 ```
 
@@ -349,7 +349,10 @@ npm test
 
 - **Primera ejecución de escritorio (`llm-tuner-desktop`)**: El binario de Electron se descarga en la primera instalación/ejecución. Si la interfaz de escritorio no puede iniciarse, ejecuta `llm-tuner` en la terminal (funciona sin Electron).
 - **Sandbox de Linux en particiones NTFS/exFAT o sin permisos SUID**: `electron/launch.js` comprueba automáticamente los permisos de `chrome-sandbox` en Linux y activa `ELECTRON_DISABLE_SANDBOX=1` cuando el binario no pertenece a root con modo `04755`.
-- **Autorización del servicio Ollama**: Actualizar las variables de entorno del servicio Ollama (`OLLAMA_KV_CACHE_TYPE`, `OLLAMA_FLASH_ATTENTION`) en Linux puede solicitar autorización de administrador (`sudo` o `pkexec`). Si los ajustes no cambian, el servicio no se reinicia. El modo no interactivo (`--json`) nunca bloquea pidiendo contraseña.
+- **Autorización y almacenamiento del servicio Ollama en Linux**:
+  - **Parámetros de optimización**: Actualizar las variables de entorno del servicio Ollama (`OLLAMA_KV_CACHE_TYPE`, `OLLAMA_FLASH_ATTENTION`) en Linux puede solicitar autorización de administrador (`sudo` o `pkexec`). Si los ajustes no cambian, el servicio no se reinicia. El modo no interactivo (`--json`) nunca bloquea pidiendo contraseña.
+  - **Directorio de almacenamiento de modelos personalizado**: Configurar una ruta de almacenamiento personalizada genera o actualiza el archivo `/etc/systemd/system/ollama.service.d/models.conf` con `Environment="OLLAMA_MODELS=<ruta>"`. Esta operación requiere privilegios de administración; tanto la interfaz Web/escritorio como la CLI solicitan de forma interactiva la contraseña de `sudo` para escribir el drop-in, ajustar la propiedad (`chown -R ollama:ollama <ruta>`) y reiniciar el servicio `ollama.service`.
+  - **Permisos de navegación en el sistema de archivos bajo `/home/`**: Si la ruta elegida se ubica dentro del directorio personal de un usuario (por ejemplo, `/home/<usuario>/modelos`), los directorios superiores deben conceder permisos de ejecución/búsqueda al usuario del sistema `ollama` (mediante `chmod o+x /home/<usuario>` o listas de control de acceso POSIX: `setfacl -m u:ollama:rx /home/<usuario>`), evitando que el daemon falle al intentar leer los modelos.
 - **Cerrar LM Studio antes de aplicar cambios**: LM Studio sobrescribe sus archivos de configuración al cerrarse; ciérralo antes de aplicar una nueva configuración de hardware si el asistente lo solicita.
 
 ---
