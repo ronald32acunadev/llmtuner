@@ -38,6 +38,12 @@ before(async () => {
       res.write('data: {"type":"progress","percent":50}\n\n');
       res.write('data: {"type":"finished","ok":true}\n\n');
       res.end();
+    } else if (req.url === '/api/engines/ollama/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ engine: 'ollama', running: true, remote: true }));
+    } else if (req.url === '/api/engines/ollama/ps') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ engine: 'ollama', models: [{ name: 'remote-model-running' }] }));
     } else {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Not found' }));
@@ -109,4 +115,20 @@ test('GET /api/jobs/:id/events proxies SSE stream from active remote server', as
   const text = await res.text();
   assert.ok(text.includes('"type":"progress"'));
   assert.ok(text.includes('"type":"finished"'));
+});
+
+test('GET /api/engines/ollama/status proxies to active remote server', async () => {
+  const res = await fetch(localUrl + '/api/engines/ollama/status');
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.engine, 'ollama');
+  assert.equal(body.remote, true);
+});
+
+test('GET /api/engines/ollama/ps proxies to active remote server', async () => {
+  const res = await fetch(localUrl + '/api/engines/ollama/ps');
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.engine, 'ollama');
+  assert.deepEqual(body.models, [{ name: 'remote-model-running' }]);
 });

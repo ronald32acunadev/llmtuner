@@ -7,15 +7,6 @@ Instructions for every AI coding agent working in this repository (Antigravity, 
 - **English by default**: All source code, identifiers, function and variable names, comments, documentation (`docs/`, READMEs, architecture/planning docs), and commit messages MUST be written in English.
 - **Translations**: Translations are the only exception (e.g., `README.es.md` or dedicated i18n localization catalogs). In multi-language applications, internal code, identifiers, and core error/status codes remain strictly in English, while user-facing localized strings go through dedicated i18n catalogs.
 
-## CLI and Desktop Feature Parity (MANDATORY)
-
-- Every new or changed user-facing capability must be implemented and maintained in **both the CLI and Electron Desktop**. In this project, GUI means Electron Desktop; standalone browser usage is not a parity target. This does not authorize removing browser behavior or weakening existing protections.
-- Plan both entry points in the same user story. Reuse the shared core/API instead of duplicating business logic, and provide equivalent capabilities, inputs, outcomes, errors, confirmations, and local/remote target semantics. Presentation may differ; existing scripted CLI behavior must remain supported.
-- Include acceptance checks for **both interfaces**, update CLI help and the English/Spanish localization catalogs, and maintain the instructions and bidirectional capability inventory in `docs/USER_GUIDE.md` alongside the behavior change.
-- A capability is incomplete while either interface or its required verification is missing. Do not claim 100% parity while the inventory contains an unapproved gap or pending proof.
-- Platform/security restrictions require a secure equivalent or an explicit user-approved exception. Never silently waive an interface or bypass authentication, trusted IPC senders, privilege boundaries, or remote-operation authorization to appear equivalent.
-- Do not invent capabilities absent from both interfaces merely to fill the inventory. `CLAUDE.md` imports this file; keep this as the single policy source.
-
 ## Backlog Approval and Execution (MANDATORY)
 
 Before implementing a requested change, the planning agent must:
@@ -35,13 +26,43 @@ The user's explicit approval and execution choice authorize only that backlog:
 
 Track each story as pending, in progress, blocked, or complete in the feature's user-story file; complete requires observed acceptance checks. Update that file after each story and approved scope revision, reporting only a concise summary and link in chat. If another feature/task document is required, link it rather than duplicating its execution log or creating competing story trackers. Read-only questions do not require an implementation backlog.
 
+## Story Readiness Contract (MANDATORY)
+
+Before requesting backlog approval, review every story against this contract:
+
+- Describe an independently verifiable user outcome with an actor, goal, and value, not merely a list of coding tasks. Keep stable story IDs and split only when outcomes can be verified independently.
+- State scope, relevant business rules, dependencies, and exclusions where they prevent ambiguity. Distinguish confirmed facts from assumptions; ask about unresolved decisions that change behavior before implementation.
+- Give acceptance criteria story-scoped IDs such as `US-01 / AC-01`. Each criterion states conditions, an action or event, and an observable expected result. Given/When/Then is optional; vague terms such as "works correctly" are not acceptance criteria.
+- Include relevant failure and boundary behavior supported by the request or confirmed existing rules. Never invent business rules, thresholds, performance targets, or security requirements to make a story appear complete.
+- Identify how each criterion will be verified. Review the backlog for coverage, feasibility, dependencies, and unnecessary scope before asking for approval.
+- Scale detail to the change: a small correction may use one concise story and a compact verification mapping. Do not require a fixed number of criteria, tests, or sections merely to fill a template.
+
+## QA Evidence and Traceability Contract (MANDATORY)
+
+- Derive new or changed tests from approved acceptance criteria or explicit regression risks of the requested change, not by copying the implementation's logic. Identify the relevant `US-xx / AC-xx` or change-related risk in the story's verification mapping; do not relabel unrelated historical tests or individual fixtures and helpers.
+- Select relevant successful, negative, boundary, and regression scenarios. Security, concurrency, recovery, and performance checks apply only when the change makes them relevant; there is no fixed scenario quota.
+- Define meaningful preconditions, inputs, and observable expected results. Verify applicable outputs, errors, persisted effects, and unchanged state after rejection. Mock-call assertions alone are insufficient when they do not prove the required behavior.
+- Prefer the least costly verification level that proves the behavior. Use integration or end-to-end checks when the boundary itself is part of the criterion; keep automated checks deterministic and isolated using the existing runner.
+- When a relevant deterministic test and a clear expected outcome exist, observe the test fail for the intended reason before implementing the behavior, then observe it pass and refactor with checks still passing. For passive documentation or unavailable meaningful automation, state the exception and use reproducible structural or manual checks; never invent RED/GREEN evidence.
+- Include regression checks for existing behavior affected by shared code. Explain each new test that has no acceptance-criterion reference through the change-related risk it protects; unrelated test additions are outside the approved scope.
+
+Keep a compact mapping in the existing story file, not a separate tracker:
+
+| Story / criterion or change-related regression risk | Test file and test name, or reproducible manual procedure | Observed result and evidence |
+| --- | --- | --- |
+| `US-01 / AC-01` | Actual check reference or steps with inputs and expected results | Pending until executed; then passed, failed, or blocked with observed output |
+
+Every criterion needs a verification method; one test may cover several criteria and one criterion may require several checks. A story is complete only after its criteria are demonstrated and applicable regression checks pass. Record failed, skipped, manual-only, and blocked checks explicitly; generated tests, mock calls, and coverage percentages alone do not establish completion. Missing required proof keeps the story pending or blocked, not complete.
+
+When approved scope changes, update affected criteria and checks and reopen only invalidated work. Preserve still-valid completed evidence and obtain the existing scope-revision approval before implementing the revised scope.
+
 ## Planning and Implementation Roles
 
 - **Planner / reviewer**: use the selected reasoning-capable model for analysis, story decomposition, implementation context, and result review. It does not become the default code writer merely because it owns the conversation.
 - **Implementer**: synthesize approved code, tests, and scripts using the local-first hierarchy below; when local execution is unavailable or explicitly bypassed by the user, use an available lightweight hosted model.
 - Resolve model availability and selection through the current client's supported capabilities. Do not hardcode model IDs, silently change global defaults, or claim that shorter answers or lower reasoning effort change the underlying model.
 - If a lightweight model cannot be selected or invoked, report that limitation and ask the user to select one or explicitly authorize the current model before generating code. Never silently fall back to the expensive planner.
-- Hand off only the approved story, acceptance checks, allowed files, relevant existing code, project rules, and Library Context Brief. The planner reviews the output and runs verification regardless of the implementer.
+- Hand off only the approved story and criterion IDs, acceptance checks with preconditions and expected observable effects, change-related regression risks, allowed files, relevant existing code, project rules, and Library Context Brief. The planner reviews the output and runs verification regardless of the implementer.
 
 These are cross-agent instructions, not an automatic model-switching integration. Apply them through the capabilities actually available in Codex, Claude Code, Antigravity, OpenCode, or the current client.
 
@@ -102,14 +123,13 @@ Local models have fixed knowledge cutoffs and no internet or repository access. 
 Agents must resolve current library documentation using a **Cache-Aside** strategy:
 
 1. **Resolve version from lockfile/manifest**: The orchestrating agent checks the project's lockfile (`package-lock.json`, `pnpm-lock.yaml`, `Cargo.lock`, `pyproject.toml`, `go.mod`, etc.) for the exact installed version. Never query documentation without an exact version.
-2. **Check local cache (`.context/`)**: Look for `.context/<library>@<version>.md` (versioned in Git, so the curated dictionary survives clones and clean checkouts):
+2. **Check local cache (`.context/`)**: Look for `.context/<library>@<version>.md` (ignored by Git in `.gitignore`):
    - **Cache Hit**: Read reference documentation directly from disk with zero network latency.
    - **Cache Miss**: Query Context7 (or official docs/type definitions) for that exact version, save the result to `.context/<library>@<version>.md`, and proceed.
 3. **Curate the brief**: The orchestrator extracts only the signatures, options, and minimal examples needed for the task into the Library Context Brief. Never dump whole raw documentation files into the local model's prompt.
 4. **Engram vs .context/ separation of concerns**:
-   - **`.context/`**: Curated third-party API documentation and SDK guides (versioned dictionary).
+   - **`.context/`**: Raw third-party API documentation and SDK guides (local cache).
    - **Engram (`mem_save`)**: Project-specific discoveries, gotchas, architecture choices, and bug root causes. Never save raw third-party doc dumps to Engram.
-5. **The dictionary is the source of every local prompt**: Local models are not experts. Build each entry from the official documentation for the exact version, using `.agents/context-dictionary-template.md`, and record signatures, one verified example, forms the model got wrong (`WRONG: ...`), and the project's own call sites. Build the Library Context Brief from these entries. When an answer is wrong, first improve the entry or send an exact skeleton with only the missing lines to fill, then request the correction. If the exact version's documentation is unavailable, record which version was verified and treat the installed type definitions as authoritative.
 
 Every code request includes a brief with, for each library the task touches:
 
@@ -134,15 +154,16 @@ Then detail the change itself step by step: functions to add or change, behavior
   - Do NOT use: <deprecated/removed APIs>
   - Example (official docs): <short snippet>
   - Existing project usage: <verbatim call site>
-  - Wrong forms: <`WRONG:` entries from the dictionary>
-
-## Existing helpers
-<exact signature and return value of every helper the code calls>
 
 ## Task
 <approved story ID, statement, acceptance criteria, dependencies, and execution mode>
 <exact change, step by step, with inputs/outputs and edge cases>
-<when the model already failed: the complete file as a skeleton with only the missing lines marked TODO>
+
+## Verification contract
+<story-scoped criterion IDs; preconditions, inputs, action, and observable expected results>
+<relevant regression risks and checks; verification level and existing runner>
+<for implementation: existing test names and assertions; for test generation: scenarios and required assertions>
+<map every new or changed test to a criterion or change-related risk; report missing proof without claiming completion>
 
 ## Target files
 <paths + relevant existing code verbatim>

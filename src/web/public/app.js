@@ -1,3 +1,5 @@
+import { createNavController } from './navigation.js';
+import { setupEngineDashboard } from './engine-management.js';
 import { setupServerSettings } from './server-settings.js';
 import { esc, hardwareGpuHtml, gpuHeadLabel, telemetryGpuHeaderHtml, telemetryMeterWidth, planRowHtml, loadSpeedHtml } from './markup.js';
 import { setupSharedHosting } from './shared-hosting.js';
@@ -23,8 +25,14 @@ const state = { hw: null, engines: [], engine: null, presets: [], meta: null, lo
 // preview of the last plan (null while there is none), what the chips were last drawn with and the detail markup last written.
 Object.assign(state, { storedProfile: null, profileIds: undefined, profilePlan: null, profileSaveError: null, maxContext: null, chipsProfile: null, profileDetailHtml: null });
 
-async function api(path, body) {
-  const res = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+async function api(path, body, method) {
+  const httpMethod = method || (body ? 'POST' : 'GET');
+  const headers = body ? { 'Content-Type': 'application/json' } : {};
+  const res = await fetch(path, {
+    method: httpMethod,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
   const data = await res.json();
   if (!res.ok) throw new Error(data.code ? t(data.code, data.params) : (data.error || res.statusText));
   return data;
@@ -316,6 +324,60 @@ async function boot() {
   ({ messages } = await api(`/api/i18n/${s.lang}`));
   document.documentElement.lang = s.lang;
   applyStatic();
+
+  const onTuneModel = async (engineId, modelKey) => {
+    nav.select('tuner');
+    const eng = state.engines.find((e) => e.id === engineId);
+    if (eng) await chooseEngine(eng);
+    const sel = $('#model');
+    if (sel && modelKey) {
+      sel.value = modelKey;
+      await onModelChange();
+    }
+  };
+
+  const ollamaDashboard = setupEngineDashboard({
+    engineId: 'ollama',
+    container: $('#view-ollama'),
+    api,
+    t,
+    esc,
+    onTuneModel,
+  });
+
+  const lmstudioDashboard = setupEngineDashboard({
+    engineId: 'lmstudio',
+    container: $('#view-lmstudio'),
+    api,
+    t,
+    esc,
+    onTuneModel,
+  });
+
+  const nav = createNavController({
+    tabs: Array.from(document.querySelectorAll('#primary-nav .nav-tab')),
+    views: {
+      tuner: $('#view-tuner'),
+      ollama: $('#view-ollama'),
+      lmstudio: $('#view-lmstudio'),
+    },
+    onTabChange: (tab) => {
+      window.dispatchEvent(new CustomEvent('nav-tab-change', { detail: { tab } }));
+      if (tab === 'ollama') {
+        ollamaDashboard.refresh();
+        ollamaDashboard.startPolling();
+        lmstudioDashboard.stopPolling();
+      } else if (tab === 'lmstudio') {
+        lmstudioDashboard.refresh();
+        lmstudioDashboard.startPolling();
+        ollamaDashboard.stopPolling();
+      } else {
+        ollamaDashboard.stopPolling();
+        lmstudioDashboard.stopPolling();
+      }
+    }
+  });
+  window.__nav = nav;
   setupDrawer('settings');
   await setupServerSettings({ document, bridge: window.llmTunerServer, t });
   await setupSharedHosting({ document, bridge: window.llmTunerServer, t });

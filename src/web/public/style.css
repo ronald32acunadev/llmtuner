@@ -205,6 +205,45 @@ td .err { color: var(--bad); white-space: normal; }
 .profile-detail .warn, .log .warn { color: var(--warn); }
 .profile-detail .warn::before, .log .warn::before { content: '⚠ '; }
 .actions { justify-content: space-between; align-items: center; }
+/* Primary navigation tabs */
+.primary-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font: 500 .88rem var(--font);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: all .15s ease;
+}
+.nav-tab:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+  background: var(--code-bg);
+}
+.nav-tab.active {
+  color: var(--ink);
+  border-color: var(--accent);
+  background: var(--code-bg);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.nav-tab-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
 /* Settings trigger & drawer */
 .settings-trigger {
   display: inline-flex;

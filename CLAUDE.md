@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Node.js app (Windows/macOS/Linux) that loads a local LLM in LM Studio or Ollama with the fastest configuration for a given context. It detects the hardware, reads the GGUF, estimates the memory, measures the best options and saves the winner as a preset to avoid measuring again. It has two interfaces over the same core: the CLI and the desktop app (Electron), which shows the web UI in a native window. The same web server can also run as a token-protected daemon on a remote GPU host.
 
-Design specs live in `docs/superpowers/specs/`; feature backlogs in `docs/userstories/<feature>/README.md`.
+End-user docs: `docs/USER_GUIDE.md`, `docs/server-autostart.md` (+ `.es.md`). Feature backlogs live in `docs/userstories/<feature>/README.md`; ODD feature logbooks in `odd/tasks/`; release notes in `docs/releases/`.
 
 ## Project rules
 
@@ -55,8 +55,9 @@ Distribution is npm only (`llm-tuner`, commands `llm-tuner` and `llm-tuner-deskt
 - `src/web/server.js`: plain `http` with a route table (`'METHOD /path': handler`), long jobs streamed via SSE at `/api/jobs/:id/events`. Electron's `main.js` just starts this server on a random port and opens a `BrowserWindow`.
 - Remote servers (daemon-first): `serve` (`src/cli/commands/serve.js`) starts the same server in server mode and persists `{ host, port, token }` to `configDir()/server.json`. In server mode or for non-loopback clients, every request needs `Authorization: Bearer <token>` (timing-safe compare), `/api/state` hardware data is sanitized, and privileged routes like `POST /api/install` return 403 remotely. Clients talk to it through `TunerApiClient` (`src/core/client.js`, `fromSettings` picks the active entry of `settings.servers`), which also consumes the SSE job stream. Presets stay on the server side.
 - `src/core/mcp/`: registers the loaded engine as an MCP server in coding agents' config files (`registry.js` lists `SUPPORTED_AGENTS` with their config path and format; `buildMcpPayload` builds the `npx` server entry per engine; `adapters/` upsert into JSON or TOML configs). Exposed through the CLI `mcp` command and the web UI.
+- `src/platform/` holds OS-specific side effects behind injectable factories: `server-autostart.js` (per-user login autostart: XDG entry / LaunchAgent / Startup shortcut), `shared-server.js` (share the local server on the LAN with a token), `ollama-authorize.js`. Electron's `server-controls.js` exposes these to the renderer only for trusted senders.
 - `updater.js` checks the npm registry for a newer `llm-tuner` (cached 24 h in `configDir()`); `telemetry.js` samples local RAM/CPU/GPU usage for live display only (nothing leaves the machine).
-- CLI: `src/cli/index.js` parses flags, `router.js` + `nav.js` drive the interactive menus, and `commands/` holds one module per menu entry (`load`, `presets`, `mcp`, `settings`, `serve`, `help`).
+- CLI: `src/cli/index.js` parses flags, `router.js` + `nav.js` drive the interactive menus, and `commands/` holds one module per menu entry (`load`, `chat`, `presets`, `servers`, `mcp`, `settings`, `serve`, `help`).
 - i18n: `src/i18n/{en,es}.js` catalogs + `t(locale, key, params)`; `src/i18n/core.js` maps core codes to keys. `test/i18n.test.js` fails if `en`/`es` keys or params diverge or if `src/` references a missing key.
 
 ## Testing notes

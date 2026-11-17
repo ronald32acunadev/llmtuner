@@ -84,6 +84,9 @@ export default {
 
   // Errors
   'errors.unknownEngine': 'Motor desconocido: {engine}',
+  'errors.missingModelName': 'Se requiere el nombre del modelo',
+  'errors.missingStoragePath': 'Se requiere una ruta de almacenamiento',
+  'errors.invalidStoragePath': 'Escribe una ruta de directorio válida y accesible',
   'errors.noConfigWorked': 'Ninguna configuración funcionó con este contexto. Prueba con uno menor.',
   'errors.ggufNotFound': 'No encuentro el archivo GGUF de {key}',
   'errors.lmstudioOpen': 'LM Studio está abierto; ciérralo antes de aplicar la configuración.',
@@ -95,6 +98,7 @@ export default {
   'errors.ollamaAuthorizationUnavailable': 'La autorización de administrador no está disponible. Comprueba que sudo o un agente de autenticación polkit de escritorio estén instalados.',
   'errors.ollamaAuthorizationCancelled': 'Se canceló la autorización de administrador. El modelo no se cargó.',
   'errors.ollamaAuthorizationFailed': 'Falló la configuración del servicio de Ollama. Comprueba el servicio y su copia de seguridad antes de reintentar.',
+  'errors.invalidSudoPassword': 'Contraseña de administrador (sudo) incorrecta. Por favor, inténtalo de nuevo.',
 
   // Install methods
   'install.ollamaScript': 'Script oficial (ollama.com/install.sh, pide sudo)',
@@ -160,6 +164,9 @@ Uso: llm-tuner [comando] [opciones]
 
 Comandos:
   /load                        En el equipo activo, elegir un motor y modelo, y ajustarlo y cargarlo
+  /ps                          Ver modelos cargados en memoria (VRAM)
+  /unload [modelo]             Expulsar un modelo de la memoria para liberar VRAM
+  /engines                     Auditar motores y configurar rutas de guardado
   /chat                        Probar un modelo cargado con una conversación
   /mcp                         Conectar un motor local con agentes de IA como servidor MCP
   /presets                     Ver presets de configuración guardados
@@ -178,6 +185,7 @@ Opciones:
   --yes                        No pedir confirmación
   --dry-run                    Medir y mostrar cambios sin aplicar nada ni guardar preset
   --prompt <texto>             Con /chat: enviar un mensaje y salir
+  --path <dir>                 Con /engines: definir ruta de almacenamiento de modelos
   --presets                    Listar presets guardados (igual que /presets)
   --json                       Salida final en JSON
   --lang <en|es>               Idioma de la interfaz (se guarda para la próxima vez)
@@ -211,6 +219,30 @@ Los presets se guardan en {presetsDir}`,
   'cli.langNotSaved': 'No se pudo guardar la preferencia de idioma: {error}',
   'cli.themeNotSaved': 'No se pudo guardar la preferencia de tema: {error}',
   'cli.noPresets': 'No hay presets guardados.',
+  'cli.noActiveModels': 'No hay modelos cargados en memoria actualmente (VRAM libre).',
+  'cli.cmdPsDesc': 'Ver modelos cargados en memoria (VRAM)',
+  'cli.cmdUnloadDesc': 'Expulsar un modelo de la memoria para liberar VRAM',
+  'cli.cmdEnginesDesc': 'Gestionar motores locales y rutas de almacenamiento',
+  'cli.selectModelToUnload': 'Selecciona el modelo a descargar de la memoria:',
+  'cli.modelUnloadedSuccess': 'El modelo {model} fue expulsado exitosamente de {engine}.',
+  'cli.modelNotFound': 'No se encontró el modelo {model} en ejecución en ningún motor.',
+  'cli.storagePathTitle': 'Ruta de almacenamiento de {engine}: {path}',
+  'cli.storagePathUpdated': 'Ruta de almacenamiento actualizada a: {path}',
+  'cli.storagePrivilegedNotice': 'Se requieren permisos de administrador. Ejecuta el siguiente comando con sudo para configurar el servicio:',
+  'cli.storagePermissionWarning': 'Advertencia: El usuario del servicio Ollama puede no tener permisos de acceso a este directorio: {path}',
+  'cli.enterSudoPassword': 'Introduce la contraseña de sudo para configurar el servicio de Ollama y reiniciar:',
+  'cli.storageUpdatedAndRestarted': '¡Ruta configurada y servicio de Ollama reiniciado exitosamente!',
+  'cli.restartRequiredNotice': 'Reinicia el servicio de {engine} para que los cambios surtan efecto.',
+  'cli.psColEngine': 'Motor',
+  'cli.psColModel': 'Modelo',
+  'cli.psColVram': 'VRAM',
+  'cli.psColQuant': 'Cuant.',
+  'cli.psColExpires': 'Expiración / TTL',
+  'cli.enginesMenuTitle': 'Gestión de motores — selecciona una acción:',
+  'cli.enginesInspect': 'Ver estado de motores y rutas de almacenamiento',
+  'cli.enginesListModels': 'Listar modelos descargados en disco',
+  'cli.enginesConfigStorage': 'Cambiar directorio de almacenamiento de modelos',
+  'cli.enginesPromptPath': 'Nueva ruta del directorio de modelos:',
   'cli.partial': 'parcial',
   'cli.display': ' · pantalla',
   'cli.noGpu': 'Sin GPU compatible: se usará solo CPU.',
@@ -314,6 +346,39 @@ Los presets se guardan en {presetsDir}`,
   'web.colShort': 'Corto',
   'web.colDeep': 'Con contexto',
   'web.colVram': 'VRAM pico',
+  'web.tabTuner': 'Tuner',
+  'web.tabOllama': 'Ollama',
+  'web.tabLmStudio': 'LM Studio',
+  'web.activeModelsTitle': 'Modelos cargados en memoria',
+  'web.noActiveModels': 'No hay modelos cargados en memoria actualmente (VRAM libre)',
+  'web.colModel': 'Modelo',
+  'web.details': 'Detalles',
+  'web.colExpires': 'Expiración / TTL',
+  'web.colActions': 'Acciones',
+  'web.unloadModel': 'Expulsar',
+  'web.unloading': 'Expulsando…',
+  'web.installedModelsTitle': 'Modelos instalados en disco',
+  'web.filterModels': 'Filtrar modelos…',
+  'web.colSize': 'Tamaño',
+  'web.quant': 'Cuantización',
+  'web.presetReady': 'Preset ajustado',
+  'web.unoptimizedNotice': 'Cargado con ajustes por defecto (aún sin preset guardado).',
+  'web.noInstalledModels': 'No se encontraron modelos descargados',
+  'web.loadModel': 'Carga rápida',
+  'web.tuneInTuner': 'Optimizar en Tuner',
+  'web.deleteModel': 'Eliminar',
+  'web.deleteModelConfirm': '¿Estás seguro de que quieres eliminar {model} del disco?',
+  'web.storagePathTitle': 'Ruta de almacenamiento de modelos',
+  'web.saveStoragePath': 'Guardar ruta',
+  'web.pathUpdatedRestartNotice': 'Ruta de almacenamiento actualizada. Reinicia el motor para que los cambios surtan efecto.',
+  'web.storagePrivilegedNotice': 'Se requieren permisos de administrador para configurar el servicio del sistema. Ejecuta el siguiente comando con sudo:',
+  'web.storagePermissionWarning': 'Advertencia: El usuario del servicio Ollama puede no tener permisos de acceso a este directorio: {path}',
+  'web.enterSudoPassword': 'Se requiere contraseña de administrador (sudo) para configurar el servicio del sistema y reiniciar Ollama:',
+  'web.confirmSudo': 'Aplicar y reiniciar servicio',
+  'web.storageUpdatedAndRestarted': '¡Ruta configurada y servicio de Ollama reiniciado exitosamente!',
+  'web.statusRunning': 'En ejecución',
+  'web.statusStopped': 'Detenido',
+  'web.refresh': 'Actualizar',
   'web.connectionLost': 'Se perdió la conexión con el servidor local',
   'web.noGpu': 'Sin GPU compatible (solo CPU)',
   'web.recommended': 'recomendado',

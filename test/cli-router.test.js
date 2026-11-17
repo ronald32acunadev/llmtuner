@@ -5,6 +5,13 @@ import { parseCliArgs } from '../src/cli/router.js';
 test('parseCliArgs - slash commands', () => {
   assert.equal(parseCliArgs(['/load']).command, 'load');
   assert.equal(parseCliArgs(['load']).command, 'load');
+  assert.equal(parseCliArgs(['/ps']).command, 'ps');
+  assert.equal(parseCliArgs(['ps']).command, 'ps');
+  assert.equal(parseCliArgs(['/unload', 'llama3']).command, 'unload');
+  assert.equal(parseCliArgs(['/unload', 'llama3']).model, 'llama3');
+  assert.equal(parseCliArgs(['unload']).command, 'unload');
+  assert.equal(parseCliArgs(['/engines']).command, 'engines');
+  assert.equal(parseCliArgs(['engines']).command, 'engines');
   assert.equal(parseCliArgs(['/mcp']).command, 'mcp');
   assert.equal(parseCliArgs(['mcp']).command, 'mcp');
   assert.equal(parseCliArgs(['/presets']).command, 'presets');
@@ -87,4 +94,32 @@ test('parseCliArgs - empty args or only global flags default to menu', () => {
   assert.equal(both.command, 'menu');
   assert.equal(both.lang, 'en');
   assert.equal(both.theme, 'light');
+});
+
+test('parseCliArgs (US-04 / AC-01) parses ps, unload, engines and engines storage', () => {
+  assert.equal(parseCliArgs(['ps']).command, 'ps');
+  assert.equal(parseCliArgs(['/ps']).command, 'ps');
+
+  const un1 = parseCliArgs(['unload', 'llama3']);
+  assert.equal(un1.command, 'unload');
+  assert.equal(un1.model, 'llama3');
+
+  const un2 = parseCliArgs(['/unload', 'mistral']);
+  assert.equal(un2.command, 'unload');
+  assert.equal(un2.model, 'mistral');
+
+  assert.equal(parseCliArgs(['engines']).command, 'engines');
+  assert.equal(parseCliArgs(['/engines']).command, 'engines');
+
+  const engStore = parseCliArgs(['engines', 'storage', '--engine', 'ollama', '--path', '/data/models']);
+  assert.equal(engStore.command, 'engines');
+  assert.equal(engStore.subcommand, 'storage');
+  assert.equal(engStore.engine, 'ollama');
+  assert.equal(engStore.path, '/data/models');
+
+  const engStoreSlash = parseCliArgs(['/engines', 'storage', '--engine', 'ollama', '--path', '/data/models']);
+  assert.equal(engStoreSlash.command, 'engines');
+  assert.equal(engStoreSlash.subcommand, 'storage');
+  assert.equal(engStoreSlash.engine, 'ollama');
+  assert.equal(engStoreSlash.path, '/data/models');
 });

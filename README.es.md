@@ -4,7 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/llm-tuner.svg)](https://www.npmjs.com/package/llm-tuner)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](package.json)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D24-brightgreen.svg)](package.json)
 
 Carga un LLM local con la configuración más rápida para el contexto que necesitas, en LM Studio u Ollama, en Windows, macOS y Linux. Tú eliges qué significa «mejor» mediante perfiles de carga deterministas: velocidad pura (`speed`), equilibrio (`balanced`) o máxima calidad de respuestas (`quality`).
 
@@ -41,7 +41,8 @@ Ningún LLM decide la configuración. LLM Tuner lee la topología de tu hardware
 - **Perfiles de carga a medida**: Optimiza para velocidad máxima (`speed`), velocidad ponderada por calidad (`balanced`) o retención íntegra en GPU sin pérdidas (`quality`).
 - **Soporte de motores locales**: Compatibilidad directa con LM Studio (gestión de `llama-server`) y Ollama (servidores de prueba aislados e integración con servicios del sistema).
 - **Presets persistentes**: Mide una sola vez por huella de hardware, modelo, contexto y perfil. Invalida automáticamente el preset si cambia el hardware o el archivo del modelo.
-- **Doble interfaz**: Asistente interactivo en terminal (`llm-tuner`) e interfaz gráfica multiplataforma (`llm-tuner-desktop`).
+- **Doble interfaz**: Asistente interactivo en terminal (`llm-tuner`) e interfaz gráfica multiplataforma (`llm-tuner-desktop`) con pestañas dedicadas de gestión para **Tuner**, **Ollama** y **LM Studio**.
+- **Gestión de motores y VRAM**: Consulta los modelos cargados en VRAM (`/ps`), expulsa modelos para liberar memoria (`/unload`), realiza cargas rápidas o elimina modelos en disco y configura las rutas de almacenamiento (`/engines`).
 - **Modo servidor remoto y daemon**: Ejecuta `llm-tuner /serve` en un servidor con GPUs dedicadas con autenticación Bearer segura (`timingSafeEqual`) y telemetría sanitizada, y contrólalo desde cualquier cliente CLI o de escritorio.
 - **Integración MCP para agentes de IA**: Conecta tus motores locales o remotos (LM Studio, Ollama) como servidores Model Context Protocol (MCP) en Claude Desktop, Claude Code, OpenCode, Antigravity, VS Code y ChatGPT/Codex.
 - **Bilingüe**: Localización completa en inglés (`en`) y español (`es`) tanto en terminal como en escritorio.
@@ -113,11 +114,14 @@ llm-tuner
 
 Ejecutar `llm-tuner` sin argumentos abre un bucle de menú interactivo:
 - `/load`: Ajustar y cargar un modelo con la configuración óptima de hardware.
+- `/ps`: Ver los modelos cargados actualmente en memoria (VRAM) y su tiempo de expiración/TTL.
+- `/unload`: Expulsar un modelo de la memoria para liberar VRAM de la GPU de inmediato.
+- `/engines`: Inspeccionar motores locales, listar modelos en disco y configurar los directorios de almacenamiento de modelos.
+- `/chat`: Probar un modelo cargado con una conversación.
 - `/mcp`: Conectar el motor local con agentes de programación de IA como servidor MCP.
 - `/presets`: Ver los presets de configuración guardados.
-- `/chat`: Probar un modelo cargado con una conversación.
 - `/serve`: Iniciar en modo servidor remoto con autenticación de API.
-- `/settings`: Configurar el idioma (`en` / `es`) y el tema visual (`system` / `light` / `dark`).
+- `/settings`: Configurar el idioma (`en` / `es`), el tema visual (`system` / `light` / `dark`), el inicio automático del servidor tras iniciar sesión y los equipos remotos guardados.
 - `/help`: Ver la ayuda de uso y las opciones de la CLI.
 - `/exit`: Salir del menú interactivo.
 
@@ -125,6 +129,10 @@ También puedes ejecutar cualquier comando slash (o su alias sin barra) directam
 
 ```bash
 llm-tuner /load
+llm-tuner /ps
+llm-tuner /unload qwen2.5-coder:14b
+llm-tuner /engines
+llm-tuner engines storage --engine ollama --path /mnt/models/ollama
 llm-tuner /mcp
 llm-tuner /presets
 llm-tuner /serve
@@ -143,7 +151,10 @@ llm-tuner-desktop
 > [!NOTE]
 > El entorno de ejecución de Electron se descarga en la primera ejecución si aún no está en caché. En Linux, `llm-tuner-desktop` también registra un acceso directo de escritorio en `~/.local/share/applications/llm-tuner.desktop`.
 
-La app de escritorio ofrece las mismas capacidades que el CLI, incluidas la cantidad de candidatos, el modo de prueba, una confirmación antes de aplicar cambios, la descarga del primer modelo, un panel de **presets guardados** y **Ajustes → Compartir este equipo** para iniciar el servidor compartido.
+La aplicación de escritorio ofrece las mismas capacidades que la CLI, organizadas en tres pestañas principales en la barra lateral:
+- **Tuner**: Asistente de optimización guiado por hardware con cantidad de candidatos, modo de prueba, confirmación antes de aplicar cambios, descarga del primer modelo y panel de **presets guardados**.
+- **Paneles de Ollama y LM Studio**: Monitoreo en tiempo real de modelos activos en VRAM con expulsión en un clic, inventario de modelos en disco con carga rápida (usando presets guardados o valores seguros por defecto), acceso directo a «Optimizar en Tuner», eliminación de modelos y configuración del directorio de almacenamiento. La telemetría se actualiza periódicamente en segundo plano (cada 5 segundos) de forma no destructiva, conservando el foco de entrada, los filtros de búsqueda y los cuadros de diálogo abiertos.
+- **Configuración**: Idioma, tema, inicio automático del servidor tras iniciar sesión, **Compartir este equipo** y gestión de equipos remotos guardados.
 
 ### Modo servidor remoto y daemon
 
@@ -203,11 +214,14 @@ llm-tuner --server gpu-rig --engine ollama --model llama3.1:8b --ctx 16384 --yes
 | Opción / Comando | Descripción | Valor predeterminado |
 | :--- | :--- | :--- |
 | `/load`, `load` | Ajustar y cargar un modelo con la configuración óptima. | Predeterminado al pasar opciones de ajuste |
-| `/mcp`, `mcp` | Configurar LM Studio u Ollama como servidor MCP en agentes de IA. | — |
+| `/ps`, `ps` | Ver los modelos cargados actualmente en memoria (VRAM). | — |
+| `/unload [modelo]`, `unload [modelo]` | Expulsar un modelo cargado de la memoria para liberar VRAM. | Preguntado interactivamente si se omite |
+| `/engines [storage]`, `engines [storage]` | Inspeccionar el estado de los motores, listar modelos en disco o actualizar rutas de almacenamiento. | — |
 | `/chat`, `chat` | Probar un modelo cargado. Conserva el historial hasta `/exit`; `--prompt` envía un mensaje y termina. | — |
+| `/mcp`, `mcp` | Configurar LM Studio u Ollama como servidor MCP en agentes de IA. | — |
 | `/presets`, `presets`, `--presets` | Listar los presets guardados (filtrable con `--engine` y `--model`). | — |
 | `/serve`, `serve`, `--serve` | Iniciar el modo daemon de servidor remoto con autenticación Bearer. | — |
-| `/settings`, `settings`, `--settings` | Abrir el menú interactivo de configuración (idioma y tema). | — |
+| `/settings`, `settings`, `--settings` | Abrir el menú interactivo de configuración (idioma, tema, inicio automático y equipos guardados). | — |
 | `/help`, `help`, `-h`, `--help` | Mostrar la ayuda de uso y la ruta del directorio de presets. | — |
 | `-v`, `--version` | Mostrar la versión instalada. | — |
 | `--engine <lmstudio\|ollama>` | Motor local objetivo. | Preguntado interactivamente |
@@ -217,6 +231,7 @@ llm-tuner --server gpu-rig --engine ollama --model llama3.1:8b --ctx 16384 --yes
 | `--force` | Volver a medir aunque exista un preset válido. | `false` |
 | `--candidates <n>` | Número de configuraciones candidatas a probar al medir. Debe ser un entero positivo. | `3` |
 | `--prompt <texto>` | Con `/chat`: envía un mensaje y termina. Sin terminal necesita `--engine` y `--model`. | — |
+| `--path <dir>` | Con `/engines`: establecer el directorio de almacenamiento de modelos para `--engine`. | — |
 | `--yes` | No pedir confirmación interactiva. | `false` |
 | `--dry-run` | Medir y mostrar cambios sin aplicar nada ni guardar preset. | `false` |
 | `--json` | Emitir el resultado final en formato JSON. | `false` |
@@ -254,7 +269,7 @@ Para cada tipo de caché KV permitido por el perfil activo (`f16`, `q8_0`, `q4_0
 llmtuner/
 ├── src/
 │   ├── cli/                # Enrutador CLI, asistente interactivo y comandos slash
-│   │   ├── commands/       # /load, /mcp, /presets, /serve, /settings, /help
+│   │   ├── commands/       # load.js, ps.js, unload.js, engines.js, chat.js, mcp.js, presets.js, serve.js, servers.js, settings.js, help.js
 │   │   ├── animation.js    # Animación de progreso y telemetría en vivo en terminal
 │   │   ├── colors.js       # Estilos ANSI adaptados al tema
 │   │   ├── index.js        # Punto de entrada del binario CLI (llm-tuner)
@@ -278,8 +293,8 @@ llmtuner/
 │   │   ├── tuner.js        # Clase orquestadora principal (Tuner)
 │   │   └── updater.js      # Comprobación de actualizaciones en el registro npm
 │   ├── i18n/               # Catálogos de localización en inglés (en.js) y español (es.js)
-│   ├── platform/           # Autorización privilegiada del servicio Ollama (sudo/polkit)
-│   └── web/                # Servidor HTTP + SSE embebido e interfaz gráfica web/escritorio
+│   ├── platform/           # Autorización de servicio (ollama-authorize.js), autoarranque (server-autostart.js) y servidor compartido (shared-server.js)
+│   └── web/                # Servidor HTTP + SSE embebido (server.js) e interfaz gráfica web/escritorio (public/app.js, navigation.js, engine-management.js)
 ├── electron/               # Lanzador de escritorio (launch.js) y proceso principal de Electron
 ├── scripts/                # Scripts locales de utilidad y evaluación
 ├── test/                   # Suite de pruebas nativas de Node.js (test/*.test.js)
@@ -324,7 +339,7 @@ npm start
 # Iniciar la aplicación de escritorio con Electron
 npm run desktop
 
-# Ejecutar la suite de pruebas automatizadas de Node.js
+# Ejecutar la suite de pruebas automatizadas de Node.js (542 pruebas en 28 suites)
 npm test
 ```
 
@@ -334,7 +349,10 @@ npm test
 
 - **Primera ejecución de escritorio (`llm-tuner-desktop`)**: El binario de Electron se descarga en la primera instalación/ejecución. Si la interfaz de escritorio no puede iniciarse, ejecuta `llm-tuner` en la terminal (funciona sin Electron).
 - **Sandbox de Linux en particiones NTFS/exFAT o sin permisos SUID**: `electron/launch.js` comprueba automáticamente los permisos de `chrome-sandbox` en Linux y activa `ELECTRON_DISABLE_SANDBOX=1` cuando el binario no pertenece a root con modo `04755`.
-- **Autorización del servicio Ollama**: Actualizar las variables de entorno del servicio Ollama (`OLLAMA_KV_CACHE_TYPE`, `OLLAMA_FLASH_ATTENTION`) en Linux puede solicitar autorización de administrador (`sudo` o `pkexec`). Si los ajustes no cambian, el servicio no se reinicia. El modo no interactivo (`--json`) nunca bloquea pidiendo contraseña.
+- **Autorización y almacenamiento del servicio Ollama en Linux**:
+  - **Parámetros de optimización**: Actualizar las variables de entorno del servicio Ollama (`OLLAMA_KV_CACHE_TYPE`, `OLLAMA_FLASH_ATTENTION`) en Linux puede solicitar autorización de administrador (`sudo` o `pkexec`). Si los ajustes no cambian, el servicio no se reinicia. El modo no interactivo (`--json`) nunca bloquea pidiendo contraseña.
+  - **Directorio de almacenamiento de modelos personalizado**: Configurar una ruta de almacenamiento personalizada genera o actualiza el archivo `/etc/systemd/system/ollama.service.d/models.conf` con `Environment="OLLAMA_MODELS=<ruta>"`. Esta operación requiere privilegios de administración; tanto la interfaz Web/escritorio como la CLI solicitan de forma interactiva la contraseña de `sudo` para escribir el drop-in, ajustar la propiedad (`chown -R ollama:ollama <ruta>`) y reiniciar el servicio `ollama.service`.
+  - **Permisos de navegación en el sistema de archivos bajo `/home/`**: Si la ruta elegida se ubica dentro del directorio personal de un usuario (por ejemplo, `/home/<usuario>/modelos`), los directorios superiores deben conceder permisos de ejecución/búsqueda al usuario del sistema `ollama` (mediante `chmod o+x /home/<usuario>` o listas de control de acceso POSIX: `setfacl -m u:ollama:rx /home/<usuario>`), evitando que el daemon falle al intentar leer los modelos.
 - **Cerrar LM Studio antes de aplicar cambios**: LM Studio sobrescribe sus archivos de configuración al cerrarse; ciérralo antes de aplicar una nueva configuración de hardware si el asistente lo solicita.
 
 ---

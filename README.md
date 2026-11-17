@@ -4,7 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/llm-tuner.svg)](https://www.npmjs.com/package/llm-tuner)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](package.json)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D24-brightgreen.svg)](package.json)
 
 Load a local LLM with the fastest configuration for the context you need, on LM Studio or Ollama, across Windows, macOS, and Linux. You choose what "best" means through deterministic load profiles: raw speed (`speed`), a balanced trade-off (`balanced`), or maximum answer quality (`quality`).
 
@@ -41,7 +41,8 @@ No LLM decides the configuration. LLM Tuner reads your hardware topology and mod
 - **Tailored Load Profiles**: Optimize for raw tokens/second (`speed`), quality-weighted speed (`balanced`), or zero-loss GPU retention (`quality`).
 - **Engine Support**: First-class support for both LM Studio (direct `llama-server` management) and Ollama (isolated benchmark servers and systemd/service integration).
 - **Persistent Presets**: Measures once per hardware fingerprint, model, context, and profile. Automatically invalidates presets if hardware or model weights change.
-- **Dual Interfaces**: Interactive terminal wizard (`llm-tuner`) and cross-platform desktop UI (`llm-tuner-desktop`).
+- **Dual Interfaces**: Interactive terminal wizard (`llm-tuner`) and cross-platform desktop UI (`llm-tuner-desktop`) with dedicated **Tuner**, **Ollama**, and **LM Studio** management tabs.
+- **Engine & VRAM Management**: Inspect models currently loaded in VRAM (`/ps`), eject models to free memory (`/unload`), quick-load or delete models on disk, and configure model storage directories (`/engines`).
 - **Remote Server & Daemon Mode**: Run `llm-tuner /serve` on a dedicated GPU machine with timing-safe Bearer token authentication and sanitized hardware telemetry, then control it from any local CLI or Desktop client.
 - **AI Agent MCP Integration**: Connect your local or remote engines (LM Studio, Ollama) as Model Context Protocol (MCP) servers to Claude Desktop, Claude Code, OpenCode, Antigravity, VS Code, and ChatGPT/Codex.
 - **Bilingual**: Full English (`en`) and Spanish (`es`) localization across both terminal and desktop interfaces.
@@ -113,11 +114,14 @@ llm-tuner
 
 Running `llm-tuner` without arguments opens an interactive command loop:
 - `/load`: Tune and load a model with optimal hardware settings.
+- `/ps`: View models currently loaded in memory (VRAM) and their expiration/TTL.
+- `/unload`: Eject a model from memory to immediately free GPU VRAM.
+- `/engines`: Inspect local engines, list models on disk, and configure model storage directories.
 - `/chat`: Test a loaded model with a conversation.
 - `/mcp`: Connect your local engine to AI coding agents as an MCP server.
 - `/presets`: View saved tuning presets.
 - `/serve`: Start remote server mode with API authentication.
-- `/settings`: Configure interface language (`en` / `es`) and visual theme (`system` / `light` / `dark`).
+- `/settings`: Configure interface language (`en` / `es`), visual theme (`system` / `light` / `dark`), automatic server startup after login, and saved remote computers.
 - `/help`: View usage help and CLI flags.
 - `/exit`: Exit the interactive menu.
 
@@ -125,6 +129,10 @@ You can also invoke any slash command (or its plain positional alias) directly f
 
 ```bash
 llm-tuner /load
+llm-tuner /ps
+llm-tuner /unload qwen2.5-coder:14b
+llm-tuner /engines
+llm-tuner engines storage --engine ollama --path /mnt/models/ollama
 llm-tuner /mcp
 llm-tuner /presets
 llm-tuner /serve
@@ -143,7 +151,10 @@ llm-tuner-desktop
 > [!NOTE]
 > The Electron desktop runtime is downloaded on first launch if not already cached. On Linux, `llm-tuner-desktop` also registers a desktop entry at `~/.local/share/applications/llm-tuner.desktop`.
 
-The desktop app offers the same capabilities as the CLI, including candidate count, dry run, a confirmation before changes are applied, first-model download, a **Saved presets** panel, and **Settings → Share this computer** to start the shared server.
+The desktop app offers the same capabilities as the CLI, organized into three top-level sidebar tabs:
+- **Tuner**: Hardware-aware optimization wizard with candidate count, dry run, confirmation before applying changes, first-model download, and a **Saved presets** drawer.
+- **Ollama & LM Studio Dashboards**: Real-time monitoring of active models in VRAM with one-click unload, disk model inventory with quick load (using saved presets or safe defaults), "Tune in Tuner" shortcut, model deletion, and model storage directory configuration. Telemetry polls non-destructively in the background every 5 seconds, preserving search filters, input focus, and active dialogs.
+- **Settings**: Language, theme, automatic server startup after login, **Share this computer** (shared server hosting), and saved remote computers.
 
 ### Remote Server Mode & Daemon
 
@@ -203,11 +214,14 @@ llm-tuner --server gpu-rig --engine ollama --model llama3.1:8b --ctx 16384 --yes
 | Flag / Command | Description | Default |
 | :--- | :--- | :--- |
 | `/load`, `load` | Tune and load a model with optimal hardware settings. | Default when tuning flags are passed |
+| `/ps`, `ps` | View models currently loaded in memory (VRAM) across engines. | — |
+| `/unload [model]`, `unload [model]` | Eject a loaded model from memory to free VRAM. | Interactive prompt if omitted |
+| `/engines [storage]`, `engines [storage]` | Inspect engine status, list disk models, or update model storage paths. | — |
 | `/chat`, `chat` | Test a loaded model. Keeps history until `/exit`; `--prompt` sends one message and exits. | — |
 | `/mcp`, `mcp` | Configure LM Studio or Ollama as an MCP server for AI agents. | — |
 | `/presets`, `presets`, `--presets` | List saved tuning presets (filterable by `--engine` and `--model`). | — |
 | `/serve`, `serve`, `--serve` | Start remote server daemon mode with Bearer authentication. | — |
-| `/settings`, `settings`, `--settings` | Open the interactive settings menu (language & theme). | — |
+| `/settings`, `settings`, `--settings` | Open the interactive settings menu (language, theme, login autostart, and saved computers). | — |
 | `/help`, `help`, `-h`, `--help` | Show CLI usage help and presets directory path. | — |
 | `-v`, `--version` | Print the installed version. | — |
 | `--engine <lmstudio\|ollama>` | Target local LLM engine. | Interactive prompt |
@@ -217,6 +231,7 @@ llm-tuner --server gpu-rig --engine ollama --model llama3.1:8b --ctx 16384 --yes
 | `--force` | Re-run benchmarks even if a valid preset already exists. | `false` |
 | `--candidates <n>` | Number of top candidate configurations to benchmark. Must be a positive whole number. | `3` |
 | `--prompt <text>` | With `/chat`: send one message and exit. Needs `--engine` and `--model` without a terminal. | — |
+| `--path <dir>` | With `/engines`: set the model storage directory for `--engine`. | — |
 | `--yes` | Skip confirmation prompts. | `false` |
 | `--dry-run` | Measure and preview changes without applying config or saving a preset. | `false` |
 | `--json` | Emit final execution result as JSON. | `false` |
@@ -254,7 +269,7 @@ For each KV cache type permitted by the active profile (`f16`, `q8_0`, `q4_0`):
 llmtuner/
 ├── src/
 │   ├── cli/                # CLI router, interactive wizard, and slash commands
-│   │   ├── commands/       # /load, /mcp, /presets, /serve, /settings, /help
+│   │   ├── commands/       # load.js, ps.js, unload.js, engines.js, chat.js, mcp.js, presets.js, serve.js, servers.js, settings.js, help.js
 │   │   ├── animation.js    # Live terminal telemetry and progress animation
 │   │   ├── colors.js       # Theme-aware ANSI styling
 │   │   ├── index.js        # CLI binary entrypoint (llm-tuner)
@@ -278,8 +293,8 @@ llmtuner/
 │   │   ├── tuner.js        # Main Tuner orchestrator class
 │   │   └── updater.js      # npm registry version check
 │   ├── i18n/               # English (en.js) and Spanish (es.js) catalogs
-│   ├── platform/           # Privileged Ollama service authorization (sudo/polkit)
-│   └── web/                # Embedded HTTP + SSE server and static Desktop/Web UI
+│   ├── platform/           # Service auth (ollama-authorize.js), login autostart (server-autostart.js), and shared hosting (shared-server.js)
+│   └── web/                # Embedded HTTP + SSE server (server.js) and static Desktop/Web UI (public/app.js, navigation.js, engine-management.js)
 ├── electron/               # Desktop launcher (launch.js) and Electron main process
 ├── scripts/                # Local utility and evaluation helper scripts
 ├── test/                   # Node.js built-in test suite (test/*.test.js)
@@ -324,7 +339,7 @@ npm start
 # Launch the Electron desktop application
 npm run desktop
 
-# Run the automated Node.js test suite
+# Run the automated Node.js test suite (542 tests across 28 suites)
 npm test
 ```
 
@@ -334,7 +349,10 @@ npm test
 
 - **First Desktop Launch (`llm-tuner-desktop`)**: The Electron binary is downloaded on initial install/run. If Electron cannot start, run `llm-tuner` in the terminal—it works without the desktop runtime.
 - **Linux Sandbox on NTFS/exFAT or Non-Root Mounts**: `electron/launch.js` automatically checks `chrome-sandbox` permissions on Linux and sets `ELECTRON_DISABLE_SANDBOX=1` when SUID root (`04755`) is unavailable on the filesystem.
-- **Ollama Service Authorization**: Updating Ollama server environment variables (`OLLAMA_KV_CACHE_TYPE`, `OLLAMA_FLASH_ATTENTION`) on Linux may prompt for administrator authorization (`sudo` or `pkexec`). If settings are already up to date, the service is not restarted. Non-interactive (`--json`) runs never block on password prompts.
+- **Ollama Service & Storage Authorization on Linux**:
+  - **Tuning parameters**: Updating Ollama server environment variables (`OLLAMA_KV_CACHE_TYPE`, `OLLAMA_FLASH_ATTENTION`) on Linux may prompt for administrator authorization (`sudo` or `pkexec`). If settings are already up to date, the service is not restarted. Non-interactive (`--json`) runs never block on password prompts.
+  - **Custom model storage directory**: Configuring a custom storage path creates or updates `/etc/systemd/system/ollama.service.d/models.conf` with `Environment="OLLAMA_MODELS=<path>"`. This requires root privileges; both the Web/Desktop UI and CLI prompt interactively for `sudo` password elevation to write the drop-in, assign ownership (`chown -R ollama:ollama <path>`), and reload and restart `ollama.service`.
+  - **Filesystem traversal permissions under `/home/`**: When pointing Ollama storage to a path inside a user's home directory (e.g., `/home/<username>/models`), parent directories must grant execute/traversal permissions to the system `ollama` user (e.g., `chmod o+x /home/<username>` or POSIX ACL `setfacl -m u:ollama:rx /home/<username>`), otherwise the daemon will fail to access downloaded models.
 - **LM Studio Must Be Closed Before Applying**: LM Studio overwrites its configuration files on exit; close LM Studio before applying a new hardware configuration if prompted.
 
 ---

@@ -115,7 +115,7 @@ function send(res, status, obj) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
   });
   res.end(JSON.stringify(obj));
@@ -335,7 +335,7 @@ async function handler(req, res, options = {}) {
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type',
         'Access-Control-Max-Age': '86400',
       });
@@ -404,7 +404,8 @@ async function handler(req, res, options = {}) {
 
     if (activeRemote) {
       const PROXIED_PATHS = ['/api/state', '/api/models', '/api/plan', '/api/presets', '/api/load', '/api/chat'];
-      if (PROXIED_PATHS.includes(url.pathname)) {
+      const isEngineProxied = /^\/api\/engines\/[\w-]+\/(status|ps|unload|models|load)$/.test(url.pathname);
+      if (PROXIED_PATHS.includes(url.pathname) || isEngineProxied) {
         const onJson = url.pathname === '/api/load' ? (data) => { if (data?.jobId) jobTargets.set(data.jobId, activeRemote); } : undefined;
         return await proxyToRemote(activeRemote, req, url, res, { onJson });
       }
@@ -428,6 +429,97 @@ async function handler(req, res, options = {}) {
       });
       return;
     }
+
+    const engineRoute = url.pathname.match(/^\/api\/engines\/([\w-]+)\/(status|ps|unload|load|models|storage)$/);
+    if (engineRoute) {
+      const [, engineId, action] = engineRoute;
+      const engineObj = ENGINES[engineId];
+      if (!engineObj) throw new TunerError('errors.unknownEngine', { engine: engineId });
+      const hw = await detectHardware();
+      const detection = await engineObj.detect(hw);
+      const ctx = { detection, hw };
+
+      if (req.method === 'GET' && action === 'status') {
+        return send(res, 200, {
+          engine: engineId,
+          name: engineObj.name,
+          installed: !!detection.installed,
+          running: !!(detection.serverRunning || detection.appRunning),
+          version: detection.version || null,
+          apiUrl: detection.apiUrl || null,
+          modelsDir: detection.modelsDir || detection.home || null,
+          systemd: !!detection.systemd,
+          bin: detection.bin || null,
+        });
+      }
+
+      if (req.method === 'GET' && action === 'ps') {
+        const models = typeof engineObj.ps === 'function' ? await engineObj.ps(ctx) : [];
+        return send(res, 200, { engine: engineId, models });
+      }
+
+      if (req.method === 'POST' && action === 'unload') {
+        if (busy) throw new TunerError('errors.loadInProgress');
+        const payload = await body(req);
+        if (!payload?.model) throw new TunerError('errors.missingModelName');
+        const result = typeof engineObj.unload === 'function' ? await engineObj.unload(ctx, payload.model) : { ok: false };
+        return send(res, 200, result);
+      }
+
+      if (req.method === 'GET' && action === 'models') {
+        const tuner = await Tuner.create(engineId);
+        const models = await tuner.listModels();
+        const presets = await listPresets({ engine: engineId }).catch(() => []);
+        const annotated = models.map((m) => ({
+          ...m,
+          hasPreset: presets.some((p) => p.modelKey === (m.key || m.name)),
+        }));
+        return send(res, 200, { engine: engineId, models: annotated });
+      }
+
+      if (req.method === 'POST' && action === 'load') {
+        if (busy) throw new TunerError('errors.loadInProgress');
+        const payload = await body(req);
+        if (!payload?.model) throw new TunerError('errors.missingModelName');
+        const presets = await listPresets({ engine: engineId, modelKey: payload.model }).catch(() => []);
+        const preset = presets[0] || null;
+        busy = true;
+        try {
+          const loaded = typeof engineObj.quickLoad === 'function'
+            ? await engineObj.quickLoad(ctx, payload.model, preset?.candidate || null)
+            : await engineObj.load(ctx, { key: payload.model }, { candidate: preset?.candidate, genTokens: 16 });
+          return send(res, 200, { ok: true, unoptimized: !preset, presetUsed: !!preset, loaded });
+        } finally {
+          busy = false;
+        }
+      }
+
+      if (req.method === 'DELETE' && action === 'models') {
+        if (isRemote || activeRemote) return send(res, 403, { error: 'Forbidden', code: 'errors.forbiddenRemote' });
+        if (busy) throw new TunerError('errors.loadInProgress');
+        const payload = await body(req);
+        if (!payload?.model) throw new TunerError('errors.missingModelName');
+        const result = typeof engineObj.deleteModel === 'function' ? await engineObj.deleteModel(ctx, payload.model) : { ok: false };
+        return send(res, 200, result);
+      }
+
+      if (req.method === 'GET' && action === 'storage') {
+        const modelsDir = detection.modelsDir || detection.home || null;
+        return send(res, 200, { engine: engineId, modelsDir, canEdit: !isRemote && !activeRemote });
+      }
+
+      if (req.method === 'POST' && action === 'storage') {
+        if (isRemote || activeRemote) return send(res, 403, { error: 'Forbidden', code: 'errors.forbiddenRemote' });
+        const payload = await body(req);
+        if (!payload?.path) throw new TunerError('errors.missingStoragePath');
+        if (typeof engineObj.setModelsDir === 'function') {
+          const result = await engineObj.setModelsDir(ctx, payload.path, { password: payload.password });
+          return send(res, 200, result);
+        }
+        return send(res, 200, { ok: true, path: payload.path, requiresRestart: true });
+      }
+    }
+
     const route = routes[`${req.method} ${url.pathname}`];
     if (route) return send(res, 200, await route(req, url, { ...options, isRemote }));
 

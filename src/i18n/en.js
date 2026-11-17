@@ -84,6 +84,9 @@ export default {
 
   // Errors
   'errors.unknownEngine': 'Unknown engine: {engine}',
+  'errors.missingModelName': 'A model name is required',
+  'errors.missingStoragePath': 'A storage directory path is required',
+  'errors.invalidStoragePath': 'Enter a valid, accessible directory path',
   'errors.noConfigWorked': 'No configuration worked with this context. Try a smaller one.',
   'errors.ggufNotFound': 'Cannot find the GGUF file for {key}',
   'errors.lmstudioOpen': 'LM Studio is open; close it before applying the configuration.',
@@ -95,6 +98,7 @@ export default {
   'errors.ollamaAuthorizationUnavailable': 'Administrator authorization is unavailable. Check that sudo or a desktop polkit authentication agent is installed.',
   'errors.ollamaAuthorizationCancelled': 'Administrator authorization was cancelled. The model was not loaded.',
   'errors.ollamaAuthorizationFailed': 'Ollama service configuration failed. Check the service and its configuration backup before retrying.',
+  'errors.invalidSudoPassword': 'Incorrect administrator (sudo) password. Please try again.',
 
   // Install methods
   'install.ollamaScript': 'Official script (ollama.com/install.sh, asks for sudo)',
@@ -160,6 +164,9 @@ Usage: llm-tuner [command] [options]
 
 Commands:
   /load                        Choose an engine and model on the active computer, then tune and load it
+  /ps                          View models currently loaded in memory (VRAM)
+  /unload [model]              Eject a model from memory to free VRAM
+  /engines                     Inspect engines and configure model storage paths
   /chat                        Test a loaded model with a conversation
   /mcp                         Connect a local engine to AI coding agents as an MCP server
   /presets                     View saved tuning presets
@@ -178,6 +185,7 @@ Options:
   --yes                        Do not ask for confirmation
   --dry-run                    Measure and show the changes without applying anything or saving a preset
   --prompt <text>              With /chat: send one message and exit
+  --path <dir>                 With /engines: set model storage directory
   --presets                    List saved presets (same as /presets)
   --json                       Final output as JSON
   --lang <en|es>               Interface language (saved for next time)
@@ -211,6 +219,30 @@ Presets are saved in {presetsDir}`,
   'cli.langNotSaved': 'Could not save the language preference: {error}',
   'cli.themeNotSaved': 'Could not save the theme preference: {error}',
   'cli.noPresets': 'No saved presets.',
+  'cli.noActiveModels': 'No models currently loaded in memory (VRAM free).',
+  'cli.cmdPsDesc': 'View models currently loaded in memory (VRAM)',
+  'cli.cmdUnloadDesc': 'Eject a model from memory to free VRAM',
+  'cli.cmdEnginesDesc': 'Manage local engines and storage paths',
+  'cli.selectModelToUnload': 'Select a model to unload from memory:',
+  'cli.modelUnloadedSuccess': 'Model {model} was successfully unloaded from {engine}.',
+  'cli.modelNotFound': 'Model {model} was not found running in any engine.',
+  'cli.storagePathTitle': 'Storage path for {engine}: {path}',
+  'cli.storagePathUpdated': 'Storage path updated to: {path}',
+  'cli.storagePrivilegedNotice': 'Administrator permissions required. Run the following command with sudo to configure the service:',
+  'cli.storagePermissionWarning': 'Warning: The Ollama service user may not have access to this directory: {path}',
+  'cli.enterSudoPassword': 'Enter sudo password to configure Ollama service and restart:',
+  'cli.storageUpdatedAndRestarted': 'Storage path configured and Ollama service restarted successfully!',
+  'cli.restartRequiredNotice': 'Please restart the {engine} service for changes to take effect.',
+  'cli.psColEngine': 'Engine',
+  'cli.psColModel': 'Model',
+  'cli.psColVram': 'VRAM',
+  'cli.psColQuant': 'Quant',
+  'cli.psColExpires': 'Expires / TTL',
+  'cli.enginesMenuTitle': 'Engine management — select an action:',
+  'cli.enginesInspect': 'Inspect engine status and storage paths',
+  'cli.enginesListModels': 'List downloaded models on disk',
+  'cli.enginesConfigStorage': 'Change model storage directory',
+  'cli.enginesPromptPath': 'New model storage directory path:',
   'cli.partial': 'partial',
   'cli.display': ' · display',
   'cli.noGpu': 'No compatible GPU: only the CPU will be used.',
@@ -315,6 +347,39 @@ Presets are saved in {presetsDir}`,
   'web.colShort': 'Short',
   'web.colDeep': 'With context',
   'web.colVram': 'Peak VRAM',
+  'web.tabTuner': 'Tuner',
+  'web.tabOllama': 'Ollama',
+  'web.tabLmStudio': 'LM Studio',
+  'web.activeModelsTitle': 'Models Loaded in Memory',
+  'web.noActiveModels': 'No models currently loaded in memory (VRAM free)',
+  'web.colModel': 'Model',
+  'web.details': 'Details',
+  'web.colExpires': 'Expires / TTL',
+  'web.colActions': 'Actions',
+  'web.unloadModel': 'Unload',
+  'web.unloading': 'Unloading…',
+  'web.installedModelsTitle': 'Installed Models on Disk',
+  'web.filterModels': 'Filter models…',
+  'web.colSize': 'Size',
+  'web.quant': 'Quantization',
+  'web.presetReady': 'Tuned preset',
+  'web.unoptimizedNotice': 'Loaded with default settings (no preset saved yet).',
+  'web.noInstalledModels': 'No downloaded models found',
+  'web.loadModel': 'Quick Load',
+  'web.tuneInTuner': 'Tune in Tuner',
+  'web.deleteModel': 'Delete',
+  'web.deleteModelConfirm': 'Are you sure you want to delete {model} from disk?',
+  'web.storagePathTitle': 'Model Storage Directory',
+  'web.saveStoragePath': 'Save Path',
+  'web.pathUpdatedRestartNotice': 'Storage path updated. Please restart the engine for changes to take effect.',
+  'web.storagePrivilegedNotice': 'Administrator permissions are required to configure the system service. Run the command below with sudo:',
+  'web.storagePermissionWarning': 'Warning: The Ollama service user may not have access to this directory: {path}',
+  'web.enterSudoPassword': 'Administrator password (sudo) required to configure the system service and restart Ollama:',
+  'web.confirmSudo': 'Apply and Restart Service',
+  'web.storageUpdatedAndRestarted': 'Storage path configured and Ollama service restarted successfully!',
+  'web.statusRunning': 'Running',
+  'web.statusStopped': 'Stopped',
+  'web.refresh': 'Refresh',
   'web.connectionLost': 'Lost connection to the local server',
   'web.noGpu': 'No compatible GPU (CPU only)',
   'web.recommended': 'recommended',

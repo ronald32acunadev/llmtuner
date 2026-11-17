@@ -2,7 +2,7 @@
 # Configure the system Ollama service without moving or deleting models.
 set -eu
 
-MODELS=/run/media/pumba/DataBases/Models/Ollama
+MODELS=/run/media/pumba/LLMModels/Ollama
 DROPIN=/etc/systemd/system/ollama.service.d/models.conf
 
 fail() {
@@ -34,7 +34,7 @@ printf 'Ollama will restart; active generations will be interrupted.\n'
 printf 'Models will remain in place. Failed steps stop this script without rollback.\n'
 
 setfacl -m u:ollama:--x /run/media/pumba \
-    /run/media/pumba/DataBases /run/media/pumba/DataBases/Models
+    /run/media/pumba/LLMModels /run/media/pumba/LLMModels/Ollama
 setfacl -R -m u:ollama:rwX "$MODELS"
 find "$MODELS" -type d -exec setfacl -m d:u:ollama:rwx {} +
 runuser -u ollama -- test -r "$MODELS"

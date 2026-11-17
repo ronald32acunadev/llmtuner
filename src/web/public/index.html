@@ -19,6 +19,20 @@
         <small data-i18n="web.tagline">load your model with the fastest configuration</small>
       </div>
     </div>
+    <nav class="primary-nav" id="primary-nav" aria-label="Main navigation">
+      <button class="nav-tab active" data-tab="tuner" type="button">
+        <span class="nav-tab-icon">⚡</span>
+        <span data-i18n="web.tabTuner">Tuner</span>
+      </button>
+      <button class="nav-tab" data-tab="ollama" type="button">
+        <span class="nav-tab-icon">🦙</span>
+        <span data-i18n="web.tabOllama">Ollama</span>
+      </button>
+      <button class="nav-tab" data-tab="lmstudio" type="button">
+        <span class="nav-tab-icon">🧪</span>
+        <span data-i18n="web.tabLmStudio">LM Studio</span>
+      </button>
+    </nav>
     <button id="presets-open" class="settings-trigger" type="button" aria-haspopup="dialog" aria-expanded="false">
       <span class="settings-trigger-icon">☰</span>
       <span data-i18n="web.presetInventory">Saved presets</span>
@@ -38,6 +52,7 @@
   </aside>
 
   <main>
+    <div id="view-tuner">
     <section id="sec-engine" class="panel">
       <header><h2 data-i18n="web.whichEngine">Which engine do you want to use?</h2></header>
       <div id="engines" class="engines"></div>
@@ -145,6 +160,9 @@
         </form>
       </div>
     </section>
+    </div>
+    <div id="view-ollama" class="engine-view panel" hidden></div>
+    <div id="view-lmstudio" class="engine-view panel" hidden></div>
   </main>
 </div>
 <div id="presets-backdrop" class="drawer-backdrop" hidden></div>
