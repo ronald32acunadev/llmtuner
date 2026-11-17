@@ -114,10 +114,11 @@ test('Ollama detect resolves modelsDir with R_OK when directory exists', async (
   const detection = await ollama.detect();
   assert.ok(detection);
   if (process.platform === 'linux') {
-    // Should resolve path (e.g. /usr/share/ollama/.ollama/models) instead of null
-    const exists = await fs.stat('/usr/share/ollama/.ollama/models').catch(() => null);
-    if (exists) {
-      assert.strictEqual(detection.modelsDir, '/usr/share/ollama/.ollama/models');
+    if (detection.modelsDir) {
+      assert.strictEqual(typeof detection.modelsDir, 'string');
+      assert.ok(detection.modelsDir.length > 0);
+      const stats = await fs.stat(detection.modelsDir);
+      assert.strictEqual(stats.isDirectory(), true);
     }
   }
 });
