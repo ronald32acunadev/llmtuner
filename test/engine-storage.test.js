@@ -18,39 +18,75 @@ after(() => {
   server?.close();
 });
 
-test('GET /api/engines/:engine/storage returns current storage path and canEdit flag', async () => {
-  const res = await fetch(`${url}/api/engines/ollama/storage`);
+test('GET /api/engines/:engine/storage returns resolved modelsDir for Ollama and LM Studio', async (t) => {
+  t.mock.method(lmstudio, 'detect', async () => ({
+    installed: true,
+    home: '/tmp/lms',
+    modelsDir: '/tmp/lms/custom-models',
+  }));
+
+  const res = await fetch(`${url}/api/engines/lmstudio/storage`);
   assert.strictEqual(res.status, 200);
   const data = await res.json();
-  assert.strictEqual(data.engine, 'ollama');
-  assert.ok('modelsDir' in data);
-  assert.strictEqual(data.canEdit, true);
+  assert.deepStrictEqual(data, {
+    engine: 'lmstudio',
+    modelsDir: '/tmp/lms/custom-models',
+    canEdit: true,
+  });
 });
 
-test('POST /api/engines/:engine/storage rejects missing path', async () => {
-  const res = await fetch(`${url}/api/engines/ollama/storage`, {
+test('POST /api/engines/:engine/storage rejects missing or invalid path with 400', async () => {
+  const resMissing = await fetch(`${url}/api/engines/ollama/storage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({})
+    body: JSON.stringify({}),
   });
-  assert.strictEqual(res.status, 400);
+  assert.strictEqual(resMissing.status, 400);
+  const dataMissing = await resMissing.json();
+  assert.strictEqual(dataMissing.code, 'errors.missingStoragePath');
+
+  const tempFile = path.join(os.tmpdir(), `llm-tuner-storage-file-${Date.now()}`);
+  await fs.writeFile(tempFile, 'not-a-directory', 'utf8');
+  try {
+    const resInvalid = await fetch(`${url}/api/engines/lmstudio/storage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: tempFile }),
+    });
+    assert.strictEqual(resInvalid.status, 400);
+    const dataInvalid = await resInvalid.json();
+    assert.strictEqual(dataInvalid.code, 'errors.invalidStoragePath');
+  } finally {
+    await fs.unlink(tempFile).catch(() => {});
+  }
 });
 
-test('LM Studio setModelsDir updates settings.json downloadsFolder', async () => {
+test('LM Studio setModelsDir updates settings.json downloadsFolder and creates directory', async () => {
   const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'lmstudio-test-home-'));
   await fs.writeFile(path.join(tempHome, 'settings.json'), JSON.stringify({ downloadsFolder: '/old/path' }), 'utf8');
 
-  const newDir = path.join(os.tmpdir(), 'new-models-dir');
+  const newDir = path.join(os.tmpdir(), `new-models-dir-${Date.now()}`);
   const ctx = { detection: { home: tempHome } };
 
   assert.strictEqual(typeof lmstudio.setModelsDir, 'function', 'lmstudio must have setModelsDir');
   const res = await lmstudio.setModelsDir(ctx, newDir);
   assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.path, newDir);
+  assert.strictEqual(res.requiresRestart, false);
 
   const updated = JSON.parse(await fs.readFile(path.join(tempHome, 'settings.json'), 'utf8'));
   assert.strictEqual(updated.downloadsFolder, newDir);
+
+  const st = await fs.stat(newDir);
+  assert.strictEqual(st.isDirectory(), true);
+  await fs.rm(newDir, { recursive: true, force: true }).catch(() => {});
+  await fs.rm(tempHome, { recursive: true, force: true }).catch(() => {});
 });
 
-test('Ollama exposes setModelsDir function', () => {
-  assert.strictEqual(typeof ollama.setModelsDir, 'function', 'ollama must have setModelsDir');
+test('Ollama setModelsDir validates path and returns requiresRestart or manualCommand', async () => {
+  const newOllamaDir = path.join(os.tmpdir(), `ollama-models-${Date.now()}`);
+  const res = await ollama.setModelsDir({ detection: { systemd: false } }, newOllamaDir);
+  assert.strictEqual(res.path, newOllamaDir);
+  assert.strictEqual(res.requiresRestart, true);
+  await fs.rm(newOllamaDir, { recursive: true, force: true }).catch(() => {});
 });

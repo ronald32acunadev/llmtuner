@@ -115,7 +115,7 @@ function send(res, status, obj) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
   });
   res.end(JSON.stringify(obj));
@@ -335,7 +335,7 @@ async function handler(req, res, options = {}) {
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type',
         'Access-Control-Max-Age': '86400',
       });
@@ -404,7 +404,8 @@ async function handler(req, res, options = {}) {
 
     if (activeRemote) {
       const PROXIED_PATHS = ['/api/state', '/api/models', '/api/plan', '/api/presets', '/api/load', '/api/chat'];
-      if (PROXIED_PATHS.includes(url.pathname)) {
+      const isEngineProxied = /^\/api\/engines\/[\w-]+\/(status|ps|unload|models|load)$/.test(url.pathname);
+      if (PROXIED_PATHS.includes(url.pathname) || isEngineProxied) {
         const onJson = url.pathname === '/api/load' ? (data) => { if (data?.jobId) jobTargets.set(data.jobId, activeRemote); } : undefined;
         return await proxyToRemote(activeRemote, req, url, res, { onJson });
       }
@@ -442,12 +443,13 @@ async function handler(req, res, options = {}) {
         return send(res, 200, {
           engine: engineId,
           name: engineObj.name,
+          installed: !!detection.installed,
           running: !!(detection.serverRunning || detection.appRunning),
-          version: detection.version,
-          apiUrl: detection.apiUrl,
+          version: detection.version || null,
+          apiUrl: detection.apiUrl || null,
           modelsDir: detection.modelsDir || detection.home || null,
           systemd: !!detection.systemd,
-          bin: detection.bin,
+          bin: detection.bin || null,
         });
       }
 
@@ -466,24 +468,34 @@ async function handler(req, res, options = {}) {
 
       if (req.method === 'GET' && action === 'models') {
         const tuner = await Tuner.create(engineId);
-        return send(res, 200, { engine: engineId, models: await tuner.listModels() });
+        const models = await tuner.listModels();
+        const presets = await listPresets({ engine: engineId }).catch(() => []);
+        const annotated = models.map((m) => ({
+          ...m,
+          hasPreset: presets.some((p) => p.modelKey === (m.key || m.name)),
+        }));
+        return send(res, 200, { engine: engineId, models: annotated });
       }
 
       if (req.method === 'POST' && action === 'load') {
         if (busy) throw new TunerError('errors.loadInProgress');
         const payload = await body(req);
         if (!payload?.model) throw new TunerError('errors.missingModelName');
-        const tuner = await Tuner.create(engineId);
-        const presets = await listPresets({ engine: engineId, modelKey: payload.model });
-        const preset = presets[0];
-        const ctxVal = payload.ctx || preset?.context || 8192;
-        const profile = payload.profile || preset?.profile || 'balanced';
-        const loadOpts = { force: false, maxCandidates: 1, dryRun: false, profile };
-        const outcome = await tuner.load(payload.model, ctxVal, () => {}, loadOpts);
-        return send(res, 200, { ok: true, loaded: outcome });
+        const presets = await listPresets({ engine: engineId, modelKey: payload.model }).catch(() => []);
+        const preset = presets[0] || null;
+        busy = true;
+        try {
+          const loaded = typeof engineObj.quickLoad === 'function'
+            ? await engineObj.quickLoad(ctx, payload.model, preset?.candidate || null)
+            : await engineObj.load(ctx, { key: payload.model }, { candidate: preset?.candidate, genTokens: 16 });
+          return send(res, 200, { ok: true, unoptimized: !preset, presetUsed: !!preset, loaded });
+        } finally {
+          busy = false;
+        }
       }
 
       if (req.method === 'DELETE' && action === 'models') {
+        if (isRemote || activeRemote) return send(res, 403, { error: 'Forbidden', code: 'errors.forbiddenRemote' });
         if (busy) throw new TunerError('errors.loadInProgress');
         const payload = await body(req);
         if (!payload?.model) throw new TunerError('errors.missingModelName');
@@ -493,10 +505,11 @@ async function handler(req, res, options = {}) {
 
       if (req.method === 'GET' && action === 'storage') {
         const modelsDir = detection.modelsDir || detection.home || null;
-        return send(res, 200, { engine: engineId, modelsDir, canEdit: true });
+        return send(res, 200, { engine: engineId, modelsDir, canEdit: !isRemote && !activeRemote });
       }
 
       if (req.method === 'POST' && action === 'storage') {
+        if (isRemote || activeRemote) return send(res, 403, { error: 'Forbidden', code: 'errors.forbiddenRemote' });
         const payload = await body(req);
         if (!payload?.path) throw new TunerError('errors.missingStoragePath');
         if (typeof engineObj.setModelsDir === 'function') {

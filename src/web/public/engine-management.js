@@ -1,14 +1,25 @@
 const GiB = 1024 ** 3;
 const fmtBytes = (b) => (b ? (b / GiB).toFixed(2) + ' GB' : '-');
+const fmtExpires = (exp) => {
+  if (!exp) return '-';
+  try {
+    const d = new Date(exp);
+    return isNaN(d.getTime()) ? String(exp) : (d.toLocaleTimeString?.() || String(exp));
+  } catch {
+    return String(exp);
+  }
+};
 
-export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneModel }) {
+export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneModel, autoRefresh = false }) {
   let status = null;
   let activeModels = [];
   let installedModels = [];
   let storagePath = '';
+  let canEdit = true;
   let filter = '';
   let busy = false;
   let pollTimer = null;
+  let loadNotice = '';
 
   const refresh = async () => {
     if (busy) return;
@@ -24,6 +35,7 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
       activeModels = psRes.models || [];
       installedModels = modelsRes.models || [];
       storagePath = storageRes.modelsDir || storageRes.path || '';
+      canEdit = storageRes.canEdit ?? true;
       render();
     } catch (e) {
       console.error(e);
@@ -86,6 +98,7 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
             <th>${esc(t('web.colModel'))}</th>
             <th>${esc(t('web.colVram'))}</th>
             <th>${esc(t('web.details'))}</th>
+            <th>${esc(t('web.colExpires'))}</th>
             <th>${esc(t('web.colActions'))}</th>
           </tr>
         </thead>
@@ -102,6 +115,7 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
           <td><b>${esc(m.name || m.model)}</b></td>
           <td>${esc(vramText)}</td>
           <td class="muted small">${esc(detailsText)}</td>
+          <td class="muted small">${esc(fmtExpires(m.expiresAt))}</td>
           <td>
             <button class="btn secondary sm" data-action="unload" data-name="${esc(m.name || m.model)}" type="button">${esc(t('web.unloadModel'))}</button>
           </td>
@@ -121,6 +135,7 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
         <h3>${esc(t('web.installedModelsTitle'))}</h3>
         <input type="text" id="model-filter" class="form-control" style="max-width:240px;padding:4px 8px;font-size:0.85rem" placeholder="${esc(t('web.filterModels'))}" value="${esc(filter)}">
       </div>
+      <div id="installed-notice" style="margin-top:8px">${loadNotice ? `<p class="notice info">${esc(loadNotice)}</p>` : ''}</div>
     `;
 
     const filterInput = installedSection.querySelector('#model-filter');
@@ -158,8 +173,9 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
       filtered.forEach((m) => {
         const modelKey = m.key || m.name;
         const tr = document.createElement('tr');
+        const presetBadge = m.hasPreset ? ` <span class="tag prio">${esc(t('web.presetReady'))}</span>` : '';
         tr.innerHTML = `
-          <td><b>${esc(m.name || modelKey)}</b></td>
+          <td><b>${esc(m.name || modelKey)}</b>${presetBadge}</td>
           <td class="num muted small">${esc(fmtBytes(m.sizeBytes))}</td>
           <td class="muted small">${esc(m.quant || '-')}</td>
           <td>
@@ -181,8 +197,8 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
     storageSection.innerHTML = `
       <h3 style="margin-top:20px">${esc(t('web.storagePathTitle'))}</h3>
       <form id="storage-form" class="row wrap" style="gap:8px;align-items:center;margin-top:8px">
-        <input type="text" name="path" style="flex-grow:1;min-width:240px;padding:6px 10px;font-family:monospace" value="${esc(storagePath)}" required>
-        <button class="btn secondary" type="submit">${esc(t('web.saveStoragePath'))}</button>
+        <input type="text" name="path" style="flex-grow:1;min-width:240px;padding:6px 10px;font-family:monospace" value="${esc(storagePath)}" ${canEdit ? '' : 'disabled'} required>
+        <button class="btn secondary" type="submit" ${canEdit ? '' : 'disabled'}>${esc(t('web.saveStoragePath'))}</button>
       </form>
       <div id="storage-notice" style="margin-top:8px"></div>
     `;
@@ -214,14 +230,19 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
       const model = btn.dataset.name;
 
       if (action === 'tune' && onTuneModel) {
-        onTuneModel(engineId, model);
+        await onTuneModel(engineId, model);
         return;
       }
 
       if (action === 'load') {
         btn.disabled = true;
         try {
-          await api(`/api/engines/${engineId}/load`, { model });
+          const res = await api(`/api/engines/${engineId}/load`, { model });
+          if (res?.unoptimized) {
+            loadNotice = t('web.unoptimizedNotice');
+          } else {
+            loadNotice = '';
+          }
           await refresh();
         } catch (err) {
           alert(err.message);
@@ -235,11 +256,7 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
         if (!confirm(t('web.deleteModelConfirm', { model }))) return;
         btn.disabled = true;
         try {
-          await fetch(`/api/engines/${engineId}/models`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model })
-          });
+          await api(`/api/engines/${engineId}/models`, { model }, 'DELETE');
           await refresh();
         } catch (err) {
           alert(err.message);
@@ -257,13 +274,13 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
       noticeDiv.innerHTML = '';
       try {
         const res = await api(`/api/engines/${engineId}/storage`, { path: input.value });
-        if (res.requiresRestart) {
+        if (res?.requiresRestart) {
           const p = document.createElement('p');
           p.className = 'notice';
           p.textContent = t('web.pathUpdatedRestartNotice');
           noticeDiv.appendChild(p);
         }
-        if (res.manualCommand) {
+        if (res?.manualCommand) {
           const pre = document.createElement('pre');
           pre.className = 'log';
           pre.textContent = res.manualCommand;
@@ -275,7 +292,9 @@ export function setupEngineDashboard({ engineId, container, api, t, esc, onTuneM
     });
   };
 
-  refresh();
+  if (autoRefresh) {
+    refresh();
+  }
 
   return { refresh, startPolling, stopPolling };
 }

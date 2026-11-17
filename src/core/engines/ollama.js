@@ -170,32 +170,59 @@ export const ollama = {
   },
 
   async ps(ctx) {
-    await this.ensureServer(ctx);
+    if (!ctx.detection?.serverRunning) return [];
     const r = await fetchJson(`${ctx.detection.apiUrl}/api/ps`);
     return (r?.json?.models || []).map((m) => ({
       name: m.name,
       model: m.model || m.name,
-      sizeBytes: m.size,
-      sizeVram: m.size_vram,
-      digest: m.digest,
-      expiresAt: m.expires_at,
+      sizeBytes: m.size ?? null,
+      sizeVram: m.size_vram ?? null,
+      digest: m.digest ?? null,
+      quant: m.details?.quantization_level || null,
+      expiresAt: m.expires_at || null,
       details: m.details || {},
     }));
   },
 
   async unload(ctx, model) {
-    if (!model) throw new TunerError('errors.missingModelName');
-    await this.ensureServer(ctx);
+    if (!model || typeof model !== 'string') throw new TunerError('errors.missingModelName');
+    if (!ctx.detection?.serverRunning) return { ok: true, unloaded: model };
     const r = await fetchJson(`${ctx.detection.apiUrl}/api/generate`, {
       method: 'POST',
       body: { model, keep_alive: 0 },
-      timeout: 10000,
+      timeout: 15000,
     });
     return { ok: !!r?.ok, unloaded: model };
   },
 
+  async quickLoad(ctx, modelKey, presetCandidate = null) {
+    if (!modelKey || typeof modelKey !== 'string') throw new TunerError('errors.missingModelName');
+    await this.ensureServer(ctx);
+    await this.unloadAll(ctx.detection.apiUrl);
+    let targetModel = modelKey;
+    if (presetCandidate) {
+      if (await this.isApplied(ctx, { key: modelKey }, presetCandidate)) {
+        targetModel = this.tunedName(modelKey, presetCandidate);
+      } else {
+        const tuned = this.tunedName(modelKey, presetCandidate);
+        const mf = path.join(os.tmpdir(), `llm-tuner-modelfile-${Date.now()}`);
+        await fs.writeFile(mf, this.modelfile(modelKey, presetCandidate));
+        const r = await run(ctx.detection.bin, ['create', tuned, '-f', mf]);
+        if (r.code !== 0) throw new Error(`ollama create failed: ${(r.stderr || r.stdout).slice(-300)}`);
+        targetModel = tuned;
+      }
+    }
+    const warm = await fetchJson(`${ctx.detection.apiUrl}/api/generate`, {
+      method: 'POST',
+      body: { model: targetModel, keep_alive: '30m' },
+      timeout: 300_000,
+    });
+    if (!warm?.ok) throw new Error(warm?.json?.error || 'Could not load model');
+    return { ok: true, model: targetModel };
+  },
+
   async deleteModel(ctx, model) {
-    if (!model) throw new TunerError('errors.missingModelName');
+    if (!model || typeof model !== 'string') throw new TunerError('errors.missingModelName');
     await this.ensureServer(ctx);
     const r = await fetchJson(`${ctx.detection.apiUrl}/api/delete`, {
       method: 'DELETE',
@@ -206,11 +233,20 @@ export const ollama = {
   },
 
   async setModelsDir(ctx, newPath) {
-    if (!newPath) throw new TunerError('errors.missingStoragePath');
-    const targetDir = path.resolve(newPath);
+    if (!newPath || typeof newPath !== 'string' || !newPath.trim()) throw new TunerError('errors.missingStoragePath');
+    const targetDir = path.resolve(newPath.trim());
+    const st = await fs.stat(targetDir).catch(() => null);
+    if (st && !st.isDirectory()) throw new TunerError('errors.invalidStoragePath');
+    if (!st) {
+      try {
+        await fs.mkdir(targetDir, { recursive: true });
+      } catch {
+        throw new TunerError('errors.invalidStoragePath');
+      }
+    }
     if (PLATFORM === 'linux') {
       const dropInDir = '/etc/systemd/system/ollama.service.d';
-      const dropInFile = path.join(dropInDir, 'override.conf');
+      const dropInFile = path.join(dropInDir, 'models.conf');
       const content = `[Service]\nEnvironment="OLLAMA_MODELS=${targetDir}"\n`;
       try {
         await fs.mkdir(dropInDir, { recursive: true });
@@ -218,7 +254,7 @@ export const ollama = {
         await run('systemctl', ['daemon-reload']).catch(() => {});
         return { ok: true, path: targetDir, requiresRestart: true };
       } catch {
-        const manualCommand = `sudo mkdir -p ${dropInDir} && echo -e '[Service]\\nEnvironment="OLLAMA_MODELS=${targetDir}"' | sudo tee ${dropInFile} && sudo systemctl daemon-reload && sudo systemctl restart ollama`;
+        const manualCommand = `sudo mkdir -p ${dropInDir} && printf '[Service]\\nEnvironment="OLLAMA_MODELS=%s"\\n' "${targetDir}" | sudo tee ${dropInFile} && sudo systemctl daemon-reload && sudo systemctl restart ollama`;
         return { ok: false, manualCommand, path: targetDir, requiresRestart: true };
       }
     }

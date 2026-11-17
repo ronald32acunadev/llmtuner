@@ -5,26 +5,35 @@ import { getColors } from '../colors.js';
 const GiB = 1024 ** 3;
 const fmtBytes = (b) => (b ? (b / GiB).toFixed(2) + ' GB' : '-');
 
-export async function psCommand(args = {}, { lang = 'en', theme = 'dark' } = {}) {
+export function formatTtl(expiresAt) {
+  if (!expiresAt) return '-';
+  const sec = Math.round((new Date(expiresAt).getTime() - Date.now()) / 1000);
+  if (sec <= 0) return 'expired';
+  if (sec < 60) return `${sec}s`;
+  return `${Math.round(sec / 60)}m`;
+}
+
+export async function psCommand(args = {}, { lang = 'en', theme = 'dark', engines = ENGINES, detectHw = detectHardware } = {}) {
   const c = getColors(theme);
   const t = (k, p) => translate(lang, k, p);
-  const hw = await detectHardware();
+  const hw = await detectHw();
 
   const allActive = [];
   const enginesToCheck = args.engine
-    ? Object.entries(ENGINES).filter(([id]) => id === args.engine)
-    : Object.entries(ENGINES);
+    ? Object.entries(engines).filter(([id]) => id === args.engine)
+    : Object.entries(engines);
 
   for (const [id, engine] of enginesToCheck) {
     const detection = await engine.detect(hw);
-    if (detection.serverRunning || detection.appRunning) {
+    if (detection?.serverRunning || detection?.appRunning) {
       const list = typeof engine.ps === 'function' ? await engine.ps({ detection, hw }) : [];
       for (const m of list) {
         allActive.push({
           engine: id,
           name: m.name || m.model,
-          sizeVram: m.sizeVram,
-          quant: m.details?.quantization_level || m.quant || ''
+          sizeVram: m.sizeVram ?? m.sizeBytes ?? null,
+          quant: m.details?.quantization_level || m.quant || '',
+          expiresAt: m.expiresAt || null
         });
       }
     }
@@ -40,14 +49,15 @@ export async function psCommand(args = {}, { lang = 'en', theme = 'dark' } = {})
     return allActive;
   }
 
-  const header = `${c.b('Engine'.padEnd(10))} ${c.b('Model'.padEnd(32))} ${c.b('VRAM'.padEnd(10))} ${c.b('Quant')}`;
-  const separator = c.dim('─'.repeat(60));
+  const header = `${c.b(t('cli.psColEngine').padEnd(10))} ${c.b(t('cli.psColModel').padEnd(32))} ${c.b(t('cli.psColVram').padEnd(10))} ${c.b(t('cli.psColQuant').padEnd(10))} ${c.b(t('cli.psColExpires'))}`;
+  const separator = c.dim('─'.repeat(75));
 
   console.log(header);
   console.log(separator);
 
   for (const m of allActive) {
-    const row = `${m.engine.padEnd(10)} ${m.name.padEnd(32)} ${fmtBytes(m.sizeVram).padEnd(10)} ${m.quant}`;
+    const quantStr = (m.quant || '-').padEnd(10);
+    const row = `${m.engine.padEnd(10)} ${m.name.padEnd(32)} ${fmtBytes(m.sizeVram).padEnd(10)} ${quantStr} ${formatTtl(m.expiresAt)}`;
     console.log(row);
   }
 

@@ -66,7 +66,9 @@ export const lmstudio = {
     const appRunning = procs.list.some((p) => APP_PROCESS.test(p.name) && !/--type=/.test(p.params || ''));
     const url = apiUrl();
     const server = await fetchJson(`${url}/api/v0/models`, { timeout: 1500 });
-    return { installed, home, bin, version, appRunning, serverRunning: !!server?.ok, apiUrl: url };
+    const settings = await readJson(path.join(home, 'settings.json'), {});
+    const modelsDir = settings?.downloadsFolder || path.join(home, 'models');
+    return { installed, home, modelsDir, bin, version, appRunning, serverRunning: !!server?.ok, apiUrl: url };
   },
 
   async listModels(ctx) {
@@ -83,7 +85,7 @@ export const lmstudio = {
   },
 
   async ps(ctx) {
-    const url = apiUrl();
+    const url = ctx.detection?.apiUrl || apiUrl();
     const server = await fetchJson(`${url}/api/v0/models`, { timeout: 2000 });
     if (server?.ok && Array.isArray(server.json?.data)) {
       return server.json.data
@@ -91,15 +93,15 @@ export const lmstudio = {
         .map((m) => ({
           name: m.id,
           model: m.id,
-          sizeBytes: null,
-          sizeVram: null,
-          arch: m.arch,
-          quant: m.quantization,
-          loadedContextLength: m.loaded_context_length,
+          sizeBytes: m.size_bytes ?? null,
+          sizeVram: m.size_vram ?? null,
+          arch: m.arch ?? null,
+          quant: m.quantization ?? null,
+          loadedContextLength: m.loaded_context_length ?? null,
           expiresAt: null,
         }));
     }
-    if (ctx.detection?.bin) {
+    if ((ctx.detection?.serverRunning || ctx.detection?.appRunning) && ctx.detection?.bin) {
       const r = await run(ctx.detection.bin, ['ps', '--json']);
       if (r.code === 0) {
         try {
@@ -109,9 +111,9 @@ export const lmstudio = {
             model: m.identifier || m.id || m.modelKey,
             sizeBytes: m.sizeBytes ?? null,
             sizeVram: m.sizeVram ?? null,
-            arch: m.architecture,
-            quant: m.quantization,
-            loadedContextLength: m.contextLength,
+            arch: m.architecture ?? null,
+            quant: m.quantization ?? null,
+            loadedContextLength: m.contextLength ?? null,
             expiresAt: null,
           }));
         } catch { /* parse error */ }
@@ -121,12 +123,12 @@ export const lmstudio = {
   },
 
   async unload(ctx, model) {
-    if (!model) throw new TunerError('errors.missingModelName');
+    if (!model || typeof model !== 'string') throw new TunerError('errors.missingModelName');
     if (ctx.detection?.bin) {
       const r = await run(ctx.detection.bin, ['unload', model]);
       return { ok: r.code === 0, unloaded: model };
     }
-    const url = apiUrl();
+    const url = ctx.detection?.apiUrl || apiUrl();
     const r = await fetchJson(`${url}/api/v0/models/unload`, {
       method: 'POST',
       body: { model },
@@ -135,18 +137,53 @@ export const lmstudio = {
     return { ok: !!r?.ok, unloaded: model };
   },
 
-  async deleteModel(ctx, model) {
-    if (!model) throw new TunerError('errors.missingModelName');
-    if (ctx.detection?.bin) {
-      const r = await run(ctx.detection.bin, ['delete', model]);
-      return { ok: r.code === 0, deleted: model };
+  async quickLoad(ctx, modelKey, presetCandidate = null) {
+    if (!modelKey || typeof modelKey !== 'string') throw new TunerError('errors.missingModelName');
+    const bin = ctx.detection?.bin;
+    if (!bin) throw new TunerError('bench.lmsUnavailable');
+    if (presetCandidate) {
+      await this.writeModelConfig(ctx, modelKey, presetCandidate, null).catch(() => {});
     }
-    return { ok: false, error: 'lms CLI required to delete models' };
+    await run(bin, ['server', 'start']);
+    await run(bin, ['unload', '--all']);
+    const args = ['load', modelKey, '-y'];
+    if (presetCandidate?.ctx) args.push('-c', String(presetCandidate.ctx));
+    if (presetCandidate?.gpuLayers != null && presetCandidate?.totalLayers) {
+      args.push('--gpu', presetCandidate.fullOffload ? 'max' : String(+(presetCandidate.gpuLayers / presetCandidate.totalLayers).toFixed(3)));
+    }
+    const r = await run(bin, args, { timeout: 600_000 });
+    if (r.code !== 0) throw new Error((r.stderr || r.stdout || 'lms load failed').slice(-400));
+    return { ok: true, model: modelKey };
+  },
+
+  async deleteModel(ctx, model) {
+    if (!model || typeof model !== 'string') throw new TunerError('errors.missingModelName');
+    const file = await this.resolveModelFile(ctx, model).catch(() => null);
+    if (file && (await exists(file))) {
+      await fs.unlink(file);
+      return { ok: true, deleted: model };
+    }
+    if (ctx.detection?.bin) {
+      const r = await run(ctx.detection.bin, ['delete', model]).catch(() => null);
+      if (r && r.code === 0) return { ok: true, deleted: model };
+      const rRm = await run(ctx.detection.bin, ['rm', model, '-y']).catch(() => null);
+      if (rRm && rRm.code === 0) return { ok: true, deleted: model };
+    }
+    return { ok: false, error: 'Model file not found' };
   },
 
   async setModelsDir(ctx, newPath) {
-    if (!newPath) throw new TunerError('errors.missingStoragePath');
-    const targetDir = path.resolve(newPath);
+    if (!newPath || typeof newPath !== 'string' || !newPath.trim()) throw new TunerError('errors.missingStoragePath');
+    const targetDir = path.resolve(newPath.trim());
+    const st = await fs.stat(targetDir).catch(() => null);
+    if (st && !st.isDirectory()) throw new TunerError('errors.invalidStoragePath');
+    if (!st) {
+      try {
+        await fs.mkdir(targetDir, { recursive: true });
+      } catch {
+        throw new TunerError('errors.invalidStoragePath');
+      }
+    }
     const home = ctx.detection?.home || await lmsHome();
     const settingsPath = path.join(home, 'settings.json');
     const settings = await readJson(settingsPath, {});

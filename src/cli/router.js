@@ -40,6 +40,10 @@ export function parseCliArgs(argv) {
     }
     if (a === '/engines' || a === 'engines') {
       command = 'engines';
+      if (argv[i + 1] === 'storage') {
+        args.subcommand = 'storage';
+        i++;
+      }
       continue;
     }
     if (a === '/mcp' || a === 'mcp') {
@@ -262,7 +266,7 @@ export async function routeCli(argv, env = {}) {
             await unloadCommand(args, { lang: currentLang, theme: currentTheme });
             break;
           case 'engines':
-            await enginesCommand(args, { lang: currentLang, theme: currentTheme });
+            await enginesCommand(args, { lang: currentLang, theme: currentTheme, interactive: true });
             break;
           case 'chat':
             await chatCommand(args, { lang: currentLang, theme: currentTheme });
